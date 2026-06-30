@@ -1,47 +1,35 @@
 #pragma once
 
-#include <external/glad/glad.h> // Need to fix 
+#include <glad/glad.h>
+#include <glm/glm.hpp>
+
 #include <string>
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <external/glm/glm.hpp>
 
-class Shader
-{
-
+class Shader {
 public:
-	uint32_t ID; // Program ID
+    Shader(const char* vertexPath, const char* fragmentPath);
+    ~Shader();
 
-	Shader(const char* vertexPath, const char* fragmentPath);
-	~Shader();
-	
-	void Use() const;
-	void Unuse() const;
-	
-	// Uniforms Bools
-	void setBool(const std::string &name, bool value) const;
+    Shader(const Shader&) = delete;
+    Shader& operator=(const Shader&) = delete;
+    Shader(Shader&& other) noexcept;
+    Shader& operator=(Shader&& other) noexcept;
 
-	// Uniforms Floats
-	void setUniform1f(const std::string &name, float value) const;
-	void setUniform2f(const std::string& name, glm::vec2 value) const;
-	void setUniform3f(const std::string& name, glm::vec3 value) const;
+    void Use() const;
+    static void Unuse();
 
-	// Uniforms Ints
-	void setUniform1i(const std::string &name, int value) const;
-	void setUniform2i(const std::string &name, glm::ivec2 value) const;
-	void setUniform3i(const std::string &name, glm::ivec3 value) const;
-
-	// Matrix 4x4
-	void setUniformMat4(const std::string &name, glm::mat4x4) const;
-
-	// Set Array Buffer
-	// void setArrayBuffer(std::string& name, int num_components, GLuint buffer, int stride, int count = 0) const;
-
+    void SetBool(const std::string& name, bool value) const;
+    void SetUniform1f(const std::string& name, float value) const;
+    void SetUniform2f(const std::string& name, const glm::vec2& value) const;
+    void SetUniform3f(const std::string& name, const glm::vec3& value) const;
+    void SetUniform1i(const std::string& name, int value) const;
+    void SetUniform2i(const std::string& name, const glm::ivec2& value) const;
+    void SetUniform3i(const std::string& name, const glm::ivec3& value) const;
+    void SetUniformMat4(const std::string& name, const glm::mat4& value) const;
 
 private:
-	void checkCompileErrors(unsigned int shader, std::string type);
+    static GLuint Compile(GLenum type, const std::string& source);
+    GLint GetUniformLocation(const std::string& name) const;
 
+    GLuint ID = 0;
 };
-
-#endif // SHADER_H

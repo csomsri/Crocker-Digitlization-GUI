@@ -1,150 +1,102 @@
-#include "Shader.h"
+#include "Engine/Engine/Render/Shader/Shader.hpp"
 
+#include <glm/gtc/type_ptr.hpp>
 
-// Public 
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+#include <utility>
+
+namespace {
+
+std::string ReadFile(const char* path) {
+    std::ifstream file(path, std::ios::in | std::ios::binary);
+    if (!file) {
+        throw std::runtime_error(std::string("Unable to open shader: ") + path);
+    }
+
+    std::ostringstream stream;
+    stream << file.rdbuf();
+    return stream.str();
+}
+
+} // namespace
+
 Shader::Shader(const char* vertexPath, const char* fragmentPath) {
-    std::string vertexCode;
-    std::string fragmentCode;
-    std::ifstream vShaderFile;
-    std::ifstream fShaderFile;
-
-	// Ensure Exceptions are thrown on failure
-    vShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-    fShaderFile.exceptions(std::ifstream::failbit | std::ifstream::badbit);
-
+    const GLuint vertex = Compile(GL_VERTEX_SHADER, ReadFile(vertexPath));
+    GLuint fragment = 0;
     try {
-        // 1. Open Files
-		vShaderFile.open(vertexPath);
-		fShaderFile.open(fragmentPath);
-        std::stringstream vShaderStream, fShaderStream;
-		// 2. Read File's Buffer Contents into Streams
-		vShaderStream << std::noskipws << vShaderFile.rdbuf();
-		fShaderStream << std::noskipws << fShaderFile.rdbuf();
-		// 3. Close File Handlers
-        vShaderFile.close();
-		fShaderFile.close();
-		// 4. Convert Stream into String
-		vertexCode = vShaderStream.str();
-		fragmentCode = fShaderStream.str();
-	} catch (std::ifstream::failure& e) {
-		std::cout << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ: " << e.what() << std::endl;
-		ID = 0;
-		return;
+        fragment = Compile(GL_FRAGMENT_SHADER, ReadFile(fragmentPath));
+    } catch (...) {
+        glDeleteShader(vertex);
+        throw;
+    }
 
-	}
+    ID = glCreateProgram();
+    glAttachShader(ID, vertex);
+    glAttachShader(ID, fragment);
+    glLinkProgram(ID);
+    glDeleteShader(vertex);
+    glDeleteShader(fragment);
 
-	const char* vShaderCode = vertexCode.c_str();
-	const char* fShaderCode = fragmentCode.c_str();
-	
-	// 5. Compile Shaders 
-	GLuint vertex, fragment;
-
-	// Vertex Shader
-	vertex = glCreateShader(GL_VERTEX_SHADER);
-	glShaderSource(vertex, 1, &vShaderCode, NULL);
-	glCompileShader(vertex);
-	checkCompileErrors(vertex, "VERTEX");
-
-	// Fragment Shader
-	fragment = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(fragment, 1, &fShaderCode, NULL);
-	glCompileShader(fragment);
-	checkCompileErrors(fragment, "FRAGMENT");
-
-    // Shader Program
-	ID = glCreateProgram();
-	glAttachShader(ID, vertex);
-	glAttachShader(ID, fragment);
-	glLinkProgram(ID);
-	checkCompileErrors(ID, "PROGRAM");
-
-	// Delete
-	glDeleteShader(vertex);
-	glDeleteShader(fragment);
-
+    GLint success = GL_FALSE;
+    glGetProgramiv(ID, GL_LINK_STATUS, &success);
+    if (success == GL_FALSE) {
+        GLint length = 0;
+        glGetProgramiv(ID, GL_INFO_LOG_LENGTH, &length);
+        std::string log(static_cast<std::size_t>(length), '\0');
+        glGetProgramInfoLog(ID, length, nullptr, log.data());
+        glDeleteProgram(ID);
+        ID = 0;
+        throw std::runtime_error("Shader program link failed:\n" + log);
+    }
 }
-
-void Shader::Use() const {
-	glUseProgram(ID);
-}
-
-void Shader::Unuse() const {
-	glUseProgram(0);
-}
-
-// Uniforms Bools
-void Shader::setBool(const std::string &name, bool value) const {
-	glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
-}
-
-// Uniforms Floats
-void Shader::setUniform1f(const std::string &name, float value) const {
-	glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
-}
-
-void Shader::setUniform2f(const std::string& name, glm::vec2 value) const {
-	glUniform2f(glGetUniformLocation(ID, name.c_str()), value.x, value.y);
-}
-
-void Shader::setUniform3f(const std::string& name, glm::vec3 value) const {
-	glUniform3f(glGetUniformLocation(ID, name.c_str()), value.x, value.y, value.z);
-}
-
-// Uniform Ints
-void Shader::setUniform1i(const std::string &name, int value) const {
-	glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
-}
-
-void Shader::setUniform2i(const std::string &name, glm::ivec2 value) const {
-	glUniform2i(glGetUniformLocation(ID, name.c_str()), value.x, value.y);
-}	
-
-void Shader::setUniform3i(const std::string &name, glm::ivec3 value) const {
-	glUniform3i(glGetUniformLocation(ID, name.c_str()), value.x, value.y, value.z);
-}	
-
-// Uniform Mat4 Floats and Ints
-void Shader::setUniformMat4(const std::string &name, glm::mat4x4 value) const {
-	glUniformMatrix4fv(glGetUniformLocation(ID, name.c_str()), 1, GL_FALSE, &value[0][0]);
-}	
-
-//void Shader::setArrayBuffer(std::string &name, int num_components, GLuint buffer, int stride, int count) const {
-//	stride = 0;
-//	count = 0;
-//	GLint location = glGetAttribLocation(ID, name.c_str());
-//	glBindBuffer(GL_ARRAY_BUFFER, buffer);
-//	glVertexAttribPointer(location, num_components, GL_FLOAT, GL_FALSE, stride, (void*)0);
-//	glEnableVertexAttribArray(location);
-//	
-//}
 
 Shader::~Shader() {
-	// std::cout << "Shader Deleted" << std::endl;
-	glDeleteProgram(ID);
+    glDeleteProgram(ID);
 }
 
-// Private
-void Shader::checkCompileErrors(unsigned int shader, std::string type)
-{
-    int success;
-    char infoLog[1024];
-    if (type != "PROGRAM")
-    {
-        glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-        if (!success)
-        {
-            glGetShaderInfoLog(shader, 1024, NULL, infoLog);
-            std::cout << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
+Shader::Shader(Shader&& other) noexcept
+    : ID(std::exchange(other.ID, 0)) {}
+
+Shader& Shader::operator=(Shader&& other) noexcept {
+    if (this != &other) {
+        glDeleteProgram(ID);
+        ID = std::exchange(other.ID, 0);
     }
-    else
-    {
-        glGetProgramiv(shader, GL_LINK_STATUS, &success);
-        if (!success)
-        {
-            glGetProgramInfoLog(shader, 1024, NULL, infoLog);
-            std::cout << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << infoLog << "\n -- --------------------------------------------------- -- " << std::endl;
-        }
-    }
+    return *this;
 }
 
+void Shader::Use() const { glUseProgram(ID); }
+void Shader::Unuse() { glUseProgram(0); }
+void Shader::SetBool(const std::string& name, bool value) const { glProgramUniform1i(ID, GetUniformLocation(name), value); }
+void Shader::SetUniform1f(const std::string& name, float value) const { glProgramUniform1f(ID, GetUniformLocation(name), value); }
+void Shader::SetUniform2f(const std::string& name, const glm::vec2& value) const { glProgramUniform2fv(ID, GetUniformLocation(name), 1, glm::value_ptr(value)); }
+void Shader::SetUniform3f(const std::string& name, const glm::vec3& value) const { glProgramUniform3fv(ID, GetUniformLocation(name), 1, glm::value_ptr(value)); }
+void Shader::SetUniform1i(const std::string& name, int value) const { glProgramUniform1i(ID, GetUniformLocation(name), value); }
+void Shader::SetUniform2i(const std::string& name, const glm::ivec2& value) const { glProgramUniform2iv(ID, GetUniformLocation(name), 1, glm::value_ptr(value)); }
+void Shader::SetUniform3i(const std::string& name, const glm::ivec3& value) const { glProgramUniform3iv(ID, GetUniformLocation(name), 1, glm::value_ptr(value)); }
+void Shader::SetUniformMat4(const std::string& name, const glm::mat4& value) const { glProgramUniformMatrix4fv(ID, GetUniformLocation(name), 1, GL_FALSE, glm::value_ptr(value)); }
+
+GLuint Shader::Compile(GLenum type, const std::string& source) {
+    const GLuint shader = glCreateShader(type);
+    const char* code = source.c_str();
+    glShaderSource(shader, 1, &code, nullptr);
+    glCompileShader(shader);
+
+    GLint success = GL_FALSE;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+    if (success == GL_FALSE) {
+        GLint length = 0;
+        glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &length);
+        std::string log(static_cast<std::size_t>(length), '\0');
+        glGetShaderInfoLog(shader, length, nullptr, log.data());
+        glDeleteShader(shader);
+        throw std::runtime_error("Shader compilation failed:\n" + log);
+    }
+    return shader;
+}
+
+GLint Shader::GetUniformLocation(const std::string& name) const {
+    return glGetUniformLocation(ID, name.c_str());
+}

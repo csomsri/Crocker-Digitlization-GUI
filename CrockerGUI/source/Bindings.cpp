@@ -7,7 +7,7 @@ namespace py = pybind11;
 PYBIND11_MODULE(CycloViz, m) {
     py::class_<Engine>(m, "Engine")
         .def(py::init<>())
-        .def("Init", &Engine::Init)
+        .def("initialize", &Engine::Initialize)
         .def("Update", &Engine::Update)
         .def("Render", &Engine::Render);
 }

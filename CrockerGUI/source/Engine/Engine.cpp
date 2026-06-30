@@ -1,9 +1,8 @@
-#include "Engine/Engine.hpp"
+#include "Engine/Engine/Engine.hpp"
 
 Engine::Engine() {}
 
-void Engine::initialize() {}
-
-void Engine::update() {}
-
-void Engine::render() {}    
+void Engine::Initialize() {}
+void Engine::Update() {}
+void Engine::Render() {}
+void Engine::Run() {}

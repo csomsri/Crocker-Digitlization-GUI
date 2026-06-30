@@ -1,6 +1,5 @@
 #pragma once
 
-#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -12,7 +11,6 @@ enum class CameraMovement {
     Up,
     Down
 };
-
 class Camera {
 public:
     Camera(
@@ -46,5 +44,3 @@ private:
     float mouse_sensitivity;
     float zoom;
 };
-
-#endif

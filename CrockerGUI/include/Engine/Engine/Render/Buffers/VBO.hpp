@@ -1,18 +1,23 @@
 #pragma once
 
 #include <glad/glad.h>
-#include <cstdint>
-#include <iostream>
 
 class VBO {
 public:
-	uint32_t ID;
-	VBO();
-	void Bind() const;
-	void Unbind() const;
-	void SetData(GLsizeiptr size, const void* data) const;
-	~VBO();
+    VBO();
+    ~VBO();
 
+    VBO(const VBO&) = delete;
+    VBO& operator=(const VBO&) = delete;
+    VBO(VBO&& other) noexcept;
+    VBO& operator=(VBO&& other) noexcept;
+
+    void Bind() const;
+    static void Unbind();
+    void SetData(GLsizeiptr size, const void* data, GLenum usage = GL_STATIC_DRAW) const;
+
+    GLuint GetID() const;
+
+private:
+    GLuint ID = 0;
 };
-
-
