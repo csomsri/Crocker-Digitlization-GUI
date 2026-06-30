@@ -1,0 +1,5 @@
+C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/CMakeFiles/crocker_engine.dir
+C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/CMakeFiles/CrockerOpenGLTest.dir
+C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/CMakeFiles/ALL_BUILD.dir
+C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/CMakeFiles/ZERO_CHECK.dir
+C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/external/GLFW/CMakeFiles/glfw.dir

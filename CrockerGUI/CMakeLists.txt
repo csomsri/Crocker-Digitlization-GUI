@@ -18,6 +18,8 @@ add_library(crocker_engine STATIC
     source/Engine/Render/Buffers/VAO.cpp
     source/Engine/Render/Buffers/VBO.cpp
     source/Engine/Render/Shader/Shader.cpp
+    source/Engine/Viz/Charts/LineChart/LineChart.cpp
+    source/Engine/Viz/Charts/BarChart/BarChart.cpp
     external/glad/src/glad.c
 )
 

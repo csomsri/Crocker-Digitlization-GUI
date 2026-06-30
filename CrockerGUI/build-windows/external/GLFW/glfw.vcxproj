@@ -22,7 +22,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{B53F713D-825E-370A-B0FD-E8AAA7B4C0F4}</ProjectGuid>
+    <ProjectGuid>{C1A4A112-EA44-3B8E-8D92-6618A9502B38}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
     <Platform>x64</Platform>
@@ -59,19 +59,19 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.20506.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\Debug\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\Debug\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glfw.dir\Debug\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">glfw</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">.lib</TargetExt>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\Release\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\Release\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glfw.dir\Release\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">glfw</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='Release|x64'">.lib</TargetExt>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\MinSizeRel\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\MinSizeRel\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">glfw.dir\MinSizeRel\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">glfw</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">.lib</TargetExt>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\RelWithDebInfo\</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\RelWithDebInfo\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">glfw.dir\RelWithDebInfo\</IntDir>
     <TargetName Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">glfw</TargetName>
     <TargetExt Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">.lib</TargetExt>
@@ -247,7 +247,7 @@
       <UseUtf8Encoding>Always</UseUtf8Encoding>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Building Custom Rule C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/external/GLFW/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows/external/GLFW/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -256,11 +256,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Program Files\CMake\share\cmake-4.3\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\Internal\CheckSourceCompiles.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkObjects>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Building Custom Rule C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/external/GLFW/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows/external/GLFW/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -269,11 +269,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Program Files\CMake\share\cmake-4.3\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\Internal\CheckSourceCompiles.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkObjects>
       <Message Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">Building Custom Rule C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/external/GLFW/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows/external/GLFW/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -282,11 +282,11 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Program Files\CMake\share\cmake-4.3\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\Internal\CheckSourceCompiles.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='MinSizeRel|x64'">false</LinkObjects>
       <Message Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">Building Custom Rule C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/external/GLFW/CMakeLists.txt</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows/external/GLFW/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
@@ -295,7 +295,7 @@ exit /b %1
 :cmDone
 if %errorlevel% neq 0 goto :VCEnd</Command>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Program Files\CMake\share\cmake-4.3\Modules\CheckCSourceCompiles.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckIncludeFile.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\CheckLibraryExists.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageHandleStandardArgs.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindPackageMessage.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\FindThreads.cmake;C:\Program Files\CMake\share\cmake-4.3\Modules\Internal\CheckSourceCompiles.cmake;%(AdditionalInputs)</AdditionalInputs>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\external\GLFW\CMakeFiles\generate.stamp</Outputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\external\GLFW\CMakeFiles\generate.stamp</Outputs>
       <LinkObjects Condition="'$(Configuration)|$(Platform)'=='RelWithDebInfo|x64'">false</LinkObjects>
     </CustomBuild>
   </ItemGroup>
@@ -324,8 +324,8 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup />
   <ItemGroup>
-    <ProjectReference Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\ZERO_CHECK.vcxproj">
-      <Project>{21E07F52-75E3-3E1F-93FD-D1FCDEBD4269}</Project>
+    <ProjectReference Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\ZERO_CHECK.vcxproj">
+      <Project>{1B2AF0C9-6E5F-314B-B90B-6D1CC1B68E5C}</Project>
       <Name>ZERO_CHECK</Name>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>

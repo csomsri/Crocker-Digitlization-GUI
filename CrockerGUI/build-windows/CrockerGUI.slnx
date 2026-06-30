@@ -7,7 +7,7 @@
 		<BuildType Name="RelWithDebInfo"/>
 		<Platform Name="x64"/>
 	</Configurations>
-	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="7b86bf2d-bba0-3ac8-b28f-34c9c1cfb6ed" DefaultStartup="true">
+	<Project Path="ALL_BUILD.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="e397bdd0-b8d7-33ff-a5c8-f6a36638cff3" DefaultStartup="true">
 		<BuildDependency Project="CrockerOpenGLTest.vcxproj"/>
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 		<BuildDependency Project="crocker_engine.vcxproj"/>
@@ -16,16 +16,16 @@
 		<Build Solution="MinSizeRel|*" Project="false"/>
 		<Build Solution="RelWithDebInfo|*" Project="false"/>
 	</Project>
-	<Project Path="CrockerOpenGLTest.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="2df6f937-4062-3448-bd7c-a95a57ab9dc2">
+	<Project Path="CrockerOpenGLTest.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="8784ac60-511b-332b-81be-adc7c2e1da88">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 		<BuildDependency Project="crocker_engine.vcxproj"/>
 		<BuildDependency Project="external/GLFW/glfw.vcxproj"/>
 	</Project>
-	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="21e07f52-75e3-3e1f-93fd-d1fcdebd4269"/>
-	<Project Path="crocker_engine.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="ad95338c-1739-34d3-8031-31fbeabd0c85">
+	<Project Path="ZERO_CHECK.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="1b2af0c9-6e5f-314b-b90b-6d1cc1b68e5c"/>
+	<Project Path="crocker_engine.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="363b57dd-2c93-3228-9142-30f27f6a42b7">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
-	<Project Path="external/GLFW/glfw.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="b53f713d-825e-370a-b0fd-e8aaa7b4c0f4">
+	<Project Path="external/GLFW/glfw.vcxproj" Type="8bc9ceb8-8b4a-11d0-8d11-00a0c91bc942" Id="c1a4a112-ea44-3b8e-8d92-6618a9502b38">
 		<BuildDependency Project="ZERO_CHECK.vcxproj"/>
 	</Project>
 </Solution>

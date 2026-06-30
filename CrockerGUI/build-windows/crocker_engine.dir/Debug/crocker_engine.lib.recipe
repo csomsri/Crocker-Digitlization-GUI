@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows-debug\x64\Debug\ZERO_CHECK</FullPath>
+      <FullPath>C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-windows\x64\Debug\ZERO_CHECK</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

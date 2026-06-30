@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/cmake_install.cmake",
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/external/GLFW/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,10 @@
+^C:\USERS\MATTH\RESEARCH\CROCKERNUCLEARLAB\DIGITALIZATION\CROCKERGUI\BUILD-CHART-CHECK\CMAKEFILES\7C2AE5F78AF2E8D4C3934D27F51FE992\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-chart-check/CrockerGUI.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

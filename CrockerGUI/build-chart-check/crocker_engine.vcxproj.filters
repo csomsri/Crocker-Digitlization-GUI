@@ -1,0 +1,40 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Render\Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Render\Renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Render\Buffers\VAO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Render\Buffers\VBO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Render\Shader\Shader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Viz\Charts\LineChart\LineChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\source\Engine\Viz\Charts\BarChart\BarChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\external\glad\src\glad.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{BFCC8C6C-49F2-3373-A40E-371A63A9A500}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

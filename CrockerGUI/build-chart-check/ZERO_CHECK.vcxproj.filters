@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\CrockerGUI\build-chart-check\CMakeFiles\7c2ae5f78af2e8d4c3934d27f51fe992\generate.stamp.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{366F9AD6-BC17-38C2-9755-0BCE6D6A2EEB}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

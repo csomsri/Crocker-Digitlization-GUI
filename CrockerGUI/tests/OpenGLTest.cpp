@@ -5,6 +5,8 @@
 */
 
 #include "Engine/Engine/Render/Renderer.hpp"
+#include "Engine/Viz/Charts/ChartTypes/BarChart.hpp"
+#include "Engine/Viz/Charts/ChartTypes/LineChart.hpp"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -104,6 +106,18 @@ int main(int argc, char* argv[]) {
         );
         renderer.Initialize();
 
+        LineChart lineChart;
+        lineChart.SetData({
+            {"time", "counts"},
+            {{0.0f, 2.0f}, {1.0f, 3.5f}, {2.0f, 2.8f}, {3.0f, 5.2f}, {4.0f, 4.4f}}
+        });
+
+        BarChart barChart;
+        barChart.SetData({
+            {"channel", "counts"},
+            {{0.0f, 4.0f}, {1.0f, 7.0f}, {2.0f, 3.0f}, {3.0f, 8.0f}, {4.0f, 5.0f}}
+        });
+
         std::cout << "OpenGL: " << glGetString(GL_VERSION) << '\n';
         std::cout << "Renderer: " << glGetString(GL_RENDERER) << '\n';
 
@@ -116,6 +130,10 @@ int main(int argc, char* argv[]) {
             int height = 0;
             glfwGetFramebufferSize(window, &width, &height);
             renderer.Render(width, height);
+
+            const float chartWidth = static_cast<float>(width) * 0.5f;
+            lineChart.Render({0.0f, 0.0f, chartWidth, static_cast<float>(height)});
+            barChart.Render({chartWidth, 0.0f, chartWidth, static_cast<float>(height)});
 
             glfwSwapBuffers(window);
             glfwPollEvents();

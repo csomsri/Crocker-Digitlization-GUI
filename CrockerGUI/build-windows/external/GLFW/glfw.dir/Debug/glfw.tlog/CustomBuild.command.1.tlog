@@ -1,6 +1,6 @@
 ^C:\USERS\MATTH\RESEARCH\CROCKERNUCLEARLAB\DIGITALIZATION\CROCKERGUI\EXTERNAL\GLFW\CMAKELISTS.TXT
 setlocal
-"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/CMakeFiles/generate.stamp
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows --check-stamp-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows/external/GLFW/CMakeFiles/generate.stamp
 if %errorlevel% neq 0 goto :cmEnd
 :cmEnd
 endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone

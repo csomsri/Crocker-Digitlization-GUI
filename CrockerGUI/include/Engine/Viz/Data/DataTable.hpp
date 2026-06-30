@@ -3,9 +3,16 @@
 #include <vector>
 #include <string>
 
-// DataTable Struct
 struct DataTable {
     std::vector<std::string> columnNames;
-    std::vector<std::vector<float>> data;
+    // Row-major storage: rows[rowIndex][columnIndex].
+    std::vector<std::vector<float>> rows;
+
+    std::size_t RowCount() const noexcept { return rows.size(); }
+    std::size_t ColumnCount() const noexcept {
+        return columnNames.empty()
+            ? (rows.empty() ? 0 : rows.front().size())
+            : columnNames.size();
+    }
 };
 
