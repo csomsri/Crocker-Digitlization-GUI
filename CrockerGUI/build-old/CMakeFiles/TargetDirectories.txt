@@ -1,0 +1,4 @@
+/mnt/c/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/CMakeFiles/crocker_engine.dir
+/mnt/c/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/CMakeFiles/CrockerOpenGLTest.dir
+/mnt/c/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/CMakeFiles/rebuild_cache.dir

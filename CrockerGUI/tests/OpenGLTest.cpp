@@ -10,6 +10,7 @@
 #include <GLFW/glfw3.h>
 
 #include <exception>
+#include <filesystem>
 #include <iostream>
 
 namespace {
@@ -39,7 +40,7 @@ void APIENTRY OnOpenGLError(
 
 } // namespace
 
-int main() {
+int main(int argc, char* argv[]) {
     glfwSetErrorCallback(OnGLFWError);
 
     if (glfwInit() == GLFW_FALSE) {
@@ -89,7 +90,18 @@ int main() {
         glDebugMessageCallback(OnOpenGLError, nullptr);
         glClearColor(0.03f, 0.05f, 0.08f, 1.0f);
 
-        Renderer renderer("shaders/Test.vert", "shaders/Test.frag");
+        const std::filesystem::path executableDirectory =
+            argc > 0
+                ? std::filesystem::absolute(argv[0]).parent_path()
+                : std::filesystem::current_path();
+        const std::filesystem::path shaderDirectory = executableDirectory / "shaders";
+        const std::string vertexShaderPath = (shaderDirectory / "Test.vert").string();
+        const std::string fragmentShaderPath = (shaderDirectory / "Test.frag").string();
+
+        Renderer renderer(
+            vertexShaderPath.c_str(),
+            fragmentShaderPath.c_str()
+        );
         renderer.Initialize();
 
         std::cout << "OpenGL: " << glGetString(GL_VERSION) << '\n';

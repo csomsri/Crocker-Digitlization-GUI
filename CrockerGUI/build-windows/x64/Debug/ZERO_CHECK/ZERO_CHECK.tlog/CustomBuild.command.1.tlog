@@ -1,0 +1,10 @@
+^C:\USERS\MATTH\RESEARCH\CROCKERNUCLEARLAB\DIGITALIZATION\CROCKERGUI\BUILD-WINDOWS-DEBUG\CMAKEFILES\5F6E8F4442F41EEB1E605C6DC0C61199\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CrockerGUI.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

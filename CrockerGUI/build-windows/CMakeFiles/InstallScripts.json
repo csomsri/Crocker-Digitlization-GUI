@@ -1,0 +1,8 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/cmake_install.cmake",
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/external/GLFW/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

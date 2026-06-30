@@ -1,0 +1,2603 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineSystem.cmake:212 (message)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      The system is: Windows - 10.0.26200 - AMD64
+...
+
+---
+events:
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:468 (find_file)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:506 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:122 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "file"
+    variable: "src_in"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "CMakeCCompilerId.c.in"
+    candidate_directories:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/"
+    found: "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCCompilerId.c.in"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:122 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Compiling the C compiler identification source file "CMakeCCompilerId.c" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      MSBuild version 18.7.8+1ac568fee for .NET Framework
+      Build started 6/29/2026 9:02:49 PM.
+      
+      Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdC\\CompilerIdC.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+        Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+        Creating directory "Debug\\CompilerIdC.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdC.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        Touching "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
+      ClCompile:
+        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc145.pdb" /external:W0 /Gd /TC /FC /errorReport:queue CMakeCCompilerId.c
+        CMakeCCompilerId.c
+      Link:
+        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdC.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdC.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdC.lib" /MACHINE:X64 Debug\\CMakeCCompilerId.obj
+        CompilerIdC.vcxproj -> C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdC\\CompilerIdC.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_C_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_C_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        Deleting file "Debug\\CompilerIdC.tlog\\unsuccessfulbuild".
+        Touching "Debug\\CompilerIdC.tlog\\CompilerIdC.lastbuildstate".
+      Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdC\\CompilerIdC.vcxproj" (default targets).
+      
+      Build succeeded.
+          0 Warning(s)
+          0 Error(s)
+      
+      Time Elapsed 00:00:01.13
+      
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.exe"
+      
+      Compilation of the C compiler identification source "CMakeCCompilerId.c" produced "CompilerIdC.vcxproj"
+      
+      The C compiler identification is MSVC, found in:
+        C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/4.3.2/CompilerIdC/CompilerIdC.exe
+      
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:65 (__resolve_tool_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:103 (__resolve_linker_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/link.com"
+    found: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/link.exe"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:65 (__resolve_tool_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:104 (__resolve_linker_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lld-link"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link.com"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link.exe"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link.com"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link.exe"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link.com"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link.exe"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link.com"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link.exe"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link"
+      - "C:/Program Files/PlasticSCM5/server/lld-link.com"
+      - "C:/Program Files/PlasticSCM5/server/lld-link.exe"
+      - "C:/Program Files/PlasticSCM5/server/lld-link"
+      - "C:/Program Files/PlasticSCM5/client/lld-link.com"
+      - "C:/Program Files/PlasticSCM5/client/lld-link.exe"
+      - "C:/Program Files/PlasticSCM5/client/lld-link"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link.com"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link.exe"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link"
+      - "C:/Windows/System32/lld-link.com"
+      - "C:/Windows/System32/lld-link.exe"
+      - "C:/Windows/System32/lld-link"
+      - "C:/Windows/lld-link.com"
+      - "C:/Windows/lld-link.exe"
+      - "C:/Windows/lld-link"
+      - "C:/Windows/System32/wbem/lld-link.com"
+      - "C:/Windows/System32/wbem/lld-link.exe"
+      - "C:/Windows/System32/wbem/lld-link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link"
+      - "C:/Windows/System32/OpenSSH/lld-link.com"
+      - "C:/Windows/System32/OpenSSH/lld-link.exe"
+      - "C:/Windows/System32/OpenSSH/lld-link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link"
+      - "C:/Program Files/dotnet/lld-link.com"
+      - "C:/Program Files/dotnet/lld-link.exe"
+      - "C:/Program Files/dotnet/lld-link"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link.com"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link.exe"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link"
+      - "C:/Program Files/Git/cmd/lld-link.com"
+      - "C:/Program Files/Git/cmd/lld-link.exe"
+      - "C:/Program Files/Git/cmd/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link"
+      - "C:/Program Files/CMake/bin/lld-link.com"
+      - "C:/Program Files/CMake/bin/lld-link.exe"
+      - "C:/Program Files/CMake/bin/lld-link"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link"
+      - "C:/Users/matth/.dotnet/tools/lld-link.com"
+      - "C:/Users/matth/.dotnet/tools/lld-link.exe"
+      - "C:/Users/matth/.dotnet/tools/lld-link"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link.com"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link.com"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link.exe"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:243 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_LINKER"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "link"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/link.com"
+    found: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/link.exe"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:243 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_MT"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "mt"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/mt.com"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/mt.exe"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/mt"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/mt.com"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/mt.exe"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/mt"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/mt.com"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/mt.exe"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/mt"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/mt.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/mt.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/mt"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/mt.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/mt.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/mt"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/mt.com"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/mt.exe"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/mt"
+      - "C:/Program Files/PlasticSCM5/server/mt.com"
+      - "C:/Program Files/PlasticSCM5/server/mt.exe"
+      - "C:/Program Files/PlasticSCM5/server/mt"
+      - "C:/Program Files/PlasticSCM5/client/mt.com"
+      - "C:/Program Files/PlasticSCM5/client/mt.exe"
+      - "C:/Program Files/PlasticSCM5/client/mt"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/mt.com"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/mt.exe"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/mt"
+      - "C:/Windows/System32/mt.com"
+      - "C:/Windows/System32/mt.exe"
+      - "C:/Windows/System32/mt"
+      - "C:/Windows/mt.com"
+      - "C:/Windows/mt.exe"
+      - "C:/Windows/mt"
+      - "C:/Windows/System32/wbem/mt.com"
+      - "C:/Windows/System32/wbem/mt.exe"
+      - "C:/Windows/System32/wbem/mt"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/mt"
+      - "C:/Windows/System32/OpenSSH/mt.com"
+      - "C:/Windows/System32/OpenSSH/mt.exe"
+      - "C:/Windows/System32/OpenSSH/mt"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/mt"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/mt"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/mt"
+      - "C:/Program Files/dotnet/mt.com"
+      - "C:/Program Files/dotnet/mt.exe"
+      - "C:/Program Files/dotnet/mt"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/mt.com"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/mt.exe"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/mt"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/mt"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/mt"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/mt"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/mt"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/mt"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/mt.com"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/mt.exe"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/mt"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/mt.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/mt.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/mt"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/mt.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/mt.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/mt"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/mt.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/mt.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/mt"
+      - "C:/Program Files (x86)/ZED SDK/bin/mt.com"
+      - "C:/Program Files (x86)/ZED SDK/bin/mt.exe"
+      - "C:/Program Files (x86)/ZED SDK/bin/mt"
+      - "C:/Program Files/Git/cmd/mt.com"
+      - "C:/Program Files/Git/cmd/mt.exe"
+      - "C:/Program Files/Git/cmd/mt"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/mt.com"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/mt.exe"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/mt"
+      - "C:/Program Files/CMake/bin/mt.com"
+      - "C:/Program Files/CMake/bin/mt.exe"
+      - "C:/Program Files/CMake/bin/mt"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/mt.com"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/mt.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/mt"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/mt.com"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/mt.exe"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/mt"
+      - "C:/Users/matth/.dotnet/tools/mt.com"
+      - "C:/Users/matth/.dotnet/tools/mt.exe"
+      - "C:/Users/matth/.dotnet/tools/mt"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/mt.com"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/mt.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/mt"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/mt.com"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/mt.exe"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/mt"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/mt.com"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/mt.exe"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/mt"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/mt.com"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/mt.exe"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/mt"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:243 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCCompiler.cmake:200 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_AR"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lib"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lib.com"
+    found: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lib.exe"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:468 (find_file)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:506 (CMAKE_DETERMINE_COMPILER_ID_WRITE)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:8 (CMAKE_DETERMINE_COMPILER_ID_BUILD)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "file"
+    variable: "src_in"
+    description: "Path to a file."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "CMakeCXXCompilerId.cpp.in"
+    candidate_directories:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/"
+    found: "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCXXCompilerId.cpp.in"
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCXXCompiler.cmake:125 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      MSBuild version 18.7.8+1ac568fee for .NET Framework
+      Build started 6/29/2026 9:02:51 PM.
+      
+      Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" on node 1 (default targets).
+      PrepareForBuild:
+        Creating directory "Debug\\".
+        Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+        Creating directory "Debug\\CompilerIdCXX.tlog\\".
+      InitializeBuildStatus:
+        Creating "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+        Touching "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+      ClCompile:
+        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc145.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+        CompilerIdCXX.vcxproj -> C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdCXX\\CompilerIdCXX.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_CXX_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        Deleting file "Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild".
+        Touching "Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate".
+      Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\4.3.2\\CompilerIdCXX\\CompilerIdCXX.vcxproj" (default targets).
+      
+      Build succeeded.
+          0 Warning(s)
+          0 Error(s)
+      
+      Time Elapsed 00:00:00.65
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.vcxproj"
+      
+      The CXX compiler identification is MSVC, found in:
+        C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/4.3.2/CompilerIdCXX/CompilerIdCXX.exe
+      
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:37 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:65 (__resolve_tool_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeFindBinUtils.cmake:104 (__resolve_linker_path)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCXXCompiler.cmake:206 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "_CMAKE_TOOL_WITH_PATH"
+    description: "Path to a program."
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: false
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: false
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "lld-link"
+    candidate_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+    searched_directories:
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link.com"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link.exe"
+      - "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/Hostx64/x64/lld-link"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link.com"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link.exe"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lld-link"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link.com"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link.exe"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/lld-link"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lld-link"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/lld-link"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link.com"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link.exe"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/lld-link"
+      - "C:/Program Files/PlasticSCM5/server/lld-link.com"
+      - "C:/Program Files/PlasticSCM5/server/lld-link.exe"
+      - "C:/Program Files/PlasticSCM5/server/lld-link"
+      - "C:/Program Files/PlasticSCM5/client/lld-link.com"
+      - "C:/Program Files/PlasticSCM5/client/lld-link.exe"
+      - "C:/Program Files/PlasticSCM5/client/lld-link"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link.com"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link.exe"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/lld-link"
+      - "C:/Windows/System32/lld-link.com"
+      - "C:/Windows/System32/lld-link.exe"
+      - "C:/Windows/System32/lld-link"
+      - "C:/Windows/lld-link.com"
+      - "C:/Windows/lld-link.exe"
+      - "C:/Windows/lld-link"
+      - "C:/Windows/System32/wbem/lld-link.com"
+      - "C:/Windows/System32/wbem/lld-link.exe"
+      - "C:/Windows/System32/wbem/lld-link"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/lld-link"
+      - "C:/Windows/System32/OpenSSH/lld-link.com"
+      - "C:/Windows/System32/OpenSSH/lld-link.exe"
+      - "C:/Windows/System32/OpenSSH/lld-link"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lld-link"
+      - "C:/Program Files/dotnet/lld-link.com"
+      - "C:/Program Files/dotnet/lld-link.exe"
+      - "C:/Program Files/dotnet/lld-link"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link.com"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link.exe"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lld-link"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lld-link"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link.com"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link.exe"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lld-link"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link.com"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link.exe"
+      - "C:/Program Files (x86)/ZED SDK/bin/lld-link"
+      - "C:/Program Files/Git/cmd/lld-link.com"
+      - "C:/Program Files/Git/cmd/lld-link.exe"
+      - "C:/Program Files/Git/cmd/lld-link"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link.com"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link.exe"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lld-link"
+      - "C:/Program Files/CMake/bin/lld-link.com"
+      - "C:/Program Files/CMake/bin/lld-link.exe"
+      - "C:/Program Files/CMake/bin/lld-link"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lld-link"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lld-link"
+      - "C:/Users/matth/.dotnet/tools/lld-link.com"
+      - "C:/Users/matth/.dotnet/tools/lld-link.exe"
+      - "C:/Users/matth/.dotnet/tools/lld-link"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/lld-link"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link.com"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/lld-link"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link.com"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link.exe"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lld-link"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link.com"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link.exe"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lld-link"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+  -
+    kind: "find-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineRCCompiler.cmake:40 (find_program)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC.cmake:592 (enable_language)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC.cmake:565 (__windows_compiler_msvc_enable_rc)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Platform/Windows-MSVC-C.cmake:5 (__windows_compiler_msvc)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeCInformation.cmake:48 (include)"
+      - "CMakeLists.txt:3 (project)"
+    mode: "program"
+    variable: "CMAKE_RC_COMPILER"
+    description: "RC compiler"
+    settings:
+      SearchFramework: "NEVER"
+      SearchAppBundle: "NEVER"
+      CMAKE_FIND_USE_CMAKE_PATH: true
+      CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+      CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+      CMAKE_FIND_USE_INSTALL_PREFIX: true
+    names:
+      - "rc"
+    candidate_directories:
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/"
+      - "C:/Program Files/PlasticSCM5/server/"
+      - "C:/Program Files/PlasticSCM5/client/"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/"
+      - "C:/Windows/System32/"
+      - "C:/Windows/"
+      - "C:/Windows/System32/wbem/"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/"
+      - "C:/Windows/System32/OpenSSH/"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/"
+      - "C:/Program Files/dotnet/"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/"
+      - "C:/Program Files (x86)/ZED SDK/bin/"
+      - "C:/Program Files/Git/cmd/"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/"
+      - "C:/Users/matth/.dotnet/tools/"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/"
+      - "C:/Program Files/bin/"
+      - "C:/Program Files/sbin/"
+      - "C:/Program Files/"
+      - "C:/Program Files (x86)/bin/"
+      - "C:/Program Files (x86)/sbin/"
+      - "C:/Program Files (x86)/"
+      - "C:/Program Files/CMake/bin/"
+      - "C:/Program Files/CMake/sbin/"
+      - "C:/Program Files/CMake/"
+      - "C:/Program Files (x86)/CrockerGUI/bin/"
+      - "C:/Program Files (x86)/CrockerGUI/sbin/"
+      - "C:/Program Files (x86)/CrockerGUI/"
+    searched_directories:
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/rc.com"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/rc.exe"
+      - "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/rc"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/rc.com"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/rc.exe"
+      - "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/rc"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/rc.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/rc.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/rc"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/rc.com"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/rc.exe"
+      - "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/rc"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/rc.com"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/rc.exe"
+      - "C:/Program Files/Oculus/Support/oculus-runtime/rc"
+      - "C:/Program Files/PlasticSCM5/server/rc.com"
+      - "C:/Program Files/PlasticSCM5/server/rc.exe"
+      - "C:/Program Files/PlasticSCM5/server/rc"
+      - "C:/Program Files/PlasticSCM5/client/rc.com"
+      - "C:/Program Files/PlasticSCM5/client/rc.exe"
+      - "C:/Program Files/PlasticSCM5/client/rc"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/rc.com"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/rc.exe"
+      - "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/bin/rc"
+      - "C:/Windows/System32/rc.com"
+      - "C:/Windows/System32/rc.exe"
+      - "C:/Windows/System32/rc"
+      - "C:/Windows/rc.com"
+      - "C:/Windows/rc.exe"
+      - "C:/Windows/rc"
+      - "C:/Windows/System32/wbem/rc.com"
+      - "C:/Windows/System32/wbem/rc.exe"
+      - "C:/Windows/System32/wbem/rc"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc.com"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc.exe"
+      - "C:/Windows/System32/WindowsPowerShell/v1.0/rc"
+      - "C:/Windows/System32/OpenSSH/rc.com"
+      - "C:/Windows/System32/OpenSSH/rc.exe"
+      - "C:/Windows/System32/OpenSSH/rc"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc.com"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc.exe"
+      - "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/rc"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/rc"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/rc"
+      - "C:/Program Files/dotnet/rc.com"
+      - "C:/Program Files/dotnet/rc.exe"
+      - "C:/Program Files/dotnet/rc"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/rc.com"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/rc.exe"
+      - "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/rc"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/rc"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/rc"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc.com"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc.exe"
+      - "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/rc"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/rc"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc.com"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc.exe"
+      - "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/rc"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/rc.com"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/rc.exe"
+      - "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/rc"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/rc.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/rc.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/rc"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/rc.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/rc.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/rc"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/rc.com"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/rc.exe"
+      - "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/rc"
+      - "C:/Program Files (x86)/ZED SDK/bin/rc.com"
+      - "C:/Program Files (x86)/ZED SDK/bin/rc.exe"
+      - "C:/Program Files (x86)/ZED SDK/bin/rc"
+      - "C:/Program Files/Git/cmd/rc.com"
+      - "C:/Program Files/Git/cmd/rc.exe"
+      - "C:/Program Files/Git/cmd/rc"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/rc.com"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/rc.exe"
+      - "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/rc"
+      - "C:/Program Files/CMake/bin/rc.com"
+      - "C:/Program Files/CMake/bin/rc.exe"
+      - "C:/Program Files/CMake/bin/rc"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/rc.com"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/rc.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Python/Launcher/rc"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/rc.com"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/rc.exe"
+      - "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/rc"
+      - "C:/Users/matth/.dotnet/tools/rc.com"
+      - "C:/Users/matth/.dotnet/tools/rc.exe"
+      - "C:/Users/matth/.dotnet/tools/rc"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/rc.com"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/rc.exe"
+      - "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/bin/rc"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/rc.com"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/rc.exe"
+      - "C:/Users/matth/AppData/Local/Muse Hub/lib/rc"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/rc.com"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/rc.exe"
+      - "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/rc"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/rc.com"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/rc.exe"
+      - "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/rc"
+      - "C:/Program Files/bin/rc.com"
+      - "C:/Program Files/bin/rc.exe"
+      - "C:/Program Files/bin/rc"
+      - "C:/Program Files/sbin/rc.com"
+      - "C:/Program Files/sbin/rc.exe"
+      - "C:/Program Files/sbin/rc"
+      - "C:/Program Files/rc.com"
+      - "C:/Program Files/rc.exe"
+      - "C:/Program Files/rc"
+      - "C:/Program Files (x86)/bin/rc.com"
+      - "C:/Program Files (x86)/bin/rc.exe"
+      - "C:/Program Files (x86)/bin/rc"
+      - "C:/Program Files (x86)/sbin/rc.com"
+      - "C:/Program Files (x86)/sbin/rc.exe"
+      - "C:/Program Files (x86)/sbin/rc"
+      - "C:/Program Files (x86)/rc.com"
+      - "C:/Program Files (x86)/rc.exe"
+      - "C:/Program Files (x86)/rc"
+      - "C:/Program Files/CMake/bin/rc.com"
+      - "C:/Program Files/CMake/bin/rc.exe"
+      - "C:/Program Files/CMake/bin/rc"
+      - "C:/Program Files/CMake/sbin/rc.com"
+      - "C:/Program Files/CMake/sbin/rc.exe"
+      - "C:/Program Files/CMake/sbin/rc"
+      - "C:/Program Files/CMake/rc.com"
+      - "C:/Program Files/CMake/rc.exe"
+      - "C:/Program Files/CMake/rc"
+      - "C:/Program Files (x86)/CrockerGUI/bin/rc.com"
+      - "C:/Program Files (x86)/CrockerGUI/bin/rc.exe"
+      - "C:/Program Files (x86)/CrockerGUI/bin/rc"
+      - "C:/Program Files (x86)/CrockerGUI/sbin/rc.com"
+      - "C:/Program Files (x86)/CrockerGUI/sbin/rc.exe"
+      - "C:/Program Files (x86)/CrockerGUI/sbin/rc"
+      - "C:/Program Files (x86)/CrockerGUI/rc.com"
+      - "C:/Program Files (x86)/CrockerGUI/rc.exe"
+      - "C:/Program Files (x86)/CrockerGUI/rc"
+    found: false
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CrockerGUI"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/CrockerGUI"
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    checks:
+      - "Detecting C compiler ABI info"
+    directories:
+      source: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-8f65st"
+      binary: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-8f65st"
+    cmakeVariables:
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
+      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_C_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-8f65st'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_98005.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        MSBuild version 18.7.8+1ac568fee for .NET Framework
+        Build started 6/29/2026 9:02:52 PM.
+        
+        Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-8f65st\\cmTC_98005.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+          Creating directory "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-8f65st\\Debug\\".
+          Creating directory "cmTC_98005.dir\\Debug\\cmTC_98005.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_98005.dir\\Debug\\cmTC_98005.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_98005.dir\\Debug\\cmTC_98005.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_98005.dir\\Debug\\\\" /Fd"cmTC_98005.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.3\\Modules\\CMakeCCompilerABI.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36248 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_98005.dir\\Debug\\\\" /Fd"cmTC_98005.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.3\\Modules\\CMakeCCompilerABI.c"
+          CMakeCCompilerABI.c
+        Link:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-8f65st\\Debug\\cmTC_98005.exe" /INCREMENTAL /ILK:"cmTC_98005.dir\\Debug\\cmTC_98005.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-8f65st/Debug/cmTC_98005.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-8f65st/Debug/cmTC_98005.lib" /MACHINE:X64  /machine:x64 cmTC_98005.dir\\Debug\\CMakeCCompilerABI.obj
+          cmTC_98005.vcxproj -> C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-8f65st\\Debug\\cmTC_98005.exe
+        FinalizeBuildStatus:
+          Deleting file "cmTC_98005.dir\\Debug\\cmTC_98005.tlog\\unsuccessfulbuild".
+          Touching "cmTC_98005.dir\\Debug\\cmTC_98005.tlog\\cmTC_98005.lastbuildstate".
+        Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-8f65st\\cmTC_98005.vcxproj" (default targets).
+        
+        Build succeeded.
+            0 Warning(s)
+            0 Error(s)
+        
+        Time Elapsed 00:00:00.54
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:253 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Parsed C implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
+        linker tool for 'C': C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/HostX64/x64/link.exe
+        implicit libs: []
+        implicit objs: []
+        implicit dirs: []
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeDetermineLinkerId.cmake:38 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:299 (cmake_determine_linker_id)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Running the C compiler's linker: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/HostX64/x64/link.exe" "-v"
+      Microsoft (R) Incremental Linker Version 14.51.36248.0
+      Copyright (C) Microsoft Corporation.  All rights reserved.
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:83 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-82he0u"
+      binary: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-82he0u"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_CXX_SCAN_FOR_MODULES: "OFF"
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-82he0u'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_3f023.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        MSBuild version 18.7.8+1ac568fee for .NET Framework
+        Build started 6/29/2026 9:02:53 PM.
+        
+        Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-82he0u\\cmTC_3f023.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+          Creating directory "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-82he0u\\Debug\\".
+          Creating directory "cmTC_3f023.dir\\Debug\\cmTC_3f023.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_3f023.dir\\Debug\\cmTC_3f023.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_3f023.dir\\Debug\\cmTC_3f023.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_3f023.dir\\Debug\\\\" /Fd"cmTC_3f023.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.3\\Modules\\CMakeCXXCompilerABI.cpp"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36248 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /EHsc /RTC1 /MDd /Fo"cmTC_3f023.dir\\Debug\\\\" /Fd"cmTC_3f023.dir\\Debug\\vc145.pdb" /external:W1 /TP /errorReport:queue "C:\\Program Files\\CMake\\share\\cmake-4.3\\Modules\\CMakeCXXCompilerABI.cpp"
+          CMakeCXXCompilerABI.cpp
+        Link:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-82he0u\\Debug\\cmTC_3f023.exe" /INCREMENTAL /ILK:"cmTC_3f023.dir\\Debug\\cmTC_3f023.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-82he0u/Debug/cmTC_3f023.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-82he0u/Debug/cmTC_3f023.lib" /MACHINE:X64  /machine:x64 cmTC_3f023.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_3f023.vcxproj -> C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-82he0u\\Debug\\cmTC_3f023.exe
+        FinalizeBuildStatus:
+          Deleting file "cmTC_3f023.dir\\Debug\\cmTC_3f023.tlog\\unsuccessfulbuild".
+          Touching "cmTC_3f023.dir\\Debug\\cmTC_3f023.tlog\\cmTC_3f023.lastbuildstate".
+        Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-82he0u\\cmTC_3f023.vcxproj" (default targets).
+        
+        Build succeeded.
+            0 Warning(s)
+            0 Error(s)
+        
+        Time Elapsed 00:00:00.51
+        
+      exitCode: 0
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:253 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Parsed CXX implicit link information:
+        link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
+        linker tool regex: [^[ 	]*(->|"|[0-9]+>[ 	-]*Build:[ 	0-9]+ ms[ 	]*)?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|link\\.exe|lld-link(\\.exe)?))("|,| |$)]
+        linker tool for 'CXX': C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/HostX64/x64/link.exe
+        implicit libs: []
+        implicit objs: []
+        implicit dirs: []
+        implicit fwks: []
+      
+      
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CMakeDetermineLinkerId.cmake:38 (message)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeDetermineCompilerABI.cmake:299 (cmake_determine_linker_id)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:3 (project)"
+    message: |
+      Running the CXX compiler's linker: "C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.51.36231/bin/HostX64/x64/link.exe" "-v"
+      Microsoft (R) Incremental Linker Version 14.51.36248.0
+      Copyright (C) Microsoft Corporation.  All rights reserved.
+  -
+    kind: "find_package-v1"
+    backtrace:
+      - "CMakeLists.txt:56 (find_package)"
+    name: "glfw3"
+    configs:
+      -
+        filename: "glfw3.cps"
+        kind: "cps"
+      -
+        filename: "glfw3Config.cmake"
+        kind: "cmake"
+      -
+        filename: "glfw3-config.cmake"
+        kind: "cmake"
+    version_request:
+      exact: false
+    settings:
+      required: "required_explicit"
+      quiet: false
+      global: false
+      policy_scope: true
+      bypass_provider: false
+      names:
+        - "glfw3"
+      path_suffixes:
+        - ""
+      paths:
+        CMAKE_FIND_USE_CMAKE_PATH: true
+        CMAKE_FIND_USE_CMAKE_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_SYSTEM_ENVIRONMENT_PATH: true
+        CMAKE_FIND_USE_CMAKE_SYSTEM_PATH: true
+        CMAKE_FIND_USE_INSTALL_PREFIX: true
+        CMAKE_FIND_USE_PACKAGE_ROOT_PATH: true
+        CMAKE_FIND_USE_CMAKE_PACKAGE_REGISTRY: true
+        CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY: true
+        CMAKE_FIND_ROOT_PATH_MODE: "BOTH"
+    candidates:
+      -
+        path: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/pkgRedirects/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/pkgRedirects/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/pkgRedirects/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/pkgRedirects/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.codex/tmp/arg0/codex-arg0PrrLZL/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/.cache/codex-runtimes/codex-primary-runtime/dependencies/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/bin/x64/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v13.2/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Oculus/Support/oculus-runtime/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Oculus/Support/oculus-runtime/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Oculus/Support/oculus-runtime/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Oculus/Support/oculus-runtime/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/server/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/server/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/server/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/server/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/client/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/client/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/client/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/PlasticSCM5/client/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft/jdk-11.0.16.101-hotspot/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/wbem/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/WindowsPowerShell/v1.0/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Windows/System32/OpenSSH/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/NVIDIA Corporation/PhysX/Common/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/150/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/Client SDK/ODBC/170/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/dotnet/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Microsoft SQL Server/160/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/160/DTS/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/Windows Kits/10/Windows Performance Toolkit/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/170/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/NVIDIA App/NvDLISR/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Microsoft SQL Server/130/Tools/Binn/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/freeglut_2.8/x64/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/glew-1.12.0/x64/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/dependencies/opencv_3.1.0/x64/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/ZED SDK/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/Git/cmd/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/NVIDIA Corporation/Nsight Compute 2026.1.1/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Python/Launcher/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Python/Launcher/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Python/Launcher/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Python/Launcher/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Microsoft/WindowsApps/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/Programs/Microsoft VS Code/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Users/matth/AppData/Local/OpenAI/Codex/bin/ada252862d154cdd/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/WindowsApps/OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0/app/resources/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/CMake/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/glfw3Config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/glfw3-config.cmake"
+        mode: "config"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/lib/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+      -
+        path: "C:/Program Files (x86)/share/cps/glfw3.cps"
+        mode: "cps"
+        reason: "no_exist"
+    found: null
+    search_context:
+      ENV{PATH}:
+        - "C:\\Users\\matth\\.codex\\tmp\\arg0\\codex-arg0PrrLZL"
+        - "C:\\Users\\matth\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\bin"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin\\x64"
+        - "C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v13.2\\bin"
+        - "C:\\Program Files\\Oculus\\Support\\oculus-runtime"
+        - "C:\\Program Files\\PlasticSCM5\\server"
+        - "C:\\Program Files\\PlasticSCM5\\client"
+        - "C:\\Program Files\\Microsoft\\jdk-11.0.16.101-hotspot\\bin"
+        - "C:\\Windows\\system32"
+        - "C:\\Windows"
+        - "C:\\Windows\\System32\\Wbem"
+        - "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\Windows\\System32\\OpenSSH\\"
+        - "C:\\Program Files (x86)\\NVIDIA Corporation\\PhysX\\Common"
+        - "C:\\WINDOWS\\system32"
+        - "C:\\WINDOWS"
+        - "C:\\WINDOWS\\System32\\Wbem"
+        - "C:\\WINDOWS\\System32\\WindowsPowerShell\\v1.0\\"
+        - "C:\\WINDOWS\\System32\\OpenSSH\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\150\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\Client SDK\\ODBC\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\dotnet\\"
+        - "C:\\Program Files (x86)\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\Tools\\Binn\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\160\\DTS\\Binn\\"
+        - "C:\\Program Files (x86)\\Windows Kits\\10\\Windows Performance Toolkit\\"
+        - "C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\"
+        - "C:\\Program Files\\NVIDIA Corporation\\NVIDIA App\\NvDLISR"
+        - "C:\\Program Files\\Microsoft SQL Server\\130\\Tools\\Binn\\"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\freeglut_2.8\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\glew-1.12.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\dependencies\\opencv_3.1.0\\x64"
+        - "C:\\Program Files (x86)\\ZED SDK\\bin"
+        - "C:\\Program Files\\Git\\cmd"
+        - "C:\\Program Files\\NVIDIA Corporation\\Nsight Compute 2026.1.1\\"
+        - "C:\\Program Files\\CMake\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Python\\Launcher\\"
+        - "C:\\Users\\matth\\AppData\\Local\\Microsoft\\WindowsApps"
+        - "C:\\Users\\matth\\.dotnet\\tools"
+        - "C:\\Users\\matth\\AppData\\Local\\Programs\\Microsoft VS Code\\bin"
+        - "C:\\Users\\matth\\AppData\\Local\\Muse Hub\\lib"
+        - "C:\\Users\\matth\\AppData\\Local\\OpenAI\\Codex\\bin\\ada252862d154cdd"
+        - "C:\\Program Files\\WindowsApps\\OpenAI.Codex_26.623.5546.0_x64__2p2nqsd0c76g0\\app\\resources"
+      CMAKE_INSTALL_PREFIX: "C:/Program Files (x86)/CrockerGUI"
+      CMAKE_SYSTEM_PREFIX_PATH:
+        - "C:/Program Files"
+        - "C:/Program Files (x86)"
+        - "C:/Program Files/CMake"
+        - "C:/Program Files (x86)/CrockerGUI"
+...
+
+---
+events:
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/Internal/CheckSourceCompiles.cmake:104 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CheckCSourceCompiles.cmake:103 (cmake_check_source_compiles)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:160 (check_c_source_compiles)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:226 (_threads_check_libc)"
+      - "external/GLFW/CMakeLists.txt:13 (find_package)"
+    checks:
+      - "Performing Test CMAKE_HAVE_LIBC_PTHREAD"
+    directories:
+      source: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-4msy9c"
+      binary: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-4msy9c"
+    cmakeVariables:
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
+      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_HAVE_LIBC_PTHREAD"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-4msy9c'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_8882a.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        MSBuild version 18.7.8+1ac568fee for .NET Framework
+        Build started 6/29/2026 9:04:10 PM.
+        
+        Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\cmTC_8882a.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+          Creating directory "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\Debug\\".
+          Creating directory "cmTC_8882a.dir\\Debug\\cmTC_8882a.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_8882a.dir\\Debug\\cmTC_8882a.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_8882a.dir\\Debug\\cmTC_8882a.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_8882a.dir\\Debug\\\\" /Fd"cmTC_8882a.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\src.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36248 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CMAKE_HAVE_LIBC_PTHREAD /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_8882a.dir\\Debug\\\\" /Fd"cmTC_8882a.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\src.c"
+          src.c
+        C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\src.c(1,10): error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\cmTC_8882a.vcxproj]
+        Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\cmTC_8882a.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\cmTC_8882a.vcxproj" (default target) (1) ->
+        (ClCompile target) -> 
+          C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\src.c(1,10): error C1083: Cannot open include file: 'pthread.h': No such file or directory [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-4msy9c\\cmTC_8882a.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.42
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CheckLibraryExists.cmake:154 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:175 (check_library_exists)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:238 (_threads_check_lib)"
+      - "external/GLFW/CMakeLists.txt:13 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthreads"
+    directories:
+      source: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-2zush0"
+      binary: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-2zush0"
+    cmakeVariables:
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
+      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREADS_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-2zush0'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_ee55e.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        MSBuild version 18.7.8+1ac568fee for .NET Framework
+        Build started 6/29/2026 9:04:11 PM.
+        
+        Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\cmTC_ee55e.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+          Creating directory "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\Debug\\".
+          Creating directory "cmTC_ee55e.dir\\Debug\\cmTC_ee55e.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_ee55e.dir\\Debug\\cmTC_ee55e.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_ee55e.dir\\Debug\\cmTC_ee55e.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_ee55e.dir\\Debug\\\\" /Fd"cmTC_ee55e.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\CheckFunctionExists.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36248 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_ee55e.dir\\Debug\\\\" /Fd"cmTC_ee55e.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\CheckFunctionExists.c"
+          CheckFunctionExists.c
+        Link:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\Debug\\cmTC_ee55e.exe" /INCREMENTAL /ILK:"cmTC_ee55e.dir\\Debug\\cmTC_ee55e.ilk" /NOLOGO pthreads.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-2zush0/Debug/cmTC_ee55e.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-2zush0/Debug/cmTC_ee55e.lib" /MACHINE:X64  /machine:x64 cmTC_ee55e.dir\\Debug\\CheckFunctionExists.obj
+        LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\cmTC_ee55e.vcxproj]
+        Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\cmTC_ee55e.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\cmTC_ee55e.vcxproj" (default target) (1) ->
+        (Link target) -> 
+          LINK : fatal error LNK1104: cannot open file 'pthreads.lib' [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-2zush0\\cmTC_ee55e.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.42
+        
+      exitCode: 1
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/CheckLibraryExists.cmake:154 (try_compile)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:175 (check_library_exists)"
+      - "C:/Program Files/CMake/share/cmake-4.3/Modules/FindThreads.cmake:239 (_threads_check_lib)"
+      - "external/GLFW/CMakeLists.txt:13 (find_package)"
+    checks:
+      - "Looking for pthread_create in pthread"
+    directories:
+      source: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-6jzdvn"
+      binary: "C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-6jzdvn"
+    cmakeVariables:
+      CMAKE_CXX_STDLIB_MODULES_JSON: ""
+      CMAKE_C_FLAGS: "/DWIN32 /D_WINDOWS"
+      CMAKE_C_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_HAVE_PTHREAD_CREATE"
+      cached: true
+      stdout: |
+        Change Dir: 'C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-6jzdvn'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/18/Community/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_d16b0.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=18.0 /v:n
+        MSBuild version 18.7.8+1ac568fee for .NET Framework
+        Build started 6/29/2026 9:04:12 PM.
+        
+        Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\cmTC_d16b0.vcxproj" on node 1 (default targets).
+        PrepareForBuild:
+          Structured output is enabled. The formatting of compiler diagnostics will reflect the error hierarchy. See https://aka.ms/cpp/structured-output for more details.
+          Creating directory "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\Debug\\".
+          Creating directory "cmTC_d16b0.dir\\Debug\\cmTC_d16b0.tlog\\".
+        InitializeBuildStatus:
+          Creating "cmTC_d16b0.dir\\Debug\\cmTC_d16b0.tlog\\unsuccessfulbuild" because "AlwaysCreate" was specified.
+          Touching "cmTC_d16b0.dir\\Debug\\cmTC_d16b0.tlog\\unsuccessfulbuild".
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_d16b0.dir\\Debug\\\\" /Fd"cmTC_d16b0.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\CheckFunctionExists.c"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36248 for x64
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D CHECK_FUNCTION_EXISTS=pthread_create /D _MBCS /D "CMAKE_INTDIR=\\"Debug\\"" /RTC1 /MDd /Fo"cmTC_d16b0.dir\\Debug\\\\" /Fd"cmTC_d16b0.dir\\Debug\\vc145.pdb" /external:W1 /TC /errorReport:queue "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\CheckFunctionExists.c"
+          CheckFunctionExists.c
+        Link:
+          C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\HostX64\\x64\\link.exe /OUT:"C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\Debug\\cmTC_d16b0.exe" /INCREMENTAL /ILK:"cmTC_d16b0.dir\\Debug\\cmTC_d16b0.ilk" /NOLOGO pthread.lib kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-6jzdvn/Debug/cmTC_d16b0.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /IMPLIB:"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/CrockerGUI/build-windows-debug/CMakeFiles/CMakeScratch/TryCompile-6jzdvn/Debug/cmTC_d16b0.lib" /MACHINE:X64  /machine:x64 cmTC_d16b0.dir\\Debug\\CheckFunctionExists.obj
+        LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\cmTC_d16b0.vcxproj]
+        Done Building Project "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\cmTC_d16b0.vcxproj" (default targets) -- FAILED.
+        
+        Build FAILED.
+        
+        "C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\cmTC_d16b0.vcxproj" (default target) (1) ->
+        (Link target) -> 
+          LINK : fatal error LNK1104: cannot open file 'pthread.lib' [C:\\Users\\matth\\Research\\CrockerNuclearLab\\Digitalization\\CrockerGUI\\build-windows-debug\\CMakeFiles\\CMakeScratch\\TryCompile-6jzdvn\\cmTC_d16b0.vcxproj]
+        
+            0 Warning(s)
+            1 Error(s)
+        
+        Time Elapsed 00:00:00.39
+        
+      exitCode: 1
+...

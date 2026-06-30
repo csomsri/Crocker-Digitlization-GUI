@@ -53,7 +53,13 @@ if(CROCKER_BUILD_PYTHON)
 endif()
 
 if(CROCKER_BUILD_OPENGL_TEST)
-    find_package(glfw3 CONFIG REQUIRED)
+    # GLFW is a debug/test-only dependency.  Keep it out of the engine and
+    # Python module unless the standalone OpenGL diagnostic is requested.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/GLFW/CMakeLists.txt")
+        add_subdirectory(external/GLFW EXCLUDE_FROM_ALL)
+    else()
+        find_package(glfw3 CONFIG REQUIRED)
+    endif()
 
     add_executable(CrockerOpenGLTest tests/OpenGLTest.cpp)
     target_link_libraries(CrockerOpenGLTest PRIVATE crocker_engine glfw)
