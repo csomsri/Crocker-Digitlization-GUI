@@ -37,7 +37,7 @@ void BarChart::Render(const ChartRect& area) {
 
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
-    const auto plot = chart_gl::InnerArea(area);
+    const auto plot = chart_gl::InnerArea(area, style, !title.empty());
     const float zeroY = plot.bottom + chart_gl::Normalize(0.0f, minimum, maximum) * (plot.top - plot.bottom);
     const float slotWidth = (plot.right - plot.left) / static_cast<float>(table.rows.size());
     const float gap = std::min(slotWidth * 0.16f, 6.0f);
@@ -61,13 +61,17 @@ void BarChart::Render(const ChartRect& area) {
     }
 
     if (style.showGrid) {
-        const auto grid = chart_gl::Grid(plot, viewport);
-        chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, grid, GL_LINES, 0.22f, 0.24f, 0.28f);
+        const auto grid = chart_gl::Grid(plot, viewport, style.gridDivisions);
+        chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, grid, GL_LINES,
+                       style.gridColor.r, style.gridColor.g, style.gridColor.b, style.gridWidth);
     }
     if (style.showAxes) {
         const auto axes = chart_gl::Axes(plot, viewport, zeroY);
-        chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, axes, GL_LINES, 0.55f, 0.58f, 0.64f);
+        chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, axes, GL_LINES,
+                       style.axisColor.r, style.axisColor.g, style.axisColor.b, style.axisWidth);
     }
     chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, triangles, GL_TRIANGLES,
-                   0.24f, 0.68f, 0.42f);
+                   style.barColor.r, style.barColor.g, style.barColor.b);
+    chart_gl::DrawLabels(vertexArray, vertexBuffer, shaderProgram, area, plot, viewport,
+                         style, title, xAxisTitle, yAxisTitle);
 }

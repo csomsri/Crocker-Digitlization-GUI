@@ -1,2 +1,4 @@
 # Star Plot
-This will be used for the PID (a 3 side start so a triangle plot)
+This normalized multi-series radar plot is intended for compact machine-health summaries.
+
+Each column is an axis and each row is an overlapping series. Values are clamped to 0 through 1.

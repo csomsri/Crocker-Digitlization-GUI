@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Render\Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Render\Renderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Render\Buffers\VAO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Render\Buffers\VBO.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Render\Shader\Shader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\LineChart\LineChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\TimeSeriesChart\TimeSeriesChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\ScatterPlot\ScatterPlot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\HistogramChart\HistogramChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\SpectrumChart\SpectrumChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\HeatmapChart\HeatmapChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\AlarmTimelineChart\AlarmTimelineChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\BulletChart\BulletChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\StarPlot\StarPlot.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\source\Engine\Viz\Charts\BarChart\BarChart.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\external\glad\src\glad.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{E07EE1CB-5F8E-3D76-BAEB-B5529B1C2BCA}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libcrocker_engine.a CMakeFiles/crocker_engine.dir/source/Engine/Engine.cpp.o CMakeFiles/crocker_engine.dir/source/Engine/Render/Camera.cpp.o CMakeFiles/crocker_engine.dir/source/Engine/Render/Renderer.cpp.o CMakeFiles/crocker_engine.dir/source/Engine/Render/Buffers/VAO.cpp.o CMakeFiles/crocker_engine.dir/source/Engine/Render/Buffers/VBO.cpp.o CMakeFiles/crocker_engine.dir/source/Engine/Render/Shader/Shader.cpp.o CMakeFiles/crocker_engine.dir/external/glad/src/glad.c.o
-/usr/bin/ranlib libcrocker_engine.a

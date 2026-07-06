@@ -1,0 +1,10 @@
+^C:\USERS\MATTH\RESEARCH\CROCKERNUCLEARLAB\DIGITALIZATION\CROCKER-DIGITLIZATION-GUI\CROCKERGUI\B\CMAKEFILES\BC6DB175760C453CC2272AD2E5F1D3AD\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI -BC:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/CrockerGUI.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

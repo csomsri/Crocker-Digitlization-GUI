@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
+if(POLICY CMP0141)
+    cmake_policy(SET CMP0141 NEW)
+endif()
+set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+
 project(CrockerGUI LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -19,6 +24,14 @@ add_library(crocker_engine STATIC
     source/Engine/Render/Buffers/VBO.cpp
     source/Engine/Render/Shader/Shader.cpp
     source/Engine/Viz/Charts/LineChart/LineChart.cpp
+    source/Engine/Viz/Charts/TimeSeriesChart/TimeSeriesChart.cpp
+    source/Engine/Viz/Charts/ScatterPlot/ScatterPlot.cpp
+    source/Engine/Viz/Charts/HistogramChart/HistogramChart.cpp
+    source/Engine/Viz/Charts/SpectrumChart/SpectrumChart.cpp
+    source/Engine/Viz/Charts/HeatmapChart/HeatmapChart.cpp
+    source/Engine/Viz/Charts/AlarmTimelineChart/AlarmTimelineChart.cpp
+    source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
+    source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
     source/Engine/Viz/Charts/BarChart/BarChart.cpp
     external/glad/src/glad.c
 )
