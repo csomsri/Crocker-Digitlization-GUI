@@ -1,16 +1,14 @@
 # Crocker-Digitlization-GUI
 Hello this is the GUI for Crocker Nuclear Lab
 
-## Installs
+## How To Run
 You need to have:
-- Pyside6
-- A NVIDIA Driver that can run OpenGL 4.6
-- GLFW 3.4 
-- GLAD
-- GLM
-- Finally and NVIDIA GPU!!!!
+- Windows Operating System (Linux / Ubuntuu Should Work too but not Guranteed)
+- NVIDIA GPU
+- Modern C++ (20 I think?)
 
-## How to Install
+
+## Installs
 We are using GitHub Submodules so all you need to do hopefully is 
 ```
 git submodule update --init --recursive
@@ -45,6 +43,9 @@ We should have all the requirements to build inside requirements.txt
 pip install -r requirements.txt
 ```
 If at any point there are any issues, a solution can be going through the list and manually installing each python library
+
+## Credits
+
 
 
 ## How to Run
