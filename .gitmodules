@@ -7,3 +7,6 @@
 [submodule "CrockerGUI/external/GLFW"]
 	path = CrockerGUI/external/GLFW
 	url = https://github.com/glfw/glfw.git
+[submodule "CrockerGUI/external/glm"]
+	path = CrockerGUI/external/glm
+	url = https://github.com/g-truc/glm.git
