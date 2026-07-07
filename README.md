@@ -36,8 +36,12 @@ Transformation / Matrix Multiplaction Library for OpenGL
 https://github.com/g-truc/glm
 
 
-### Pyside
-`pip install Pyside6`
+### Python Dependencies
+We should have all the requirements to build inside requirements.txt
+```python 
+pip install -r requirements.txt
+```
+If at any point there are any issues, a solution can be going through the list and manually installing each python library
 
 
 ## How to Run
