@@ -16,6 +16,22 @@ option(CROCKER_BUILD_OPENGL_TEST "Build the standalone OpenGL 4.6 smoke test" OF
 
 find_package(OpenGL REQUIRED)
 
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libzmq/CMakeLists.txt")
+    set(BUILD_SHARED OFF CACHE BOOL "Build ZeroMQ shared library" FORCE)
+    set(BUILD_STATIC ON CACHE BOOL "Build ZeroMQ static library" FORCE)
+    set(BUILD_TESTS OFF CACHE BOOL "Build ZeroMQ tests" FORCE)
+    set(WITH_DOCS OFF CACHE BOOL "Build ZeroMQ docs" FORCE)
+    set(WITH_PERF_TOOL OFF CACHE BOOL "Build ZeroMQ perf tools" FORCE)
+
+    add_subdirectory(external/libzmq EXCLUDE_FROM_ALL)
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cppzmq/CMakeLists.txt")
+    set(CPPZMQ_BUILD_TESTS OFF CACHE BOOL "Build cppzmq tests" FORCE)
+
+    add_subdirectory(external/cppzmq EXCLUDE_FROM_ALL)
+endif()
+
 add_library(crocker_engine STATIC
     source/Engine/Engine.cpp
     source/Engine/Render/Camera.cpp
@@ -33,6 +49,10 @@ add_library(crocker_engine STATIC
     source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
     source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
     source/Engine/Viz/Charts/BarChart/BarChart.cpp
+    source/Controls/Transport/ZMQProtocol.cpp
+    source/Controls/Transport/ZMQReceiver.cpp
+    source/Controls/Transport/ZMQSender.cpp
+    source/Controls/Transport/ZMQServer.cpp
     external/glad/src/glad.c
 )
 
@@ -47,6 +67,10 @@ target_include_directories(crocker_engine
 )
 
 target_link_libraries(crocker_engine PUBLIC OpenGL::GL)
+
+if(TARGET cppzmq-static)
+    target_link_libraries(crocker_engine PUBLIC cppzmq-static)
+endif()
 
 if(MSVC)
     target_compile_options(crocker_engine PRIVATE /W4 /permissive-)

@@ -14,6 +14,19 @@
 # EXTERNAL cache entries
 ########################
 
+//Choose polling system for zmq_poll(er)_*. valid values are
+//\n  poll or select [default=poll unless POLLER=select]
+API_POLLER:STRING=
+
+//Build ZeroMQ shared library
+BUILD_SHARED:BOOL=OFF
+
+//Build ZeroMQ static library
+BUILD_STATIC:BOOL=ON
+
+//Build ZeroMQ tests
+BUILD_TESTS:BOOL=OFF
+
 //Path to a program.
 CMAKE_AR:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/lib.exe
 
@@ -76,8 +89,56 @@ CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO:STRING=/debug /INCREMENTAL
 //Value Computed by CMake.
 CMAKE_FIND_PACKAGE_REDIRECTS_DIR:STATIC=C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/CMakeFiles/pkgRedirects
 
+//User executables (bin)
+CMAKE_INSTALL_BINDIR:PATH=bin
+
+//Read-only architecture-independent data (DATAROOTDIR)
+CMAKE_INSTALL_DATADIR:PATH=
+
+//Read-only architecture-independent data root (share)
+CMAKE_INSTALL_DATAROOTDIR:PATH=share
+
+//Documentation root (DATAROOTDIR/doc/PROJECT_NAME)
+CMAKE_INSTALL_DOCDIR:PATH=
+
+//C header files (include)
+CMAKE_INSTALL_INCLUDEDIR:PATH=include
+
+//Info documentation (DATAROOTDIR/info)
+CMAKE_INSTALL_INFODIR:PATH=
+
+//Object code libraries (lib)
+CMAKE_INSTALL_LIBDIR:PATH=lib
+
+//Program executables (libexec)
+CMAKE_INSTALL_LIBEXECDIR:PATH=libexec
+
+//Locale-dependent data (DATAROOTDIR/locale)
+CMAKE_INSTALL_LOCALEDIR:PATH=
+
+//Modifiable single-machine data (var)
+CMAKE_INSTALL_LOCALSTATEDIR:PATH=var
+
+//Man documentation (DATAROOTDIR/man)
+CMAKE_INSTALL_MANDIR:PATH=
+
+//C header files for non-gcc (/usr/include)
+CMAKE_INSTALL_OLDINCLUDEDIR:PATH=/usr/include
+
 //Install path prefix, prepended onto install directories.
 CMAKE_INSTALL_PREFIX:PATH=C:/Program Files (x86)/CrockerGUI
+
+//Run-time variable data (LOCALSTATEDIR/run)
+CMAKE_INSTALL_RUNSTATEDIR:PATH=
+
+//System admin executables (sbin)
+CMAKE_INSTALL_SBINDIR:PATH=sbin
+
+//Modifiable architecture-independent data (com)
+CMAKE_INSTALL_SHAREDSTATEDIR:PATH=com
+
+//Read-only single-machine data (etc)
+CMAKE_INSTALL_SYSCONFDIR:PATH=etc
 
 //Path to a program.
 CMAKE_LINKER:FILEPATH=C:/Program Files/Microsoft Visual Studio/18/Community/VC/Tools/MSVC/14.50.35717/bin/Hostx64/x64/link.exe
@@ -206,11 +267,99 @@ CrockerGUI_IS_TOP_LEVEL:STATIC=ON
 //Value Computed by CMake
 CrockerGUI_SOURCE_DIR:STATIC=C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI
 
+//Build with address sanitizer
+ENABLE_ASAN:BOOL=OFF
+
+//Enable CURVE security
+ENABLE_CURVE:BOOL=OFF
+
+//Build and install draft classes and methods
+ENABLE_DRAFTS:BOOL=OFF
+
+//Build using compiler intrinsics for atomic ops
+ENABLE_INTRINSICS:BOOL=OFF
+
+//Automatically close libsodium randombytes. Not threadsafe without
+// getrandom()
+ENABLE_LIBSODIUM_RANDOMBYTES_CLOSE:BOOL=ON
+
+//Use radix tree implementation to manage subscriptions
+ENABLE_RADIX_TREE:BOOL=OFF
+
+//Build with thread sanitizer
+ENABLE_TSAN:BOOL=OFF
+
+//Build with undefined behavior sanitizer
+ENABLE_UBSAN:BOOL=OFF
+
+//Enable WebSocket transport
+ENABLE_WS:BOOL=OFF
+
 //OpenGL library for win32
 OPENGL_gl_LIBRARY:STRING=opengl32
 
 //GLU library for win32
 OPENGL_glu_LIBRARY:STRING=glu32
+
+//Arguments to supply to pkg-config
+PKG_CONFIG_ARGN:STRING=
+
+//pkg-config executable
+PKG_CONFIG_EXECUTABLE:FILEPATH=PKG_CONFIG_EXECUTABLE-NOTFOUND
+
+//Choose polling system for I/O threads. valid values are
+//\n  kqueue, epoll, devpoll, pollset, poll or select [default=autodetect]
+POLLER:STRING=
+
+//Path to a library.
+RT_LIBRARY:FILEPATH=RT_LIBRARY-NOTFOUND
+
+//Build ZeroMQ docs
+WITH_DOCS:BOOL=OFF
+
+//Use libgssapi_krb5
+WITH_GSSAPI_KRB5:BOOL=OFF
+
+//Use libsodium (required with ENABLE_CURVE)
+WITH_LIBSODIUM:BOOL=OFF
+
+//Use static libsodium library
+WITH_LIBSODIUM_STATIC:BOOL=OFF
+
+//Enable militant assertions
+WITH_MILITANT:BOOL=OFF
+
+//Build with support for NORM
+WITH_NORM:BOOL=OFF
+
+//Build with support for OpenPGM
+WITH_OPENPGM:BOOL=OFF
+
+//Build ZeroMQ perf tools
+WITH_PERF_TOOL:BOOL=OFF
+
+//Build with support for VMware VMCI socket
+WITH_VMCI:BOOL=OFF
+
+//Choose condition_variable_t implementation. Valid values are
+//\n       stl11, win32api, pthreads, none [default=autodetect]
+ZMQ_CV_IMPL:STRING=win32api
+
+//Output zmq library base name
+ZMQ_OUTPUT_BASENAME:STRING=zmq
+
+//Value to set _WIN32_WINNT to for building [default=autodetect
+// from build environment]
+ZMQ_WIN32_WINNT:STRING=0x0A00
+
+//Value Computed by CMake
+ZeroMQ_BINARY_DIR:STATIC=C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/build/external/libzmq
+
+//Value Computed by CMake
+ZeroMQ_IS_TOP_LEVEL:STATIC=OFF
+
+//Value Computed by CMake
+ZeroMQ_SOURCE_DIR:STATIC=C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/external/libzmq
 
 //The directory containing a CMake configuration file for pybind11.
 pybind11_DIR:PATH=pybind11_DIR-NOTFOUND
@@ -282,9 +431,47 @@ CMAKE_GENERATOR_INSTANCE:INTERNAL=C:/Program Files/Microsoft Visual Studio/18/Co
 CMAKE_GENERATOR_PLATFORM:INTERNAL=
 //Name of generator toolset.
 CMAKE_GENERATOR_TOOLSET:INTERNAL=
+//Test CMAKE_HAVE_LIBC_PTHREAD
+CMAKE_HAVE_LIBC_PTHREAD:INTERNAL=
+//Have library pthreads
+CMAKE_HAVE_PTHREADS_CREATE:INTERNAL=
+//Have library pthread
+CMAKE_HAVE_PTHREAD_CREATE:INTERNAL=
 //Source directory with the top level CMakeLists.txt file for this
 // project
 CMAKE_HOME_DIRECTORY:INTERNAL=C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI
+//ADVANCED property for variable: CMAKE_INSTALL_BINDIR
+CMAKE_INSTALL_BINDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_DATADIR
+CMAKE_INSTALL_DATADIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_DATAROOTDIR
+CMAKE_INSTALL_DATAROOTDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_DOCDIR
+CMAKE_INSTALL_DOCDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_INCLUDEDIR
+CMAKE_INSTALL_INCLUDEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_INFODIR
+CMAKE_INSTALL_INFODIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_LIBDIR
+CMAKE_INSTALL_LIBDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_LIBEXECDIR
+CMAKE_INSTALL_LIBEXECDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_LOCALEDIR
+CMAKE_INSTALL_LOCALEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_LOCALSTATEDIR
+CMAKE_INSTALL_LOCALSTATEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_MANDIR
+CMAKE_INSTALL_MANDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_OLDINCLUDEDIR
+CMAKE_INSTALL_OLDINCLUDEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_RUNSTATEDIR
+CMAKE_INSTALL_RUNSTATEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_SBINDIR
+CMAKE_INSTALL_SBINDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_SHAREDSTATEDIR
+CMAKE_INSTALL_SHAREDSTATEDIR-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: CMAKE_INSTALL_SYSCONFDIR
+CMAKE_INSTALL_SYSCONFDIR-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_LINKER
 CMAKE_LINKER-ADVANCED:INTERNAL=1
 //Name of CMakeLists files to read
@@ -302,7 +489,7 @@ CMAKE_MODULE_LINKER_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: CMAKE_MT
 CMAKE_MT-ADVANCED:INTERNAL=1
 //number of local generators
-CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=1
+CMAKE_NUMBER_OF_MAKEFILES:INTERNAL=2
 //Platform information initialized
 CMAKE_PLATFORM_INFO_INITIALIZED:INTERNAL=1
 //noop for ranlib
@@ -352,10 +539,38 @@ CMAKE_VERBOSE_MAKEFILE-ADVANCED:INTERNAL=1
 FIND_PACKAGE_MESSAGE_DETAILS_OpenGL:INTERNAL=[opengl32][ ][v()]
 //Details about finding Python
 FIND_PACKAGE_MESSAGE_DETAILS_Python:INTERNAL=[C:/Users/matth/AppData/Local/Programs/Python/Python311/python.exe][C:/Users/matth/AppData/Local/Programs/Python/Python311/libs/python311.lib][C:/Users/matth/AppData/Local/Programs/Python/Python311/Include][found components: Interpreter Development.Module ][v3.11.5()]
+//Details about finding Threads
+FIND_PACKAGE_MESSAGE_DETAILS_Threads:INTERNAL=[TRUE][v()]
+//Have symbol clock_gettime
+HAVE_CLOCK_GETTIME:INTERNAL=
+//Have symbol if_nametoindex
+HAVE_IF_NAMETOINDEX:INTERNAL=
+//Have symbol posix_memalign
+HAVE_POSIX_MEMALIGN:INTERNAL=
+//Have symbol pselect
+HAVE_PSELECT:INTERNAL=
 //ADVANCED property for variable: OPENGL_gl_LIBRARY
 OPENGL_gl_LIBRARY-ADVANCED:INTERNAL=1
 //ADVANCED property for variable: OPENGL_glu_LIBRARY
 OPENGL_glu_LIBRARY-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: PKG_CONFIG_ARGN
+PKG_CONFIG_ARGN-ADVANCED:INTERNAL=1
+//ADVANCED property for variable: PKG_CONFIG_EXECUTABLE
+PKG_CONFIG_EXECUTABLE-ADVANCED:INTERNAL=1
+//Have symbol SO_BUSY_POLL
+ZMQ_HAVE_BUSY_POLL:INTERNAL=
+//Have includes winsock2.h;afunix.h
+ZMQ_HAVE_IPC:INTERNAL=
+//Have symbol LOCAL_PEERCRED
+ZMQ_HAVE_LOCAL_PEERCRED:INTERNAL=
+//Have symbol SO_PEERCRED
+ZMQ_HAVE_SO_PEERCRED:INTERNAL=
+//Have includes condition_variable
+ZMQ_HAVE_STL_CONDITION_VARIABLE:INTERNAL=
+//Have includes windows.h
+ZMQ_HAVE_WINDOWS:INTERNAL=
+//CMAKE_INSTALL_PREFIX during last run
+_GNUInstallDirs_LAST_CMAKE_INSTALL_PREFIX:INTERNAL=C:/Program Files (x86)/CrockerGUI
 //Compiler reason failure
 _Python_Compiler_REASON_FAILURE:INTERNAL=
 _Python_DEVELOPMENT_MODULE_SIGNATURE:INTERNAL=5771ef9ac8519d89e035ef40fb858c07
