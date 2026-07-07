@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="18.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\b\CMakeFiles\d8de117ff264a94d14f3f33f2531922b\uninstall.rule">
+      <Filter>CMake Rules</Filter>
+    </CustomBuild>
+    <CustomBuild Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\external\GLFW\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="C:\Users\matth\Research\CrockerNuclearLab\Digitalization\Crocker-Digitlization-GUI\CrockerGUI\b\external\GLFW\CMakeFiles\uninstall" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="CMake Rules">
+      <UniqueIdentifier>{D04A9458-9810-3F7F-98D6-BB65F761331B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -56,6 +56,18 @@ endif()
 
 if(CROCKER_BUILD_PYTHON)
     find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+
+    execute_process(
+        COMMAND ${Python_EXECUTABLE} -m pybind11 --cmakedir
+        OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+
+    if(PYBIND11_CMAKE_DIR)
+        list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
+    endif()
+
     find_package(pybind11 CONFIG REQUIRED)
 
     pybind11_add_module(CycloViz source/Bindings.cpp)

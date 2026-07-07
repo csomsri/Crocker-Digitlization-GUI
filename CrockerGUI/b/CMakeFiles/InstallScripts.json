@@ -2,7 +2,9 @@
 	"InstallScripts" : 
 	[
 		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/cmake_install.cmake",
-		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/external/GLFW/cmake_install.cmake"
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/external/GLFW/cmake_install.cmake",
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/external/GLFW/src/cmake_install.cmake",
+		"C:/Users/matth/Research/CrockerNuclearLab/Digitalization/Crocker-Digitlization-GUI/CrockerGUI/b/external/GLFW/docs/cmake_install.cmake"
 	],
 	"Parallel" : false
 }
