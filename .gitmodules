@@ -1,0 +1,6 @@
+[submodule "CrockerGUI/external/libzmq"]
+	path = CrockerGUI/external/libzmq
+	url = https://github.com/zeromq/libzmq.git
+[submodule "CrockerGUI/external/cppzmq"]
+	path = CrockerGUI/external/cppzmq
+	url = https://github.com/zeromq/cppzmq.git
