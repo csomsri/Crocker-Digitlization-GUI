@@ -11,11 +11,14 @@ You need to have:
 - Finally and NVIDIA GPU!!!!
 
 ## How to Install
-### Cloning
 We are using GitHub Submodules so all you need to do hopefully is 
-`git submodule update --init --recursive`
+```
+git submodule update --init --recursive
+```
+If any point there are any issues the C++ Libraries we are using are:
 
-If there is an issue the libraries we are using are:
+GLFW,GLAD,GLM,ZMQ
+## External Dependencies
 ### GLFW
 GLFW is a multi-platform library used for creating windows
 but for our sake we are using this for debugging as we are 
