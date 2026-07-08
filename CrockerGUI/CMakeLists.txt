@@ -94,7 +94,11 @@ if(CROCKER_BUILD_PYTHON)
 
     find_package(pybind11 CONFIG REQUIRED)
 
-    pybind11_add_module(CycloViz source/Bindings.cpp)
+    pybind11_add_module(CycloViz
+        source/Bindings/Bindings.cpp
+        source/Bindings/EngineBindings.cpp
+        source/Bindings/TransportBindings.cpp
+    )
     target_link_libraries(CycloViz PRIVATE crocker_engine)
 
     set_target_properties(CycloViz PROPERTIES
