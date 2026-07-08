@@ -1,4 +1,4 @@
-#include "Engine/Engine/Render/Buffers/VBO.hpp"
+#include "Engine/Render/Buffers/VBO.hpp"
 
 #include <utility>
 

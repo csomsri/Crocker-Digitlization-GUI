@@ -1,6 +1,6 @@
-#include "Engine/Engine/Render/Buffers/VAO.hpp"
+#include "Engine/Render/Buffers/VAO.hpp"
 
-#include "Engine/Engine/Render/Buffers/VBO.hpp"
+#include "Engine/Render/Buffers/VBO.hpp"
 
 #include <utility>
 

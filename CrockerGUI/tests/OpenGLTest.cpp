@@ -4,7 +4,7 @@
         Standalone OpenGL 4.6 render pipeline smoke test
 */
 
-#include "Engine/Engine/Render/Renderer.hpp"
+#include "Engine/Render/Renderer.hpp"
 #include "Engine/Viz/Charts/ChartTypes/BarChart.hpp"
 #include "Engine/Viz/Charts/ChartTypes/LineChart.hpp"
 

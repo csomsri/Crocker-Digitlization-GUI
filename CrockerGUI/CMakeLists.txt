@@ -10,6 +10,7 @@ project(CrockerGUI LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 option(CROCKER_BUILD_PYTHON "Build the Python extension" ON)
 option(CROCKER_BUILD_OPENGL_TEST "Build the standalone OpenGL 4.6 smoke test" OFF)
@@ -84,12 +85,19 @@ if(CROCKER_BUILD_PYTHON)
     execute_process(
         COMMAND ${Python_EXECUTABLE} -m pybind11 --cmakedir
         OUTPUT_VARIABLE PYBIND11_CMAKE_DIR
+        RESULT_VARIABLE PYBIND11_CMAKE_RESULT
         OUTPUT_STRIP_TRAILING_WHITESPACE
         ERROR_QUIET
     )
 
-    if(PYBIND11_CMAKE_DIR)
-        list(APPEND CMAKE_PREFIX_PATH "${PYBIND11_CMAKE_DIR}")
+    if(PYBIND11_CMAKE_RESULT EQUAL 0 AND EXISTS "${PYBIND11_CMAKE_DIR}/pybind11Config.cmake")
+        set(pybind11_DIR "${PYBIND11_CMAKE_DIR}" CACHE PATH "pybind11 CMake package directory" FORCE)
+    else()
+        message(FATAL_ERROR
+            "pybind11 was not found for Python executable: ${Python_EXECUTABLE}\n"
+            "Install it into that environment with:\n"
+            "  ${Python_EXECUTABLE} -m pip install pybind11"
+        )
     endif()
 
     find_package(pybind11 CONFIG REQUIRED)

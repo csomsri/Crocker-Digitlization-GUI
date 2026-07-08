@@ -1,4 +1,4 @@
-#include "Bindings/Bindings.hpp"
+#include "Bindings.hpp"
 
 #include "Engine/Engine.hpp"
 

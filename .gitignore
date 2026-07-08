@@ -1,0 +1,27 @@
+# CMake / Visual Studio build outputs
+CrockerGUI/build/
+CrockerGUI/b/
+CrockerGUI/Debug/
+CrockerGUI/x64/
+CrockerGUI/CMakeFiles/
+CrockerGUI/CMakeCache.txt
+CrockerGUI/cmake_install.cmake
+CrockerGUI/*.sln
+CrockerGUI/*.slnx
+CrockerGUI/*.vcxproj
+CrockerGUI/*.vcxproj.filters
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Native build artifacts
+*.obj
+*.lib
+*.exp
+*.ilk
+*.pdb
+*.pch
+*.pyd
+*.dll
+*.exe

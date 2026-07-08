@@ -28,7 +28,11 @@ std::string ZMQReceiver::Bind(const std::string& preferredEndpoint)
 zmq::message_t ZMQReceiver::ReceiveMessage()
 {
     zmq::message_t message;
-    socket_.recv(message, zmq::recv_flags::none);
+    const auto result = socket_.recv(message, zmq::recv_flags::none);
+    if (!result.has_value()) {
+        return {};
+    }
+
     return message;
 }
 
