@@ -38,10 +38,14 @@ public:
     [[nodiscard]] HealthStatus Health() const;
 
 private:
+    void StopUnlocked() noexcept;
+
     static void ValidateChannel(ChannelId channel);
     static TelemetrySnapshot DisconnectedSnapshot();
     static HealthStatus DisconnectedHealth();
 
+    // Serializes transport startup, replacement, and shutdown.
+    std::mutex lifecycleMutex_;
     mutable std::mutex mutex_;
     std::unique_ptr<ControlTransportBase> transport_;
     ControlCommand pendingCommand_{};

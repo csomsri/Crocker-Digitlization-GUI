@@ -15,7 +15,8 @@ ControlService::~ControlService()
 
 void ControlService::StartSimulator(double updateRateHz)
 {
-    Stop();
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
+    StopUnlocked();
 
     auto transport = std::make_unique<SimulatorTransport>(updateRateHz);
     transport->Start();
@@ -26,7 +27,8 @@ void ControlService::StartSimulator(double updateRateHz)
 
 void ControlService::StartServer(const std::string& endpoint)
 {
-    Stop();
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
+    StopUnlocked();
 
     auto transport = std::make_unique<ServerTransport>(endpoint);
     transport->Start();
@@ -37,11 +39,17 @@ void ControlService::StartServer(const std::string& endpoint)
 
 void ControlService::Stop() noexcept
 {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
+    StopUnlocked();
+}
+
+void ControlService::StopUnlocked() noexcept
+{
     std::unique_ptr<ControlTransportBase> transport;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         transport = std::move(transport_);
-    }
+    } // Unlock before waiting for the transport's worker thread to stop.
 
     if (transport) {
         transport->Stop();
