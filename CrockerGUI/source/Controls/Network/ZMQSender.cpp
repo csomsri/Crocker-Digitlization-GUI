@@ -1,9 +1,9 @@
-#include "Controls/Transport/ZMQSender.hpp"
+#include "Controls/Network/ZMQSender.hpp"
 
 #include <iostream>
 #include <utility>
 
-namespace Protocol = Crocker::Controls::Transport::ZMQProtocol;
+namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
 
 ZMQSender::ZMQSender(std::string endpoint)
     : endpoint_(std::move(endpoint)),

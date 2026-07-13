@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Controls/Transport/ZMQProtocol.hpp"
+#include "Controls/Network/ZMQProtocol.hpp"
 
 #include <cstdint>
 #include <string>
@@ -9,8 +9,8 @@
 
 class ZMQSender {
 public:
-    using TargetValues = Crocker::Controls::Transport::ZMQProtocol::TargetValues;
-    using ChannelFlags = Crocker::Controls::Transport::ZMQProtocol::ChannelFlags;
+    using TargetValues = Crocker::Controls::Network::ZMQProtocol::TargetValues;
+    using ChannelFlags = Crocker::Controls::Network::ZMQProtocol::ChannelFlags;
 
     explicit ZMQSender(std::string endpoint = "tcp://*:5566");
 

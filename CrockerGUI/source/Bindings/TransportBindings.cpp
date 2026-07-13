@@ -2,9 +2,9 @@
 
 #include <pybind11/stl.h>
 
-#include "Controls/Transport/ZMQProtocol.hpp"
-#include "Controls/Transport/ZMQSender.hpp"
-#include "Controls/Transport/ZMQServer.hpp"
+#include "Controls/Network/ZMQProtocol.hpp"
+#include "Controls/Network/ZMQSender.hpp"
+#include "Controls/Network/ZMQServer.hpp"
 
 #include <cstdint>
 #include <optional>
@@ -12,7 +12,7 @@
 #include <string>
 
 namespace py = pybind11;
-namespace Protocol = Crocker::Controls::Transport::ZMQProtocol;
+namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
 
 namespace {
 

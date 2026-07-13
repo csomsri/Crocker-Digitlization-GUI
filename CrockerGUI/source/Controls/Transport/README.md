@@ -1,11 +1,6 @@
-# From Labview to ZeroMQ
-How the data will be transported is within the App/UI Layer:
+# Controls Transport Sources
 
-There will be a sender and server continuously receiveing and sending messages
-```cpp
-ZMQServer server("tcp://0.0.0.0:5555");
-ZMQSender sender("tcp://*:5566");
+Implementation files for the higher-level control transport layer belong here.
 
-server.Start();
-sender.Bind();
-```
+The transport layer should expose simulator/server behavior to the control service
+without making the UI know about raw ZeroMQ packets.

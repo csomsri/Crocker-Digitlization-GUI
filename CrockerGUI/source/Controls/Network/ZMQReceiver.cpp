@@ -1,9 +1,9 @@
-#include "Controls/Transport/ZMQReceiver.hpp"
+#include "Controls/Network/ZMQReceiver.hpp"
 
 #include <iostream>
 #include <utility>
 
-namespace Protocol = Crocker::Controls::Transport::ZMQProtocol;
+namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
 
 ZMQReceiver::ZMQReceiver(std::string endpoint)
     : endpoint_(std::move(endpoint)),
@@ -56,8 +56,9 @@ std::string ZMQReceiver::BindWithFallBack(const std::string& preferredEndpoint)
 {
     try {
         socket_.bind(preferredEndpoint);
-        std::cout << "REP server on " << preferredEndpoint << '\n';
-        return preferredEndpoint;
+        const std::string boundEndpoint = socket_.get(zmq::sockopt::last_endpoint);
+        std::cout << "REP server on " << boundEndpoint << '\n';
+        return boundEndpoint;
     } catch (const zmq::error_t& error) {
         socket_.bind("tcp://127.0.0.1:*");
         const std::string fallbackEndpoint = socket_.get(zmq::sockopt::last_endpoint);

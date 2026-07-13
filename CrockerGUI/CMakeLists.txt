@@ -50,10 +50,10 @@ add_library(crocker_engine STATIC
     source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
     source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
     source/Engine/Viz/Charts/BarChart/BarChart.cpp
-    source/Controls/Transport/ZMQProtocol.cpp
-    source/Controls/Transport/ZMQReceiver.cpp
-    source/Controls/Transport/ZMQSender.cpp
-    source/Controls/Transport/ZMQServer.cpp
+    source/Controls/Network/ZMQProtocol.cpp
+    source/Controls/Network/ZMQReceiver.cpp
+    source/Controls/Network/ZMQSender.cpp
+    source/Controls/Network/ZMQServer.cpp
     external/glad/src/glad.c
 )
 

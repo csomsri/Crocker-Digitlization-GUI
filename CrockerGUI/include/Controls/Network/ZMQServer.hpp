@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Controls/Transport/ZMQProtocol.hpp"
-#include "Controls/Transport/ZMQReceiver.hpp"
+#include "Controls/Network/ZMQProtocol.hpp"
+#include "Controls/Network/ZMQReceiver.hpp"
 
 #include <array>
 #include <atomic>
@@ -15,8 +15,8 @@
 
 class ZMQServer {
 public:
-    using Packet = Crocker::Controls::Transport::ZMQProtocol::Packet;
-    using TargetValues = std::array<double, Crocker::Controls::Transport::ZMQProtocol::N_TRIM>;
+    using Packet = Crocker::Controls::Network::ZMQProtocol::Packet;
+    using TargetValues = std::array<double, Crocker::Controls::Network::ZMQProtocol::N_TRIM>;
 
     explicit ZMQServer(std::string endpoint = "tcp://0.0.0.0:5555");
     ~ZMQServer();

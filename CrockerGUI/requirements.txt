@@ -1,2 +1,3 @@
-Pyside6
+PySide6
 pybind11
+pyzmq

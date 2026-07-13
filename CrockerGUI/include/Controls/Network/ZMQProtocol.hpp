@@ -8,7 +8,7 @@
 
 #include <zmq.hpp>
 
-namespace Crocker::Controls::Transport::ZMQProtocol {
+namespace Crocker::Controls::Network::ZMQProtocol {
 
 // Protocol Sizes
 inline constexpr std::size_t N_TRIM = 14;

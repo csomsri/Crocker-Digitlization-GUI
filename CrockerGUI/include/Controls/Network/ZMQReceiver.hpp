@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Controls/Transport/ZMQProtocol.hpp"
+#include "Controls/Network/ZMQProtocol.hpp"
 
 #include <array>
 #include <cstdint>
@@ -15,8 +15,8 @@ public:
     std::string Bind();
     std::string Bind(const std::string& preferredEndpoint);
     zmq::message_t ReceiveMessage();
-    Crocker::Controls::Transport::ZMQProtocol::Packet ReceivePacket();
-    void SendReply(const std::array<double, Crocker::Controls::Transport::ZMQProtocol::N_TRIM>& targetValues,
+    Crocker::Controls::Network::ZMQProtocol::Packet ReceivePacket();
+    void SendReply(const std::array<double, Crocker::Controls::Network::ZMQProtocol::N_TRIM>& targetValues,
                    std::uint64_t bitmask);
 
 private:

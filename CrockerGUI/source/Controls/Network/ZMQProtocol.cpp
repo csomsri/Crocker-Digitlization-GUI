@@ -1,4 +1,4 @@
-#include "Controls/Transport/ZMQProtocol.hpp"
+#include "Controls/Network/ZMQProtocol.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -6,7 +6,7 @@
 #include <cstring>
 #include <stdexcept>
 
-namespace Crocker::Controls::Transport::ZMQProtocol {
+namespace Crocker::Controls::Network::ZMQProtocol {
 namespace {
 
 std::vector<double> Slice(const std::vector<double>& values, std::size_t first, std::size_t last)
@@ -293,4 +293,4 @@ zmq::message_t BuildControlMessage(const ControlPacket& controlPacket)
     return message;
 }
 
-} // namespace Crocker::Controls::Transport::ZMQProtocol
+} // namespace Crocker::Controls::Network::ZMQProtocol
