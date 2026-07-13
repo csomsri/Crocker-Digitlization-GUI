@@ -54,6 +54,9 @@ add_library(crocker_engine STATIC
     source/Controls/Network/ZMQReceiver.cpp
     source/Controls/Network/ZMQSender.cpp
     source/Controls/Network/ZMQServer.cpp
+    source/Controls/Transport/SimulatorTransport.cpp
+    source/Controls/Transport/ServerTransport.cpp
+    source/Controls/Service/ControlService.cpp
     external/glad/src/glad.c
 )
 
@@ -106,6 +109,7 @@ if(CROCKER_BUILD_PYTHON)
         source/Bindings/Bindings.cpp
         source/Bindings/EngineBindings.cpp
         source/Bindings/TransportBindings.cpp
+        source/Bindings/ControlServiceBindings.cpp
     )
     target_link_libraries(CycloViz PRIVATE crocker_engine)
 

@@ -6,4 +6,5 @@ PYBIND11_MODULE(CycloViz, module)
 {
     BindEngine(module);
     BindTransport(module);
+    BindControlService(module);
 }
