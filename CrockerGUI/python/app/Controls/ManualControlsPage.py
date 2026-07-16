@@ -18,3 +18,5 @@ class ManualControlsPage(CategoryPage):
         open_page: Callable[[str, str], None],
     ) -> None:
         super().__init__("Manual Controls", MANUAL_CONTROL_PAGES, show_home, open_page)
+
+

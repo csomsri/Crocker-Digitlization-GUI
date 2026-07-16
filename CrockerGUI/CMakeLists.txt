@@ -50,6 +50,7 @@ add_library(crocker_engine STATIC
     source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
     source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
     source/Engine/Viz/Charts/BarChart/BarChart.cpp
+    source/Engine/Viz/Gauges/Speedometer/MagneticFieldSpeedometer.cpp
     source/Controls/Network/ZMQProtocol.cpp
     source/Controls/Network/ZMQReceiver.cpp
     source/Controls/Network/ZMQSender.cpp
@@ -118,6 +119,12 @@ if(CROCKER_BUILD_PYTHON)
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     )
+    foreach(config DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        set_target_properties(CycloViz PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY_${config} ${CMAKE_CURRENT_SOURCE_DIR}
+            RUNTIME_OUTPUT_DIRECTORY_${config} ${CMAKE_CURRENT_SOURCE_DIR}
+        )
+    endforeach()
 endif()
 
 if(CROCKER_BUILD_OPENGL_TEST)

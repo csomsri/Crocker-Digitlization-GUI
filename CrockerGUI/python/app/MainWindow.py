@@ -52,12 +52,15 @@ DETAIL_BUILDERS = {
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, backend_mode: str, zmq_endpoint: str) -> None:
         super().__init__()
 
-        self.setWindowTitle("Crocker Digitalization GUI")
-        self.resize(1100, 720)
-        self.setMinimumSize(900, 560)
+        self.backend_mode = backend_mode
+        self.zmq_endpoint = zmq_endpoint
+
+        self.setWindowTitle(f"Crocker Digitalization GUI - {backend_mode.upper()}")
+        self.resize(1500, 900)
+        self.setMinimumSize(1280, 820)
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("root")
@@ -74,6 +77,19 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
+            if title == "Field Ctrl":
+                detail_page = page_builder(
+                    lambda checked=False, category=parent_category: self.show_category(
+                        category
+                    ),
+                    backend_mode=self.backend_mode,
+                    zmq_endpoint=self.zmq_endpoint,
+                )
+                self.stack.addWidget(detail_page)
+                self.pages[title] = detail_page
+                self.detail_parent[title] = parent_category
+                continue
+
             detail_page = page_builder(
                 lambda checked=False, category=parent_category: self.show_category(
                     category
@@ -250,16 +266,226 @@ class MainWindow(QMainWindow):
                 background-color: #79a98b;
                 border-radius: 5px;
             }
+
+            QWidget#fieldController {
+                background: transparent;
+            }
+
+            QLabel#fieldInstruction {
+                background-color: rgba(4, 14, 28, 0.52);
+                border: 1px solid rgba(74, 226, 255, 0.28);
+                border-radius: 6px;
+                color: #dffaff;
+                font-size: 14px;
+                font-weight: 600;
+                min-height: 44px;
+                padding: 8px 12px;
+            }
+
+            QLabel#fieldHeader {
+                color: #d6f6ff;
+                font-size: 12px;
+                font-weight: 700;
+                letter-spacing: 0;
+            }
+
+            QPushButton#fieldBulk {
+                background-color: rgba(0, 28, 42, 0.72);
+                border: 1px solid rgba(74, 226, 255, 0.42);
+                color: #dffaff;
+                min-height: 26px;
+                padding: 3px 8px;
+                text-align: center;
+            }
+
+            QFrame#fieldBackendStatus {
+                background-color: rgba(4, 14, 28, 0.62);
+                border: 1px solid rgba(74, 226, 255, 0.28);
+                border-radius: 6px;
+            }
+
+            QLabel#fieldStatusDot {
+                background-color: #ff3e3e;
+                border: 1px solid rgba(255, 255, 255, 0.58);
+                border-radius: 9px;
+            }
+
+            QLabel#fieldStatusDot[connected="true"] {
+                background-color: #7cffb2;
+                border: 1px solid rgba(234, 255, 255, 0.95);
+            }
+
+            QLabel#fieldStatusText {
+                color: #dffaff;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            QFrame#fieldRow {
+                background-color: rgba(4, 14, 28, 0.54);
+                border: 1px solid rgba(74, 226, 255, 0.25);
+                border-radius: 6px;
+            }
+
+            QFrame#fieldRow[selected="true"] {
+                background-color: rgba(0, 87, 106, 0.68);
+                border: 2px solid rgba(92, 244, 255, 0.86);
+            }
+
+            QLabel#fieldName {
+                color: #e9fbff;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            QLabel#fieldValue {
+                background-color: rgba(0, 22, 32, 0.72);
+                border: 1px solid rgba(0, 208, 255, 0.54);
+                border-radius: 4px;
+                color: #7cffb2;
+                font-family: Consolas, monospace;
+                font-size: 14px;
+                font-weight: 600;
+                min-width: 74px;
+                padding: 4px;
+            }
+
+            QPushButton#fieldSelect,
+            QPushButton#fieldNudge,
+            QPushButton#fieldAction,
+            QPushButton#fieldDigitArrow {
+                text-align: center;
+            }
+
+            QPushButton#fieldSelect {
+                min-height: 24px;
+                padding: 2px 8px;
+            }
+
+            QLabel#fieldMetric,
+            QFrame#fieldEditor {
+                background-color: rgba(4, 14, 28, 0.56);
+                border: 1px solid rgba(74, 226, 255, 0.22);
+                border-radius: 6px;
+                color: #e9fbff;
+                font-weight: 700;
+                min-height: 58px;
+                padding: 8px;
+            }
+
+            QLabel#fieldEditorTitle {
+                color: #7cffb2;
+                font-size: 15px;
+                font-weight: 700;
+                min-width: 120px;
+            }
+
+            QDoubleSpinBox#fieldTargetInput {
+                background-color: rgba(0, 20, 30, 0.95);
+                border: 1px solid rgba(0, 208, 255, 0.72);
+                border-radius: 5px;
+                color: #7cffb2;
+                font-family: Consolas, monospace;
+                font-size: 18px;
+                font-weight: 700;
+                min-height: 40px;
+                min-width: 260px;
+                padding: 4px 10px;
+            }
+
+            QFrame#fieldDigitAdjuster {
+                background-color: rgba(0, 13, 21, 0.54);
+                border: 1px solid rgba(0, 208, 255, 0.28);
+                border-radius: 6px;
+                padding: 0;
+            }
+
+            QLabel#fieldDigit {
+                background-color: rgba(0, 20, 30, 0.95);
+                border: 1px solid rgba(0, 208, 255, 0.50);
+                border-radius: 4px;
+                color: #7cffb2;
+                font-family: Consolas, monospace;
+                font-size: 20px;
+                font-weight: 700;
+                max-height: 36px;
+                min-height: 36px;
+                min-width: 42px;
+                padding: 1px 4px;
+            }
+
+            QLabel#fieldDigit[selected="true"] {
+                background-color: rgba(0, 102, 122, 0.92);
+                border: 2px solid rgba(124, 255, 178, 0.95);
+                color: #eaffff;
+            }
+
+            QLabel#fieldDigitDecimal {
+                color: #dffaff;
+                font-family: Consolas, monospace;
+                font-size: 20px;
+                font-weight: 700;
+                max-height: 34px;
+                min-height: 34px;
+                min-width: 8px;
+            }
+
+            QPushButton#fieldDigitArrow {
+                background-color: rgba(0, 30, 42, 0.72);
+                border: 1px solid rgba(74, 226, 255, 0.32);
+                border-radius: 4px;
+                color: #7cffb2;
+                font-size: 10px;
+                font-weight: 700;
+                max-height: 26px;
+                min-height: 26px;
+                min-width: 42px;
+                padding: 0;
+            }
+
+            QSlider#fieldPowerSlider {
+                min-height: 28px;
+            }
+
+            QSlider#fieldPowerSlider::groove:horizontal {
+                background-color: rgba(0, 24, 34, 0.90);
+                border: 1px solid rgba(0, 208, 255, 0.55);
+                border-radius: 4px;
+                height: 10px;
+            }
+
+            QSlider#fieldPowerSlider::sub-page:horizontal {
+                background-color: #00d0ff;
+                border-radius: 4px;
+            }
+
+            QSlider#fieldPowerSlider::handle:horizontal {
+                background-color: #7cffb2;
+                border: 1px solid #eaffff;
+                border-radius: 7px;
+                margin: -4px 0;
+                width: 16px;
+            }
+
+            QPushButton#fieldNudge,
+            QPushButton#fieldAction {
+                min-height: 28px;
+                padding: 4px 8px;
+            }
+
+            QPushButton#fieldAction {
+                min-height: 34px;
+            }
             """
         )
 
 
-def run_app() -> int:
+def run_app(backend_mode: str, zmq_endpoint: str = "tcp://0.0.0.0:5555") -> int:
     app = QApplication([])
-    window = MainWindow()
+    window = MainWindow(backend_mode, zmq_endpoint)
     window.show()
     return app.exec()
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_app())
+    raise SystemExit("Use python main.py -simulation or python main.py -ZMQ")
