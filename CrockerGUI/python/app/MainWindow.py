@@ -4,9 +4,11 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QWidget,
 )
+from threading import Event, Thread
 
-from python.app.Automation.AiControlPage import AiControlPage
-from python.app.Automation.AiOnOffPage import AiOnOffPage
+from python.app.Automation.AutomationPage import AutomationPage
+from python.app.Automation.ExplorationPage import ExplorationPage
+from python.app.Automation.OptimizationPage import OptimizationPage
 from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
@@ -30,7 +32,7 @@ PAGE_BUILDERS = {
     "Monitoring": MonitoringPage,
     "Manual Controls": ManualControlsPage,
     "Configuration": ConfigurationPage,
-    "AI Control": AiControlPage,
+    "Automation": AutomationPage,
 }
 
 DETAIL_BUILDERS = {
@@ -47,18 +49,26 @@ DETAIL_BUILDERS = {
     "Recall": ("Configuration", RecallPage),
     "Settings": ("Configuration", SettingsPage),
     "Scaling": ("Configuration", ScalingPage),
-    "AI ON OFF": ("AI Control", AiOnOffPage),
+    "Exploration": ("Automation", ExplorationPage),
+    "Optimization": ("Automation", OptimizationPage),
 }
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, backend_mode: str, zmq_endpoint: str) -> None:
+    def __init__(
+        self,
+        backend_mode: str,
+        zmq_endpoint: str,
+        simulation_mode: str | None = None,
+    ) -> None:
         super().__init__()
 
         self.backend_mode = backend_mode
         self.zmq_endpoint = zmq_endpoint
+        self.simulation_mode = simulation_mode
 
-        self.setWindowTitle(f"Crocker Digitalization GUI - {backend_mode.upper()}")
+        mode_title = simulation_mode or backend_mode
+        self.setWindowTitle(f"Crocker Digitalization GUI - {mode_title.upper()}")
         self.resize(1500, 900)
         self.setMinimumSize(1280, 820)
 
@@ -78,11 +88,14 @@ class MainWindow(QMainWindow):
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
             if title == "Field Ctrl":
+                field_backend_mode = (
+                    "zmq" if self.simulation_mode == "cyclotron" else self.backend_mode
+                )
                 detail_page = page_builder(
                     lambda checked=False, category=parent_category: self.show_category(
                         category
                     ),
-                    backend_mode=self.backend_mode,
+                    backend_mode=field_backend_mode,
                     zmq_endpoint=self.zmq_endpoint,
                 )
                 self.stack.addWidget(detail_page)
@@ -101,6 +114,35 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.stack)
         self.apply_styles()
+        if self.simulation_mode == "cyclotron":
+            self._start_cyclotron_plant()
+
+    def _start_cyclotron_plant(self) -> None:
+        from source.Python.Simulator.ZMQSimulator import CyclotronPlant, ZMQSimulator
+
+        self._cyclotron_stop = Event()
+        endpoint = self.zmq_endpoint.replace("0.0.0.0", "127.0.0.1")
+
+        def run_plant() -> None:
+            simulator = ZMQSimulator(endpoint)
+            simulator.stream(
+                rate_hz=20.0,
+                stop_event=self._cyclotron_stop,
+                plant=CyclotronPlant(),
+            )
+
+        self._cyclotron_thread = Thread(
+            target=run_plant,
+            name="cyclotron-zmq-plant",
+            daemon=True,
+        )
+        self._cyclotron_thread.start()
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        stop = getattr(self, "_cyclotron_stop", None)
+        if stop is not None:
+            stop.set()
+        super().closeEvent(event)
 
     def show_home(self) -> None:
         self.stack.setCurrentWidget(self.pages["Home"])
@@ -480,12 +522,19 @@ class MainWindow(QMainWindow):
         )
 
 
-def run_app(backend_mode: str, zmq_endpoint: str = "tcp://0.0.0.0:5555") -> int:
+def run_app(
+    backend_mode: str,
+    zmq_endpoint: str = "tcp://0.0.0.0:5555",
+    simulation_mode: str | None = None,
+) -> int:
     app = QApplication([])
-    window = MainWindow(backend_mode, zmq_endpoint)
+    window = MainWindow(backend_mode, zmq_endpoint, simulation_mode)
     window.show()
     return app.exec()
 
 
 if __name__ == "__main__":
-    raise SystemExit("Use python main.py -simulation or python main.py -ZMQ")
+    raise SystemExit(
+        "Use python main.py -simulation -smoke, "
+        "python main.py -simulation -cyclotron, or python main.py -ZMQ"
+    )

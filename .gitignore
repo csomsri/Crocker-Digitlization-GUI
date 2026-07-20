@@ -1,5 +1,6 @@
 # CMake / Visual Studio build outputs
 CrockerGUI/build/
+CrockerGUI/build-*/
 CrockerGUI/b/
 CrockerGUI/Debug/
 CrockerGUI/x64/

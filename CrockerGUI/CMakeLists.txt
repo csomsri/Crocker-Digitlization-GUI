@@ -34,6 +34,8 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cppzmq/CMakeLists.txt")
 endif()
 
 add_library(crocker_engine STATIC
+    source/Controls/ControlSystem/PID.cpp
+    source/Simulation/CyclotronModel.cpp
     source/Engine/Engine.cpp
     source/Engine/Render/Camera.cpp
     source/Engine/Render/Renderer.cpp
@@ -78,6 +80,24 @@ if(TARGET cppzmq-static)
     target_link_libraries(crocker_engine PUBLIC cppzmq-static)
 endif()
 
+include(CTest)
+
+if(BUILD_TESTING)
+    add_executable(PIDTest
+        tests/PIDTest.cpp
+        source/Controls/ControlSystem/PID.cpp
+    )
+    target_include_directories(PIDTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    add_test(NAME PIDTest COMMAND PIDTest)
+
+    add_executable(CyclotronModelTest
+        tests/CyclotronModelTest.cpp
+        source/Simulation/CyclotronModel.cpp
+    )
+    target_include_directories(CyclotronModelTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    add_test(NAME CyclotronModelTest COMMAND CyclotronModelTest)
+endif()
+
 if(MSVC)
     target_compile_options(crocker_engine PRIVATE /W4 /permissive-)
 else()
@@ -112,6 +132,7 @@ if(CROCKER_BUILD_PYTHON)
         source/Bindings/EngineBindings.cpp
         source/Bindings/TransportBindings.cpp
         source/Bindings/ControlServiceBindings.cpp
+        source/Bindings/CyclotronBindings.cpp
     )
     target_link_libraries(CycloViz PRIVATE crocker_engine)
 

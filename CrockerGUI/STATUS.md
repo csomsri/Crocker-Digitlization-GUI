@@ -22,6 +22,25 @@ This is a document addressing the current status, plans, and direction of the pr
 
     Next we need to implement other back end properties such as the PID but once the lab is not shut down we are able to test the digital GUI control via ZMQ as we are running on simulation!
 
+**7/19/2026**:
+
+    Added a PID controller to the C++ control system with configurable output limits,
+    input validation, first-sample derivative protection, integral anti-windup, reset
+    support, and unit tests. The PID test builds and passes successfully.
+
+    Added Exploration and Optimization pages to the AI Control section of the GUI.
+    These are placeholder workspaces for now, and upcoming development will focus on
+    the Optimization page.
+
+    Next steps:
+    - Integrate the PID controller with the simulator, ControlService, and Optimization GUI.
+    - Implement and test Bayesian Optimization (BO) safely against the simulator.
+    - Define the beam-quality objective, controllable parameters, and safety constraints.
+
+    REMINDER: Add continuous data logging to a database as a background process soon.
+    The logger should record telemetry, commands, PID state, optimization trials, alarms,
+    and timestamps without blocking the GUI or control loop.
+
 ## Plans for what's next
 We have proved that a PID works within the digital architecture in the hardware therefore we are able to do some automated task.
 

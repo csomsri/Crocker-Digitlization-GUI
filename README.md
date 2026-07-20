@@ -49,4 +49,16 @@ If at any point there are any issues, a solution can be going through the list a
 
 
 ## How to Run
-WIP
+
+From the `CrockerGUI` directory, choose one launch mode:
+
+```powershell
+python main.py -simulation -smoke
+python main.py -simulation -cyclotron
+python main.py -ZMQ
+```
+
+The cyclotron mode requires a freshly built `CycloViz` extension containing
+the cyclotron model bindings. It runs the regular GUI and uses that model as
+the ZMQ plant behind the existing controls; it does not open a separate orbit
+simulation application.
