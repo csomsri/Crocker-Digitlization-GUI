@@ -20,6 +20,10 @@ def main() -> int:
     zmq = parse_args(["-ZMQ"])
     assert zmq.backend_mode == "zmq"
     assert zmq.simulation_mode is None
+
+    pipeline = parse_args(["-simulation", "-smoke", "--data-pipeline"])
+    assert pipeline.data_pipeline is True
+    assert pipeline.db_path
     return 0
 
 

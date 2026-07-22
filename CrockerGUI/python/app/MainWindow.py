@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QWidget,
 )
+from pathlib import Path
 from threading import Event, Thread
 
 from python.app.Automation.AutomationPage import AutomationPage
@@ -26,6 +27,8 @@ from python.app.Monitoring.MagneticFieldMonitoringPage import MagneticFieldMonit
 from python.app.Monitoring.MonitoringPage import MonitoringPage
 from python.app.Monitoring.RfPowerMonitoringPage import RfPowerMonitoringPage
 from python.app.Monitoring.VacuumBeamMonitoringPage import VacuumBeamMonitoringPage
+from source.Python.Data.pipeline_manager import DataPipelineManager
+from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
 
 PAGE_BUILDERS = {
@@ -60,12 +63,17 @@ class MainWindow(QMainWindow):
         backend_mode: str,
         zmq_endpoint: str,
         simulation_mode: str | None = None,
+        enable_data_pipeline: bool = False,
+        db_path: str | Path = DEFAULT_DB_PATH,
     ) -> None:
         super().__init__()
 
         self.backend_mode = backend_mode
         self.zmq_endpoint = zmq_endpoint
         self.simulation_mode = simulation_mode
+        self.enable_data_pipeline = enable_data_pipeline
+        self.db_path = Path(db_path)
+        self._data_pipeline: DataPipelineManager | None = None
 
         mode_title = simulation_mode or backend_mode
         self.setWindowTitle(f"Crocker Digitalization GUI - {mode_title.upper()}")
@@ -116,6 +124,8 @@ class MainWindow(QMainWindow):
         self.apply_styles()
         if self.simulation_mode == "cyclotron":
             self._start_cyclotron_plant()
+        if self.enable_data_pipeline:
+            self._start_data_pipeline()
 
     def _start_cyclotron_plant(self) -> None:
         from source.Python.Simulator.ZMQSimulator import CyclotronPlant, ZMQSimulator
@@ -138,7 +148,22 @@ class MainWindow(QMainWindow):
         )
         self._cyclotron_thread.start()
 
+    def _start_data_pipeline(self) -> None:
+        crocker_root = Path(__file__).resolve().parents[2]
+        db_path = self.db_path
+        if not db_path.is_absolute():
+            db_path = crocker_root / db_path
+        self._data_pipeline = DataPipelineManager(
+            crocker_root=crocker_root,
+            db_path=db_path,
+            source="smoke",
+            rate_hz=20.0,
+        )
+        self._data_pipeline.start()
+
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if self._data_pipeline is not None:
+            self._data_pipeline.stop()
         stop = getattr(self, "_cyclotron_stop", None)
         if stop is not None:
             stop.set()
@@ -526,9 +551,17 @@ def run_app(
     backend_mode: str,
     zmq_endpoint: str = "tcp://0.0.0.0:5555",
     simulation_mode: str | None = None,
+    enable_data_pipeline: bool = False,
+    db_path: str | Path = DEFAULT_DB_PATH,
 ) -> int:
     app = QApplication([])
-    window = MainWindow(backend_mode, zmq_endpoint, simulation_mode)
+    window = MainWindow(
+        backend_mode,
+        zmq_endpoint,
+        simulation_mode,
+        enable_data_pipeline,
+        db_path,
+    )
     window.show()
     return app.exec()
 
