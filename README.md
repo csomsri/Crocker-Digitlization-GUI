@@ -10,9 +10,18 @@ You need to have:
 
 ## Installs
 We are using GitHub Submodules so all you need to do hopefully is 
+
+```
+git clone --recursive "git.shh"
+```
+
 ```
 git submodule update --init --recursive
 ```
+
+*If you are using the GIT GUI make sure to click the checkmark for submodules
+
+
 If any point there are any issues the C++ Libraries we are using are:
 
 GLFW,GLAD,GLM,ZMQ
