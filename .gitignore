@@ -16,6 +16,7 @@ CrockerGUI/*.vcxproj.filters
 __pycache__/
 *.py[cod]
 CrockerGUI/data/
+CrockerGUI/logs/
 
 # Native build artifacts
 *.obj
