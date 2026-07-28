@@ -5,6 +5,7 @@ from python.app.PageShell import CategoryPage, PageSpec
 
 AUTOMATION_PAGES: list[PageSpec] = [
     ("Exploration", "Explore and characterize daily machine settings"),
+    ("PID Control", "Run closed-loop control on a selected channel"),
     ("Optimization", "Optimize and stabilize beam performance"),
 ]
 

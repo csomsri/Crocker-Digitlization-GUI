@@ -10,6 +10,7 @@ from threading import Event, Thread
 from python.app.Automation.AutomationPage import AutomationPage
 from python.app.Automation.ExplorationPage import ExplorationPage
 from python.app.Automation.OptimizationPage import OptimizationPage
+from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
@@ -53,6 +54,7 @@ DETAIL_BUILDERS = {
     "Settings": ("Configuration", SettingsPage),
     "Scaling": ("Configuration", ScalingPage),
     "Exploration": ("Automation", ExplorationPage),
+    "PID Control": ("Automation", PidControlPage),
     "Optimization": ("Automation", OptimizationPage),
 }
 
@@ -95,7 +97,7 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title == "Field Ctrl":
+            if title in {"Field Ctrl", "PID Control"}:
                 field_backend_mode = (
                     "zmq" if self.simulation_mode == "cyclotron" else self.backend_mode
                 )
@@ -542,6 +544,75 @@ class MainWindow(QMainWindow):
 
             QPushButton#fieldAction {
                 min-height: 34px;
+            }
+
+            QFrame#pidPanel {
+                background-color: rgba(4, 14, 28, 0.56);
+                border: 1px solid rgba(124, 255, 178, 0.24);
+                border-radius: 6px;
+            }
+
+            QLabel#pidTitle {
+                color: #e9fbff;
+                font-size: 15px;
+                font-weight: 700;
+            }
+
+            QLabel#pidStatus {
+                color: #7cffb2;
+                font-family: Consolas, monospace;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            QLabel#pidFieldLabel {
+                color: #d6f6ff;
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            QComboBox#pidChannelSelect,
+            QDoubleSpinBox#pidSpin {
+                background-color: rgba(0, 20, 30, 0.95);
+                border: 1px solid rgba(124, 255, 178, 0.42);
+                border-radius: 5px;
+                color: #eaffff;
+                min-height: 28px;
+                padding: 3px 8px;
+            }
+
+            QPushButton#pidEnable {
+                background-color: rgba(12, 48, 48, 0.76);
+                border: 1px solid rgba(124, 255, 178, 0.42);
+                color: #eaffff;
+                min-height: 28px;
+                text-align: center;
+            }
+
+            QPushButton#pidEnable:checked {
+                background-color: rgba(20, 126, 92, 0.82);
+                border: 1px solid rgba(234, 255, 255, 0.82);
+            }
+
+            QPushButton#pidArm {
+                background-color: rgba(74, 60, 20, 0.82);
+                border: 1px solid rgba(255, 190, 74, 0.54);
+                color: #fff3d0;
+                min-height: 28px;
+                text-align: center;
+            }
+
+            QPushButton#pidArm:checked {
+                background-color: rgba(130, 88, 20, 0.88);
+                border: 1px solid rgba(255, 226, 150, 0.82);
+            }
+
+            QPushButton#pidStop {
+                background-color: rgba(96, 20, 22, 0.84);
+                border: 1px solid rgba(255, 94, 94, 0.62);
+                color: #ffe4e4;
+                min-height: 28px;
+                text-align: center;
             }
             """
         )
