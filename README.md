@@ -12,7 +12,7 @@ You need to have:
 We are using GitHub Submodules so all you need to do hopefully is 
 
 ```
-git clone --recursive "git.shh"
+git clone --recursive git@github.com:csomsri/Crocker-Digitlization-GUI.git
 ```
 
 ```
