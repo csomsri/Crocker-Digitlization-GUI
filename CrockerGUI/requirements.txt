@@ -1,4 +1,9 @@
 PySide6
 pybind11
 pyzmq
+torch
 botorch
+gpytorch
+numpy
+pandas
+scipy   

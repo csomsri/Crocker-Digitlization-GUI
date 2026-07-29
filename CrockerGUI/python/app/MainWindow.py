@@ -55,7 +55,7 @@ DETAIL_BUILDERS = {
     "Scaling": ("Configuration", ScalingPage),
     "Exploration": ("Automation", ExplorationPage),
     "PID Control": ("Automation", PidControlPage),
-    "Optimization": ("Automation", OptimizationPage),
+    "Assisted Tuning": ("Automation", OptimizationPage),
 }
 
 
@@ -97,7 +97,7 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title in {"Field Ctrl", "PID Control"}:
+            if title in {"Field Ctrl", "PID Control", "Assisted Tuning"}:
                 field_backend_mode = (
                     "zmq" if self.simulation_mode == "cyclotron" else self.backend_mode
                 )
