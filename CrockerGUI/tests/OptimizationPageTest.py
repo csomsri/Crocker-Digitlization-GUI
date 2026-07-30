@@ -46,15 +46,25 @@ def main() -> int:
         page.output_on_check.setChecked(True)
         page.control_enabled_check.setChecked(True)
         page.dry_run_check.setChecked(False)
+        page.automated_trials_check.setChecked(True)
+        if page.auto_approve_check.isChecked():
+            raise RuntimeError("Automatic trial approval must be off by default")
         page.arm_button.setChecked(True)
 
-        page._generate_candidate()
         if page.pending_candidate is None:
-            raise RuntimeError(f"Trial runner did not suggest a candidate: {page.last_message}")
+            raise RuntimeError(f"Trial runner did not automatically suggest a candidate: {page.last_message}")
 
         candidate = page.pending_candidate.command
-        if abs(candidate - page.command_values[0]) > page.max_step_input.value() + 1.0e-9:
-            raise RuntimeError("Generated candidate exceeded max step")
+        allowed_step = page.pending_candidate.allowed_step
+        if abs(candidate - page.command_values[0]) > allowed_step + 1.0e-9:
+            raise RuntimeError("Generated candidate exceeded its adaptive range")
+
+        wide_range = page.optimizer.adaptive_step(200.0, 10.0, 0.5)
+        narrow_range = page.optimizer.adaptive_step(4.0, 10.0, 0.5)
+        if wide_range != 10.0 or narrow_range != 4.0:
+            raise RuntimeError(
+                f"Adaptive trial range was not based directly on error: {wide_range=}, {narrow_range=}"
+            )
 
         page._approve_trial()
         deadline = time.monotonic() + 3.0
@@ -70,6 +80,11 @@ def main() -> int:
             raise RuntimeError("Assisted tuning trial logged the wrong channel")
         if page.trial_table.rowCount() < 1:
             raise RuntimeError("Assisted tuning trial table did not receive a row")
+        if page.pending_candidate is None:
+            raise RuntimeError("Next assisted trial was not prepared automatically")
+        page.auto_approve_check.setChecked(True)
+        if page.active_trial is None or page.pending_candidate is not None:
+            raise RuntimeError("Automatic approval did not start the waiting trial")
 
         print(
             "Assisted tuning page simulator test passed: "

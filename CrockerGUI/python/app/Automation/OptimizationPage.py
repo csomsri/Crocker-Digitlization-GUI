@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -34,7 +35,7 @@ except Exception:
 
 
 UNSAFE_STATUSES = {"Fault", "Interlocked"}
-TRIAL_COLUMNS = ["Trial", "Channel", "Candidate", "Actual", "Error", "Score", "Safe"]
+TRIAL_COLUMNS = ["Trial", "Channel", "Candidate", "Range", "Actual", "Error", "Score", "Safe"]
 
 
 class OptimizationPage(DetailPage):
@@ -97,6 +98,10 @@ class OptimizationPage(DetailPage):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick_feedback)
         self.timer.start(125)
+        self.approve_shortcut = QShortcut(QKeySequence(Qt.Key_Return), self)
+        self.approve_shortcut.activated.connect(self._approve_trial)
+        self.keypad_approve_shortcut = QShortcut(QKeySequence(Qt.Key_Enter), self)
+        self.keypad_approve_shortcut.activated.connect(self._approve_trial)
         self._refresh_status()
 
     def _build_setup_panel(self) -> QFrame:
@@ -107,7 +112,7 @@ class OptimizationPage(DetailPage):
         layout.setHorizontalSpacing(10)
         layout.setVerticalSpacing(10)
 
-        title = QLabel("Safe Trial Runner")
+        title = QLabel("Target-Guided Trial Session")
         title.setObjectName("pidTitle")
         self.run_status_label = QLabel("Idle")
         self.run_status_label.setObjectName("pidStatus")
@@ -120,41 +125,56 @@ class OptimizationPage(DetailPage):
         self.channel_select.addItems(CHANNEL_NAMES)
         self.channel_select.currentIndexChanged.connect(self._set_channel)
 
-        self.objective_select = QComboBox()
-        self.objective_select.setObjectName("pidChannelSelect")
-        self.objective_select.addItems(["Reach target actual", "Minimize absolute error"])
-
         self.arm_button = QPushButton("Arm Trial Runner")
         self.arm_button.setObjectName("pidArm")
         self.arm_button.setCheckable(True)
         self.arm_button.toggled.connect(self._set_armed)
-        layout.addWidget(self.channel_select, 1, 0, 1, 2)
-        layout.addWidget(self.objective_select, 1, 2, 1, 2)
+        channel_label = QLabel("Controlled Channel")
+        channel_label.setObjectName("pidFieldLabel")
+        target_label = QLabel("Target Value")
+        target_label.setObjectName("pidFieldLabel")
+        layout.addWidget(channel_label, 1, 0, 1, 2)
+        layout.addWidget(target_label, 1, 2, 1, 2)
         layout.addWidget(self.arm_button, 1, 4)
 
         self.target_actual_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
+        self.target_actual_input.valueChanged.connect(self._target_changed)
+        layout.addWidget(self.channel_select, 2, 0, 1, 2)
+        layout.addWidget(self.target_actual_input, 2, 2, 1, 2)
+
         self.min_command_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 1.0, " A")
         self.max_command_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 1.0, " A")
         self.max_step_input = self._make_spinbox(0.1, 100.0, 0.5, " A/trial")
+        self.min_step_input = self._make_spinbox(0.01, 100.0, 0.1, " A/trial")
+        self.tolerance_input = self._make_spinbox(0.01, MAX_GAUGE_VALUE, 0.1, " A")
         self.observe_seconds_input = self._make_spinbox(0.5, 60.0, 0.5, " s")
         self.max_command_input.setValue(MAX_GAUGE_VALUE)
         self.max_step_input.setValue(10.0)
+        self.min_step_input.setValue(0.5)
+        self.tolerance_input.setValue(1.0)
         self.observe_seconds_input.setValue(3.0)
 
         for column, (label_text, widget) in enumerate(
             (
-                ("Target Actual", self.target_actual_input),
                 ("Min Cmd", self.min_command_input),
                 ("Max Cmd", self.max_command_input),
-                ("Max Step", self.max_step_input),
+                ("Initial Range", self.max_step_input),
+                ("Minimum Range", self.min_step_input),
+                ("Target Tolerance", self.tolerance_input),
                 ("Observe", self.observe_seconds_input),
             )
         ):
             label = QLabel(label_text)
             label.setObjectName("pidFieldLabel")
-            layout.addWidget(label, 2, column)
-            layout.addWidget(widget, 3, column)
+            layout.addWidget(label, 3, column)
+            layout.addWidget(widget, 4, column)
 
+        self.automated_trials_check = QCheckBox("Automated Trials")
+        self.automated_trials_check.setObjectName("toggleRow")
+        self.automated_trials_check.toggled.connect(self._set_automated_trials)
+        self.auto_approve_check = QCheckBox("Automatically Approve Trials")
+        self.auto_approve_check.setObjectName("toggleRow")
+        self.auto_approve_check.toggled.connect(self._set_auto_approve)
         self.output_on_check = QCheckBox("Output On")
         self.output_on_check.setObjectName("toggleRow")
         self.output_on_check.toggled.connect(self._set_output_on)
@@ -164,10 +184,12 @@ class OptimizationPage(DetailPage):
         self.dry_run_check = QCheckBox("Dry Run")
         self.dry_run_check.setObjectName("toggleRow")
         self.dry_run_check.setChecked(True)
-        self.dry_run_check.toggled.connect(lambda checked=False: self._refresh_status())
-        layout.addWidget(self.output_on_check, 4, 0)
-        layout.addWidget(self.control_enabled_check, 4, 1)
-        layout.addWidget(self.dry_run_check, 4, 2)
+        self.dry_run_check.toggled.connect(self._safety_setting_changed)
+        layout.addWidget(self.automated_trials_check, 5, 0)
+        layout.addWidget(self.output_on_check, 5, 1)
+        layout.addWidget(self.control_enabled_check, 5, 2)
+        layout.addWidget(self.dry_run_check, 5, 3)
+        layout.addWidget(self.auto_approve_check, 5, 4)
         return panel
 
     def _build_candidate_panel(self) -> QFrame:
@@ -183,10 +205,10 @@ class OptimizationPage(DetailPage):
         self.candidate_label.setWordWrap(True)
         layout.addWidget(self.candidate_label, 0, 0, 1, 4)
 
-        self.generate_button = QPushButton("Suggest Trial")
+        self.generate_button = QPushButton("Prepare Next Trial")
         self.generate_button.setObjectName("fieldAction")
         self.generate_button.clicked.connect(self._generate_candidate)
-        self.approve_button = QPushButton("Approve Trial")
+        self.approve_button = QPushButton("Approve Trial (Enter)")
         self.approve_button.setObjectName("pidEnable")
         self.approve_button.clicked.connect(self._approve_trial)
         self.reject_button = QPushButton("Reject Trial")
@@ -248,20 +270,53 @@ class OptimizationPage(DetailPage):
 
     def _set_armed(self, armed: bool) -> None:
         self.armed = armed
+        self.arm_button.setText("Disarm Trial Runner" if armed else "Arm Trial Runner")
         if not armed:
             self._stop_trial("Disarmed")
-            self.arm_button.setText("Disarm Trial Runner" if armed else "Arm Trial Runner")
+            self.pending_candidate = None
         self.last_message = "Armed" if armed else "Not armed"
+        self._maybe_generate_next_candidate()
+        self._refresh_status()
+
+    def _set_automated_trials(self, checked: bool) -> None:
+        if checked:
+            self.last_message = "Automated trials enabled"
+            self._maybe_generate_next_candidate()
+        else:
+            self.pending_candidate = None
+            self.last_message = "Automated trials disabled"
+        self._refresh_status()
+
+    def _set_auto_approve(self, checked: bool) -> None:
+        if checked and self.pending_candidate is not None:
+            self._approve_trial()
+        else:
+            self.last_message = "Automatic approval enabled" if checked else "Manual approval required"
+            self._maybe_generate_next_candidate()
+            self._refresh_status()
+
+    def _target_changed(self, _value: float) -> None:
+        if self.active_trial is not None:
+            self._stop_trial("Target changed")
+        self.pending_candidate = None
+        if self.automated_trials_check.isChecked():
+            self._maybe_generate_next_candidate()
         self._refresh_status()
 
     def _set_output_on(self, checked: bool) -> None:
         self.channel_on[self.selected_index] = checked
         self.desired_state_initialized[self.selected_index] = True
+        self._maybe_generate_next_candidate()
         self._refresh_status()
 
     def _set_control_enabled(self, checked: bool) -> None:
         self.channel_enabled[self.selected_index] = checked
         self.desired_state_initialized[self.selected_index] = True
+        self._maybe_generate_next_candidate()
+        self._refresh_status()
+
+    def _safety_setting_changed(self, _checked: bool) -> None:
+        self._maybe_generate_next_candidate()
         self._refresh_status()
 
     def _sync_channel_toggles(self) -> None:
@@ -277,17 +332,43 @@ class OptimizationPage(DetailPage):
             self.last_message = "A trial is already running"
             self._refresh_status()
             return
+        if not self.automated_trials_check.isChecked():
+            self.last_message = "Enable Automated Trials first"
+            self._refresh_status()
+            return
+        current_error = abs(self.target_actual_input.value() - self.actual_values[self.selected_index])
+        if current_error <= self.tolerance_input.value():
+            self.pending_candidate = None
+            self.last_message = "Target reached within tolerance"
+            self._refresh_status()
+            return
         self.pending_candidate = self.optimizer.propose(
             channel=self.selected_index,
             current_command=self.command_values[self.selected_index],
+            current_actual=self.actual_values[self.selected_index],
+            target_actual=self.target_actual_input.value(),
             min_command=self.min_command_input.value(),
             max_command=self.max_command_input.value(),
             max_step=self.max_step_input.value(),
+            min_step=self.min_step_input.value(),
         )
         if not self._candidate_is_safe(self.pending_candidate):
             self.pending_candidate = None
+        elif self.auto_approve_check.isChecked():
+            self._approve_trial()
         self._refresh_candidate()
         self._refresh_status()
+
+    def _maybe_generate_next_candidate(self) -> None:
+        if (
+            self.pending_candidate is None
+            and self.active_trial is None
+            and self.automated_trials_check.isChecked()
+            and self.armed
+            and self.channel_on[self.selected_index]
+            and self.channel_enabled[self.selected_index]
+        ):
+            self._generate_candidate()
 
     def _candidate_is_safe(self, candidate: SafeCandidate) -> bool:
         if not self.armed:
@@ -307,8 +388,8 @@ class OptimizationPage(DetailPage):
             self.last_message = f"Rejecting trial: unsafe status {status}"
             return False
         current = self.command_values[candidate.channel]
-        if abs(candidate.command - current) > self.max_step_input.value() + 1.0e-9:
-            self.last_message = "Rejecting trial: exceeds max step"
+        if abs(candidate.command - current) > candidate.allowed_step + 1.0e-9:
+            self.last_message = "Rejecting trial: exceeds adaptive range"
             return False
         self.last_message = "Trial suggestion passed safety checks"
         return True
@@ -337,6 +418,7 @@ class OptimizationPage(DetailPage):
             self._record_trial(self.pending_candidate, safe=False, score=float("inf"), actual=self.actual_values[self.pending_candidate.channel])
         self.pending_candidate = None
         self.last_message = "Trial suggestion rejected"
+        self._maybe_generate_next_candidate()
         self._refresh_candidate()
         self._refresh_status()
 
@@ -403,6 +485,7 @@ class OptimizationPage(DetailPage):
         )
         self._record_trial(self.active_trial, safe=True, score=score, actual=actual)
         self._stop_trial("Trial complete")
+        self._maybe_generate_next_candidate()
 
     def _apply_channel_command(self, index: int) -> bool:
         target = self.command_values[index]
@@ -443,6 +526,7 @@ class OptimizationPage(DetailPage):
             trial["trial"],
             trial["channel"],
             f"{float(trial['candidate']):.3f}",
+            f"+/-{float(trial['allowed_step']):.3f}",
             f"{float(trial['actual']):.3f}",
             f"{float(trial['error']):.3f}",
             "inf" if math.isinf(float(trial["score"])) else f"{float(trial['score']):.3f}",
@@ -462,11 +546,12 @@ class OptimizationPage(DetailPage):
             )
             return
         if self.pending_candidate is None:
-            self.candidate_label.setText("No trial suggested")
+            self.candidate_label.setText("Complete the safety checklist to prepare the first trial")
             return
         self.candidate_label.setText(
             f"Suggested {CHANNEL_NAMES[self.pending_candidate.channel]} command "
-            f"{self.pending_candidate.command:.3f} A | {self.pending_candidate.reason}"
+            f"{self.pending_candidate.command:.3f} A | error {self.pending_candidate.current_error:+.3f} A | "
+            f"{self.pending_candidate.reason} | press Enter to approve"
         )
 
     def _refresh_status(self) -> None:
@@ -474,9 +559,20 @@ class OptimizationPage(DetailPage):
         actual = self.actual_values[self.selected_index]
         command = self.command_values[self.selected_index]
         target = self.target_actual_input.value()
+        error = target - actual
+        adaptive_range = (
+            self.pending_candidate.allowed_step
+            if self.pending_candidate is not None
+            else self.optimizer.adaptive_step(
+                current_error=error,
+                max_step=self.max_step_input.value(),
+                min_step=self.min_step_input.value(),
+            )
+        )
         state = "running" if self.active_trial is not None else "idle"
         self.run_status_label.setText(
-            f"{channel} {state} | actual {actual:.2f} A | target {target:.2f} A | cmd {command:.2f} A"
+            f"{channel} {state} | actual {actual:.2f} A | target {target:.2f} A | "
+            f"error {error:+.2f} A | next range +/-{adaptive_range:.2f} A"
         )
         connected = self.backend_available and self.backend_connection.lower() in {"connected", "listening"}
         self.connection_dot.setProperty("connected", connected)
@@ -487,7 +583,9 @@ class OptimizationPage(DetailPage):
         self.safety_label.setText(
             "Safety\n"
             f"{self.last_message} | dry run {self.dry_run_check.isChecked()} | "
-            f"armed {self.armed} | last apply {self.last_apply_ok} | packets {self.backend_packets}"
+            f"automated {self.automated_trials_check.isChecked()} | "
+            f"auto approve {self.auto_approve_check.isChecked()} | armed {self.armed} | "
+            f"last apply {self.last_apply_ok} | packets {self.backend_packets}"
         )
         self._refresh_candidate()
 

@@ -14,6 +14,8 @@ class SafeCandidate:
     channel: int
     command: float
     reason: str
+    allowed_step: float
+    current_error: float
 
 
 class AssistedTrialSuggester:
@@ -40,21 +42,54 @@ class AssistedTrialSuggester:
         self,
         channel: int,
         current_command: float,
+        current_actual: float,
+        target_actual: float,
         min_command: float,
         max_command: float,
         max_step: float,
+        min_step: float,
     ) -> SafeCandidate:
         minimum = min(min_command, max_command)
         maximum = max(min_command, max_command)
-        lower = max(minimum, current_command - max_step)
-        upper = min(maximum, current_command + max_step)
+        current_error = target_actual - current_actual
+        allowed_step = self.adaptive_step(
+            current_error=current_error,
+            max_step=max_step,
+            min_step=min_step,
+        )
+        lower = max(minimum, current_command - allowed_step)
+        upper = min(maximum, current_command + allowed_step)
         if lower >= upper:
             command = lower
         else:
-            command = self._next_command(channel, lower, upper, max_step)
+            command = self._next_command(
+                channel,
+                current_command,
+                current_error,
+                lower,
+                upper,
+                allowed_step,
+            )
 
-        reason = "space-filling seed" if len(self.safe_trials(channel)) < 3 else "score-guided probe"
-        return SafeCandidate(channel=channel, command=command, reason=reason)
+        mode = "target-directed seed" if len(self.safe_trials(channel)) < 3 else "score-guided probe"
+        reason = f"{mode}; adaptive range +/-{allowed_step:.3f}"
+        return SafeCandidate(
+            channel=channel,
+            command=command,
+            reason=reason,
+            allowed_step=allowed_step,
+            current_error=current_error,
+        )
+
+    @staticmethod
+    def adaptive_step(
+        current_error: float,
+        max_step: float,
+        min_step: float,
+    ) -> float:
+        lower = min(max(min_step, 0.0), max_step)
+        upper = max(max_step, lower)
+        return min(upper, max(lower, abs(current_error)))
 
     def safe_trials(self, channel: int) -> list[dict[str, Any]]:
         return [trial for trial in self.trials if trial["channel_index"] == channel and trial["safe"]]
@@ -85,6 +120,7 @@ class AssistedTrialSuggester:
             "channel_index": candidate.channel,
             "channel": self.channel_names[candidate.channel],
             "candidate": candidate.command,
+            "allowed_step": candidate.allowed_step,
             "actual": actual,
             "error": target_actual - actual,
             "score": score,
@@ -105,17 +141,27 @@ class AssistedTrialSuggester:
                 writer.writeheader()
             writer.writerow({"timestamp": f"{time.time():.6f}", **trial})
 
-    def _next_command(self, channel: int, lower: float, upper: float, max_step: float) -> float:
+    def _next_command(
+        self,
+        channel: int,
+        current_command: float,
+        current_error: float,
+        lower: float,
+        upper: float,
+        allowed_step: float,
+    ) -> float:
         channel_trials = self.safe_trials(channel)
         if len(channel_trials) < 3:
-            return self.random.uniform(lower, upper)
+            direction = 1.0 if current_error >= 0.0 else -1.0
+            magnitude = self.random.uniform(0.55, 1.0) * allowed_step
+            return min(upper, max(lower, current_command + direction * magnitude))
 
         best = min(channel_trials, key=lambda trial: float(trial["score"]))
         best_command = float(best["candidate"])
-        width = max((upper - lower) * 0.35, max_step * 0.2)
+        width = max((upper - lower) * 0.35, allowed_step * 0.2)
         probes = [self.random.uniform(lower, upper) for _ in range(24)]
         probes.extend(min(upper, max(lower, best_command + self.random.gauss(0.0, width))) for _ in range(24))
-        return min(probes, key=lambda command: self._acquisition_score(channel, command, max_step))
+        return min(probes, key=lambda command: self._acquisition_score(channel, command, allowed_step))
 
     def _acquisition_score(self, channel: int, command: float, max_step: float) -> float:
         channel_trials = self.safe_trials(channel)
