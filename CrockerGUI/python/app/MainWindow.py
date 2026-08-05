@@ -12,6 +12,7 @@ from python.app.Automation.AutomationPage import AutomationPage
 from python.app.Automation.ExplorationPage import ExplorationPage
 from python.app.Automation.OptimizationPage import OptimizationPage
 from python.app.Automation.PidControlPage import PidControlPage
+from python.app.CyberpunkMotion import CyberpunkMotionController
 from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
@@ -125,6 +126,8 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.stack)
         self.apply_styles()
+        self.motion = CyberpunkMotionController(self.stack, self)
+        self.motion.attach_to(self)
         if self.simulation_mode == "cyclotron":
             self._start_cyclotron_plant()
         if self.enable_data_pipeline:
@@ -255,13 +258,27 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton:hover {
-                background-color: rgba(23, 66, 68, 0.92);
+                background-color: rgba(12, 43, 46, 0.96);
                 border-color: #b9fbff;
+                color: #eaffff;
+            }
+
+            QPushButton[cyberpunkHover="true"] {
+                background-color: rgba(12, 43, 46, 0.98);
+                border: 1px solid rgba(185, 251, 255, 0.96);
+                color: #eaffff;
             }
 
             QPushButton:pressed {
                 background-color: rgba(119, 29, 45, 0.55);
                 border-color: #ff5169;
+                color: #ffffff;
+            }
+
+            QPushButton[cyberpunkPressed="true"] {
+                background-color: rgba(119, 29, 45, 0.68);
+                border: 1px solid rgba(255, 81, 105, 0.95);
+                color: #ffffff;
             }
 
             QSplitter::handle {
@@ -352,6 +369,14 @@ class MainWindow(QMainWindow):
                 selection-color: #ffffff;
             }
 
+            QLineEdit:focus,
+            QDoubleSpinBox:focus,
+            QComboBox:focus {
+                background-color: rgba(4, 24, 27, 0.98);
+                border: 1px solid rgba(255, 81, 105, 0.82);
+                color: #eaffff;
+            }
+
             QTableWidget {
                 gridline-color: rgba(53, 244, 255, 0.22);
                 alternate-background-color: rgba(16, 38, 38, 0.68);
@@ -381,7 +406,12 @@ class MainWindow(QMainWindow):
             }
 
             QProgressBar::chunk {
-                background-color: #35f4ff;
+                background-color: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #35f4ff,
+                    stop: 0.55 #8fffd2,
+                    stop: 1 #ff5169
+                );
                 border-radius: 5px;
             }
 
@@ -575,7 +605,12 @@ class MainWindow(QMainWindow):
             }
 
             QSlider#fieldPowerSlider::sub-page:horizontal {
-                background-color: #35f4ff;
+                background-color: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #35f4ff,
+                    stop: 0.65 #8fffd2,
+                    stop: 1 #ff5169
+                );
                 border-radius: 4px;
             }
 

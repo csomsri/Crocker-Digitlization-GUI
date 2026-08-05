@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -176,10 +176,35 @@ class CnlViewportPlaceholder(QWidget):
 class CnlCircleDisplay(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._sweep_phase = 0
+        self._sweep_timer = QTimer(self)
+        self._sweep_timer.setInterval(70)
+        self._sweep_timer.timeout.connect(self._advance_sweep)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumSize(360, 360)
         self.title = "Monitoring"
         self.preview_lines: list[str] = []
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().showEvent(event)
+        self._sweep_timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self._sweep_timer.stop()
+        super().hideEvent(event)
+
+    def _advance_sweep(self) -> None:
+        self._sweep_phase = (self._sweep_phase + 1) % 120
+        self.update(self._circle_ring_rect())
+
+    def _circle_ring_rect(self) -> QRect:
+        size = max(1, min(self.width(), self.height()) - 8)
+        return QRect(
+            int((self.width() - size) / 2),
+            int((self.height() - size) / 2),
+            int(size),
+            int(size),
+        ).adjusted(-3, -3, 3, 3)
 
     def set_preview(self, title: str, lines: list[str]) -> None:
         self.title = title
@@ -208,6 +233,11 @@ class CnlCircleDisplay(QWidget):
         painter.setPen(QPen(QColor("#214f52"), 1))
         painter.drawLine(QPointF(center.x(), rect.top() + 28), QPointF(center.x(), rect.bottom() - 28))
         painter.drawLine(QPointF(rect.left() + 28, center.y()), QPointF(rect.right() - 28, center.y()))
+        sweep_angle = (self._sweep_phase * 3) % 360
+        painter.setPen(QPen(QColor(53, 244, 255, 155), 2))
+        painter.drawArc(rect.adjusted(14, 14, -14, -14), sweep_angle * 16, 44 * 16)
+        painter.setPen(QPen(QColor(255, 81, 105, 135), 1))
+        painter.drawArc(rect.adjusted(46, 46, -46, -46), ((sweep_angle + 160) % 360) * 16, 30 * 16)
 
         painter.setPen(QPen(HUD_RED, 1))
         for index in range(5):
@@ -289,10 +319,33 @@ class CnlMonitorSelectionButton(QPushButton):
 class CnlTitleBar(QWidget):
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self._pulse_phase = 0
+        self._pulse_timer = QTimer(self)
+        self._pulse_timer.setInterval(80)
+        self._pulse_timer.timeout.connect(self._advance_pulse)
         self.title = title.upper()
         self.setMinimumHeight(58)
         self.setMaximumWidth(1160)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().showEvent(event)
+        self._pulse_timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self._pulse_timer.stop()
+        super().hideEvent(event)
+
+    def _advance_pulse(self) -> None:
+        old_rect = self._title_pulse_rect()
+        self._pulse_phase = (self._pulse_phase + 1) % 48
+        self.update(old_rect.united(self._title_pulse_rect()).adjusted(-4, -2, 4, 2))
+
+    def _title_pulse_rect(self) -> QRect:
+        rect = QRectF(self.rect()).adjusted(8, 4, -8, -4)
+        baseline = rect.bottom() - 12
+        pulse_x = rect.left() + ((self._pulse_phase * 18) % max(1, int(rect.width())))
+        return QRect(int(pulse_x - 26), int(baseline - 5), 94, 16)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -325,6 +378,11 @@ class CnlTitleBar(QWidget):
         painter.setPen(QPen(QColor("#2fefff"), 1))
         painter.drawLine(QPointF(rect.left() + 110, baseline), QPointF(center - 180, baseline))
         painter.drawLine(QPointF(center + 180, baseline), QPointF(rect.right() - 110, baseline))
+        pulse_x = self._title_pulse_rect().left() + 26
+        painter.setPen(QPen(QColor(53, 244, 255, 160), 2))
+        painter.drawLine(QPointF(pulse_x, baseline + 6), QPointF(min(rect.right(), pulse_x + 64), baseline + 6))
+        painter.setPen(QPen(QColor(255, 81, 105, 130), 1))
+        painter.drawLine(QPointF(max(rect.left(), pulse_x - 24), baseline - 2), QPointF(pulse_x, baseline - 2))
 
         for x in (center - 170, center + 170):
             accent = QRectF(x - 5, baseline - 5, 10, 10)
@@ -343,6 +401,10 @@ class CnlTitleBar(QWidget):
 class PageShell(QWidget):
     def __init__(self, title: str, subtitle: str) -> None:
         super().__init__()
+        self._scan_phase = 0
+        self._scan_timer = QTimer(self)
+        self._scan_timer.setInterval(90)
+        self._scan_timer.timeout.connect(self._advance_scan)
         self.setObjectName("page")
 
         self.layout = QVBoxLayout(self)
@@ -358,6 +420,23 @@ class PageShell(QWidget):
         self.layout.addSpacing(2)
         self.layout.addWidget(header, 0, Qt.AlignHCenter)
         self.layout.addWidget(subheader)
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().showEvent(event)
+        self._scan_timer.start()
+
+    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self._scan_timer.stop()
+        super().hideEvent(event)
+
+    def _advance_scan(self) -> None:
+        old_rect = self._page_scan_rect()
+        self._scan_phase = (self._scan_phase + 1) % 240
+        self.update(old_rect.united(self._page_scan_rect()).adjusted(0, -2, 0, 2))
+
+    def _page_scan_rect(self) -> QRect:
+        scan_y = (self._scan_phase * 9) % max(1, self.height())
+        return QRect(0, scan_y, self.width(), 4)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -375,6 +454,9 @@ class PageShell(QWidget):
         for y in range(5, self.height(), spacing):
             for x in range(5, self.width(), spacing):
                 painter.drawPoint(x, y)
+        painter.setPen(QPen(QColor(53, 244, 255, 42), 1))
+        scan_y = self._page_scan_rect().top()
+        painter.drawLine(QPointF(0, scan_y), QPointF(self.width(), scan_y))
 
         painter.setPen(QPen(QColor(125, 26, 38, 115), 1))
         painter.drawLine(QPointF(18, 38), QPointF(90, 38))
