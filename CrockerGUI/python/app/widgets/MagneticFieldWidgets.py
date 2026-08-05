@@ -32,8 +32,8 @@ class BubbleToggle(QPushButton):
         center = QPointF(self.width() * 0.5, self.height() * 0.5)
 
         fill = QRadialGradient(center, radius)
-        fill.setColorAt(0.0, QColor(44, 58, 73))
-        fill.setColorAt(1.0, QColor(6, 12, 22))
+        fill.setColorAt(0.0, QColor(42, 61, 61))
+        fill.setColorAt(1.0, QColor(4, 10, 10))
         if self.isChecked():
             fill.setColorAt(0.15, QColor(255, 255, 255, 190))
             fill.setColorAt(0.55, QColor(self._color.red(), self._color.green(), self._color.blue(), 165))
@@ -196,21 +196,21 @@ class TimeDomainPlot(QWidget):
         painter = QPainter(self)
         painter.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
         bounds = QRectF(0, 0, self.width(), self.height())
-        painter.fillRect(bounds, QColor(0, 0, 0))
+        painter.fillRect(bounds, QColor(3, 8, 8))
 
         plot = bounds.adjusted(54, 38, -18, -42)
-        painter.setPen(QPen(QColor(0, 188, 255, 80), 1))
+        painter.setPen(QPen(QColor(53, 244, 255, 90), 1))
         painter.drawRect(plot)
         for i in range(1, 4):
             y = plot.top() + plot.height() * i / 4.0
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
 
-        painter.setPen(QColor(202, 239, 255, 180))
+        painter.setPen(QColor(216, 253, 255, 190))
         painter.drawText(QRectF(10, 8, 180, 16), Qt.AlignLeft | Qt.AlignVCenter, "Time Response")
         self._draw_legend(painter, plot)
 
         if len(self._samples) < 2:
-            painter.setPen(QColor(202, 239, 255, 120))
+            painter.setPen(QColor(109, 248, 255, 130))
             painter.drawText(plot, Qt.AlignCenter, "Waiting for samples")
             return
 
@@ -233,11 +233,11 @@ class TimeDomainPlot(QWidget):
             return QPointF(x, y)
 
         self._draw_time_axis(painter, plot, span)
-        self._draw_series(painter, [map_point(sample, sample[1]) for sample in self._samples], QColor(255, 0, 188))
-        self._draw_series(painter, [map_point(sample, sample[2]) for sample in self._samples], QColor(255, 184, 45))
-        self._draw_series(painter, [map_point(sample, sample[3]) for sample in self._samples], QColor(255, 62, 62))
+        self._draw_series(painter, [map_point(sample, sample[1]) for sample in self._samples], QColor(53, 244, 255))
+        self._draw_series(painter, [map_point(sample, sample[2]) for sample in self._samples], QColor(143, 255, 210))
+        self._draw_series(painter, [map_point(sample, sample[3]) for sample in self._samples], QColor(255, 81, 105))
 
-        painter.setPen(QColor(202, 239, 255, 150))
+        painter.setPen(QColor(216, 253, 255, 150))
         painter.drawText(QRectF(5, plot.top() - 6, 38, 16), Qt.AlignRight | Qt.AlignVCenter, f"{high:.0f}")
         painter.drawText(QRectF(5, plot.bottom() - 10, 38, 16), Qt.AlignRight | Qt.AlignVCenter, f"{low:.0f}")
         painter.drawText(QRectF(plot.left(), bounds.bottom() - 22, plot.width(), 16), Qt.AlignCenter, "Time (s)")
@@ -250,28 +250,28 @@ class TimeDomainPlot(QWidget):
 
     def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
         items = (
-            ("Actual", QColor(255, 0, 188)),
-            ("Target", QColor(255, 184, 45)),
-            ("Error", QColor(255, 62, 62)),
+            ("Actual", QColor(53, 244, 255)),
+            ("Target", QColor(143, 255, 210)),
+            ("Error", QColor(255, 81, 105)),
         )
         x = plot.right() - 210
         for label, color in items:
             painter.setPen(QPen(color, 2))
             painter.drawLine(QPointF(x, 16), QPointF(x + 20, 16))
-            painter.setPen(QColor(202, 239, 255, 185))
+            painter.setPen(QColor(216, 253, 255, 185))
             painter.drawText(QRectF(x + 25, 8, 48, 16), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += 72
 
     def _draw_time_axis(self, painter: QPainter, plot: QRectF, span: float) -> None:
         step = self._nice_time_step(span)
-        painter.setPen(QPen(QColor(0, 188, 255, 70), 1))
+        painter.setPen(QPen(QColor(53, 244, 255, 70), 1))
         tick = 0.0
         while tick <= span + step * 0.5:
             x = plot.left() + min(tick / span, 1.0) * plot.width()
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-            painter.setPen(QColor(202, 239, 255, 150))
+            painter.setPen(QColor(216, 253, 255, 150))
             painter.drawText(QRectF(x - 22, plot.bottom() + 4, 44, 16), Qt.AlignCenter, f"{tick:g}")
-            painter.setPen(QPen(QColor(0, 188, 255, 70), 1))
+            painter.setPen(QPen(QColor(53, 244, 255, 70), 1))
             tick += step
 
     def _nice_time_step(self, span: float) -> float:

@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from python.app.PageShell import CategoryPage, PageSpec
+from python.app.PageShell import MonitorMockupPage, PageSpec
 
 
 MONITORING_PAGES: list[PageSpec] = [
@@ -12,10 +12,10 @@ MONITORING_PAGES: list[PageSpec] = [
 ]
 
 
-class MonitoringPage(CategoryPage):
+class MonitoringPage(MonitorMockupPage):
     def __init__(
         self,
         show_home: Callable[[], None],
         open_page: Callable[[str, str], None],
     ) -> None:
-        super().__init__("Monitoring", MONITORING_PAGES, show_home, open_page)
+        super().__init__(MONITORING_PAGES, show_home, open_page)

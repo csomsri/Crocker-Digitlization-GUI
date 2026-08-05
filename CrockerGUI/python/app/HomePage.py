@@ -1,17 +1,19 @@
 from collections.abc import Callable
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QFrame,
     QHBoxLayout,
-    QLabel,
-    QPushButton,
-    QSizePolicy,
-    QSpacerItem,
     QVBoxLayout,
 )
 
-from python.app.PageShell import PageShell
+from python.app.PageShell import CnlPanelButton, CnlViewportPlaceholder, PageShell
+
+
+HOME_LABELS = {
+    "Manual Controls": "MANUAL CONTROL",
+    "Automation": "AI CONTROL",
+    "Configuration": "SETTINGS",
+    "Monitoring": "MONITOR",
+}
 
 
 class HomePage(PageShell):
@@ -19,34 +21,29 @@ class HomePage(PageShell):
         self,
         categories: list[str],
         show_category: Callable[[str], None],
-    ) -> None:
-        super().__init__("Home", "Main Dashboard / Launcher")
+        ) -> None:
+        super().__init__("Crocker Nuclear Lab Digital Control", "")
 
-        hub = QFrame()
-        hub.setObjectName("workspace")
-        hub_layout = QVBoxLayout(hub)
-        hub_layout.setContentsMargins(24, 24, 24, 24)
-        hub_layout.setSpacing(18)
+        outer = QHBoxLayout()
+        outer.setContentsMargins(64, 78, 88, 72)
+        outer.setSpacing(46)
 
-        hub_title = QLabel("Select a UI area")
-        hub_title.setObjectName("workspaceTitle")
-
-        carousel = QHBoxLayout()
-        carousel.setSpacing(14)
+        button_stack = QVBoxLayout()
+        button_stack.setContentsMargins(0, 0, 0, 0)
+        button_stack.setSpacing(22)
 
         for category in categories:
-            button = QPushButton(category)
-            button.setObjectName("categoryButton")
-            button.setCursor(Qt.PointingHandCursor)
+            button = CnlPanelButton(HOME_LABELS.get(category, category))
+            button.setMinimumSize(330, 118)
+            button.setMaximumSize(380, 138)
+            button.setProperty("corner", "bottom-right")
             button.clicked.connect(
                 lambda checked=False, name=category: show_category(name)
             )
-            carousel.addWidget(button)
+            button_stack.addWidget(button)
 
-        hub_layout.addWidget(hub_title)
-        hub_layout.addLayout(carousel)
-        hub_layout.addSpacerItem(
-            QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        )
+        viewport = CnlViewportPlaceholder()
 
-        self.layout.addWidget(hub, 1)
+        outer.addLayout(button_stack, 0)
+        outer.addWidget(viewport, 1)
+        self.layout.addLayout(outer, 1)

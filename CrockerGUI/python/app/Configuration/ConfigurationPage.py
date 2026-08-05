@@ -17,4 +17,4 @@ class ConfigurationPage(CategoryPage):
         show_home: Callable[[], None],
         open_page: Callable[[str, str], None],
     ) -> None:
-        super().__init__("Configuration", CONFIGURATION_PAGES, show_home, open_page)
+        super().__init__("Settings", CONFIGURATION_PAGES, show_home, open_page, columns=1)

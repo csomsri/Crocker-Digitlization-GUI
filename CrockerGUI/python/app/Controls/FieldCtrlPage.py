@@ -190,9 +190,10 @@ class FieldCtrlPage(DetailPage):
         for row, channel in enumerate(CHANNEL_NAMES, start=2):
             card = QFrame()
             card.setObjectName("fieldRow")
-            card.setFixedHeight(40)
+            card.setMinimumHeight(40)
+            card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             card_layout = QGridLayout(card)
-            card_layout.setContentsMargins(8, 4, 8, 4)
+            card_layout.setContentsMargins(8, 6, 8, 6)
             card_layout.setHorizontalSpacing(6)
             card_layout.setColumnStretch(0, 1)
 
@@ -217,6 +218,8 @@ class FieldCtrlPage(DetailPage):
             plot_toggle = BubbleToggle(f"{channel} plotted", "#ffb52d")
             on_toggle.setChecked(True)
             enable_toggle.setChecked(True)
+            plot_toggle.setChecked(True)
+            plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
             layout.addWidget(on_toggle, row, 2, Qt.AlignCenter)
             layout.addWidget(enable_toggle, row, 3, Qt.AlignCenter)
             layout.addWidget(plot_toggle, row, 4, Qt.AlignCenter)
@@ -229,7 +232,7 @@ class FieldCtrlPage(DetailPage):
 
         for row in range(2, 2 + len(CHANNEL_NAMES)):
             layout.setRowMinimumHeight(row, 38)
-        layout.setRowStretch(2 + len(CHANNEL_NAMES), 1)
+            layout.setRowStretch(row, 1)
         outer.addWidget(grid_holder, 1)
         outer.addWidget(self._build_backend_status_panel())
         return body
@@ -569,6 +572,9 @@ class FieldCtrlPage(DetailPage):
         self.history[index].append((time.perf_counter(), actual, target, error))
 
     def _refresh_plot(self) -> None:
+        if not self.plot_buttons[self.selected_index].isChecked():
+            self.time_plot.set_samples([])
+            return
         self.time_plot.set_samples(list(self.history[self.selected_index]))
 
     def _refresh_backend_status_panel(self) -> None:

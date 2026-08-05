@@ -16,4 +16,4 @@ class AutomationPage(CategoryPage):
         show_home: Callable[[], None],
         open_page: Callable[[str, str], None],
     ) -> None:
-        super().__init__("Automation", AUTOMATION_PAGES, show_home, open_page)
+        super().__init__("AI Control", AUTOMATION_PAGES, show_home, open_page, columns=1)

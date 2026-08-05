@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QStackedWidget,
     QWidget,
 )
+from PySide6.QtGui import QFontDatabase
 from pathlib import Path
 from threading import Event, Thread
 
@@ -129,6 +130,14 @@ class MainWindow(QMainWindow):
         if self.enable_data_pipeline:
             self._start_data_pipeline()
 
+    def _load_app_font(self) -> str:
+        font_path = Path(__file__).resolve().parents[2] / "assets" / "fonts" / "FuturisticArmour-1p84.ttf"
+        font_id = QFontDatabase.addApplicationFont(str(font_path))
+        if font_id == -1:
+            return "Segoe UI"
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        return families[0] if families else "Segoe UI"
+
     def _start_cyclotron_plant(self) -> None:
         from source.Python.Simulator.ZMQSimulator import CyclotronPlant, ZMQSimulator
 
@@ -181,48 +190,56 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.pages[title])
 
     def apply_styles(self) -> None:
+        app_font = self._load_app_font()
+        app = QApplication.instance()
+        if app is not None:
+            app.setProperty("appFontFamily", app_font)
         self.setStyleSheet(
             """
             QStackedWidget#root,
             QWidget#page,
             QDialog {
-                background: qlineargradient(
-                    x1: 0, y1: 0,
-                    x2: 1, y2: 1,
-                    stop: 0 #17202a,
-                    stop: 0.45 #253341,
-                    stop: 1 #263227
-                );
-                color: #f4f7f8;
-                font-family: Segoe UI, Arial, sans-serif;
+                background: transparent;
+                color: #6df8ff;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-size: 14px;
             }
 
             QLabel#header {
-                font-size: 30px;
+                background: transparent;
+                border: none;
+                color: #6df8ff;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
+                font-size: 20px;
                 font-weight: 700;
+                padding: 0;
             }
 
             QLabel#subheader {
-                color: #bfd0d7;
+                color: #6df8ff;
                 font-size: 15px;
             }
 
             QFrame#workspace {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.16);
-                border-radius: 8px;
+                background-color: rgba(3, 12, 12, 0.90);
+                border: 1px solid #35f4ff;
+                border-radius: 12px;
             }
 
             QPushButton {
-                background-color: rgba(255, 255, 255, 0.12);
-                border: 1px solid rgba(255, 255, 255, 0.22);
-                border-radius: 6px;
-                color: #f4f7f8;
+                background-color: rgba(5, 17, 18, 0.94);
+                border: 1px solid #35f4ff;
+                border-radius: 4px;
+                color: #6df8ff;
                 font-weight: 600;
                 min-height: 34px;
                 padding: 6px 12px;
                 text-align: left;
+            }
+
+            QPushButton#backButton {
+                max-width: 150px;
+                text-align: center;
             }
 
             QPushButton#categoryButton {
@@ -238,47 +255,75 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.18);
-                border-color: rgba(255, 255, 255, 0.34);
+                background-color: rgba(23, 66, 68, 0.92);
+                border-color: #b9fbff;
             }
 
             QPushButton:pressed {
-                background-color: rgba(255, 255, 255, 0.1);
+                background-color: rgba(119, 29, 45, 0.55);
+                border-color: #ff5169;
+            }
+
+            QSplitter::handle {
+                background-color: rgba(53, 244, 255, 0.20);
+            }
+
+            QScrollBar:vertical,
+            QScrollBar:horizontal {
+                background-color: rgba(2, 10, 12, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.28);
+                margin: 0;
+            }
+
+            QScrollBar::handle:vertical,
+            QScrollBar::handle:horizontal {
+                background-color: rgba(53, 244, 255, 0.45);
+                border-radius: 3px;
+                min-height: 24px;
+                min-width: 24px;
+            }
+
+            QScrollBar::add-line,
+            QScrollBar::sub-line {
+                height: 0;
+                width: 0;
             }
 
             QLabel#workspaceTitle {
                 font-size: 18px;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-weight: 700;
             }
 
             QLabel#workspaceBody {
-                color: #c7d7dc;
+                color: #b9fbff;
                 font-size: 16px;
             }
 
             QLabel#dialogHeader {
-                color: #f4f7f8;
+                color: #6df8ff;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-size: 24px;
                 font-weight: 700;
             }
 
             QLabel#dialogBody,
             QLabel#dialogPlaceholder {
-                color: #d8e8ed;
+                color: #b9fbff;
                 font-size: 15px;
             }
 
             QLabel#dialogPlaceholder {
-                background-color: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                background-color: rgba(4, 14, 15, 0.92);
+                border: 1px solid rgba(53, 244, 255, 0.60);
                 border-radius: 8px;
             }
 
             QLabel#metricCard {
-                background-color: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                background-color: rgba(4, 17, 18, 0.92);
+                border: 1px solid rgba(53, 244, 255, 0.48);
                 border-radius: 8px;
-                color: #eef6f8;
+                color: #d8fdff;
                 font-size: 15px;
                 font-weight: 600;
                 min-height: 74px;
@@ -286,53 +331,57 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#chartPlaceholder {
-                background-color: rgba(0, 0, 0, 0.2);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                background-color: rgba(0, 0, 0, 0.72);
+                border: 1px solid rgba(53, 244, 255, 0.55);
                 border-radius: 8px;
-                color: #c7d7dc;
+                color: #6df8ff;
                 font-size: 16px;
                 min-height: 170px;
             }
 
             QLineEdit,
             QDoubleSpinBox,
+            QComboBox,
             QTableWidget {
-                background-color: rgba(255, 255, 255, 0.92);
-                border: 1px solid rgba(255, 255, 255, 0.3);
+                background-color: rgba(2, 12, 13, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.58);
                 border-radius: 5px;
-                color: #1b252e;
+                color: #d8fdff;
                 min-height: 28px;
+                selection-background-color: rgba(189, 48, 68, 0.55);
+                selection-color: #ffffff;
             }
 
             QTableWidget {
-                gridline-color: #b7c2c8;
-                selection-background-color: #5f7f95;
+                gridline-color: rgba(53, 244, 255, 0.22);
+                alternate-background-color: rgba(16, 38, 38, 0.68);
             }
 
             QHeaderView::section {
-                background-color: #dfe8ec;
-                color: #1b252e;
+                background-color: rgba(5, 17, 18, 0.98);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                color: #6df8ff;
                 font-weight: 600;
                 padding: 5px;
             }
 
             QCheckBox#toggleRow {
-                color: #f4f7f8;
+                color: #d8fdff;
                 font-size: 16px;
                 min-height: 36px;
             }
 
             QProgressBar {
-                background-color: rgba(255, 255, 255, 0.12);
-                border: 1px solid rgba(255, 255, 255, 0.22);
+                background-color: rgba(2, 12, 13, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.58);
                 border-radius: 6px;
-                color: #f4f7f8;
+                color: #d8fdff;
                 min-height: 24px;
                 text-align: center;
             }
 
             QProgressBar::chunk {
-                background-color: #79a98b;
+                background-color: #35f4ff;
                 border-radius: 5px;
             }
 
@@ -341,10 +390,10 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#fieldInstruction {
-                background-color: rgba(4, 14, 28, 0.52);
-                border: 1px solid rgba(74, 226, 255, 0.28);
-                border-radius: 6px;
-                color: #dffaff;
+                background-color: rgba(4, 14, 15, 0.78);
+                border: 1px solid rgba(53, 244, 255, 0.52);
+                border-radius: 8px;
+                color: #d8fdff;
                 font-size: 14px;
                 font-weight: 600;
                 min-height: 44px;
@@ -352,25 +401,26 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#fieldHeader {
-                color: #d6f6ff;
+                color: #d8fdff;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-size: 12px;
                 font-weight: 700;
                 letter-spacing: 0;
             }
 
             QPushButton#fieldBulk {
-                background-color: rgba(0, 28, 42, 0.72);
-                border: 1px solid rgba(74, 226, 255, 0.42);
-                color: #dffaff;
+                background-color: rgba(5, 17, 18, 0.94);
+                border: 1px solid rgba(53, 244, 255, 0.58);
+                color: #d8fdff;
                 min-height: 26px;
                 padding: 3px 8px;
                 text-align: center;
             }
 
             QFrame#fieldBackendStatus {
-                background-color: rgba(4, 14, 28, 0.62);
-                border: 1px solid rgba(74, 226, 255, 0.28);
-                border-radius: 6px;
+                background-color: rgba(4, 14, 15, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.52);
+                border-radius: 10px;
             }
 
             QLabel#fieldStatusDot {
@@ -385,34 +435,34 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#fieldStatusText {
-                color: #dffaff;
+                color: #d8fdff;
                 font-size: 12px;
                 font-weight: 700;
             }
 
             QFrame#fieldRow {
-                background-color: rgba(4, 14, 28, 0.54);
-                border: 1px solid rgba(74, 226, 255, 0.25);
-                border-radius: 6px;
+                background-color: rgba(2, 10, 12, 0.92);
+                border: 1px solid rgba(53, 244, 255, 0.32);
+                border-radius: 8px;
             }
 
             QFrame#fieldRow[selected="true"] {
-                background-color: rgba(0, 87, 106, 0.68);
-                border: 2px solid rgba(92, 244, 255, 0.86);
+                background-color: rgba(18, 74, 77, 0.76);
+                border: 2px solid rgba(109, 248, 255, 0.92);
             }
 
             QLabel#fieldName {
-                color: #e9fbff;
+                color: #d8fdff;
                 font-size: 13px;
                 font-weight: 700;
             }
 
             QLabel#fieldValue {
-                background-color: rgba(0, 22, 32, 0.72);
-                border: 1px solid rgba(0, 208, 255, 0.54);
+                background-color: rgba(3, 18, 19, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.58);
                 border-radius: 4px;
-                color: #7cffb2;
-                font-family: Consolas, monospace;
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Consolas, monospace;
                 font-size: 14px;
                 font-weight: 600;
                 min-width: 74px;
@@ -433,28 +483,29 @@ class MainWindow(QMainWindow):
 
             QLabel#fieldMetric,
             QFrame#fieldEditor {
-                background-color: rgba(4, 14, 28, 0.56);
-                border: 1px solid rgba(74, 226, 255, 0.22);
-                border-radius: 6px;
-                color: #e9fbff;
+                background-color: rgba(4, 14, 15, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                border-radius: 10px;
+                color: #d8fdff;
                 font-weight: 700;
                 min-height: 58px;
                 padding: 8px;
             }
 
             QLabel#fieldEditorTitle {
-                color: #7cffb2;
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-size: 15px;
                 font-weight: 700;
                 min-width: 120px;
             }
 
             QDoubleSpinBox#fieldTargetInput {
-                background-color: rgba(0, 20, 30, 0.95);
-                border: 1px solid rgba(0, 208, 255, 0.72);
+                background-color: rgba(3, 18, 19, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.70);
                 border-radius: 5px;
-                color: #7cffb2;
-                font-family: Consolas, monospace;
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Consolas, monospace;
                 font-size: 18px;
                 font-weight: 700;
                 min-height: 40px;
@@ -463,18 +514,18 @@ class MainWindow(QMainWindow):
             }
 
             QFrame#fieldDigitAdjuster {
-                background-color: rgba(0, 13, 21, 0.54);
-                border: 1px solid rgba(0, 208, 255, 0.28);
-                border-radius: 6px;
+                background-color: rgba(2, 10, 12, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.38);
+                border-radius: 8px;
                 padding: 0;
             }
 
             QLabel#fieldDigit {
-                background-color: rgba(0, 20, 30, 0.95);
-                border: 1px solid rgba(0, 208, 255, 0.50);
+                background-color: rgba(3, 18, 19, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.54);
                 border-radius: 4px;
-                color: #7cffb2;
-                font-family: Consolas, monospace;
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Consolas, monospace;
                 font-size: 20px;
                 font-weight: 700;
                 max-height: 36px;
@@ -484,14 +535,14 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#fieldDigit[selected="true"] {
-                background-color: rgba(0, 102, 122, 0.92);
-                border: 2px solid rgba(124, 255, 178, 0.95);
+                background-color: rgba(25, 93, 96, 0.92);
+                border: 2px solid rgba(143, 255, 210, 0.95);
                 color: #eaffff;
             }
 
             QLabel#fieldDigitDecimal {
-                color: #dffaff;
-                font-family: Consolas, monospace;
+                color: #d8fdff;
+                font-family: "__APP_FONT__", Consolas, monospace;
                 font-size: 20px;
                 font-weight: 700;
                 max-height: 34px;
@@ -500,10 +551,10 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton#fieldDigitArrow {
-                background-color: rgba(0, 30, 42, 0.72);
-                border: 1px solid rgba(74, 226, 255, 0.32);
+                background-color: rgba(5, 17, 18, 0.94);
+                border: 1px solid rgba(53, 244, 255, 0.46);
                 border-radius: 4px;
-                color: #7cffb2;
+                color: #8fffd2;
                 font-size: 10px;
                 font-weight: 700;
                 max-height: 26px;
@@ -517,19 +568,19 @@ class MainWindow(QMainWindow):
             }
 
             QSlider#fieldPowerSlider::groove:horizontal {
-                background-color: rgba(0, 24, 34, 0.90);
-                border: 1px solid rgba(0, 208, 255, 0.55);
+                background-color: rgba(2, 10, 12, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.55);
                 border-radius: 4px;
                 height: 10px;
             }
 
             QSlider#fieldPowerSlider::sub-page:horizontal {
-                background-color: #00d0ff;
+                background-color: #35f4ff;
                 border-radius: 4px;
             }
 
             QSlider#fieldPowerSlider::handle:horizontal {
-                background-color: #7cffb2;
+                background-color: #8fffd2;
                 border: 1px solid #eaffff;
                 border-radius: 7px;
                 margin: -4px 0;
@@ -547,34 +598,35 @@ class MainWindow(QMainWindow):
             }
 
             QFrame#pidPanel {
-                background-color: rgba(4, 14, 28, 0.56);
-                border: 1px solid rgba(124, 255, 178, 0.24);
-                border-radius: 6px;
+                background-color: rgba(4, 14, 15, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                border-radius: 10px;
             }
 
             QLabel#pidTitle {
-                color: #e9fbff;
+                color: #d8fdff;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
                 font-size: 15px;
                 font-weight: 700;
             }
 
             QLabel#pidStatus {
-                color: #7cffb2;
-                font-family: Consolas, monospace;
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Consolas, monospace;
                 font-size: 12px;
                 font-weight: 700;
             }
 
             QLabel#pidFieldLabel {
-                color: #d6f6ff;
+                color: #d8fdff;
                 font-size: 12px;
                 font-weight: 700;
             }
 
             QComboBox#pidChannelSelect,
             QDoubleSpinBox#pidSpin {
-                background-color: rgba(0, 20, 30, 0.95);
-                border: 1px solid rgba(124, 255, 178, 0.42);
+                background-color: rgba(3, 18, 19, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.48);
                 border-radius: 5px;
                 color: #eaffff;
                 min-height: 28px;
@@ -582,8 +634,8 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton#pidEnable {
-                background-color: rgba(12, 48, 48, 0.76);
-                border: 1px solid rgba(124, 255, 178, 0.42);
+                background-color: rgba(5, 35, 34, 0.82);
+                border: 1px solid rgba(53, 244, 255, 0.50);
                 color: #eaffff;
                 min-height: 28px;
                 text-align: center;
@@ -595,9 +647,9 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton#pidArm {
-                background-color: rgba(74, 60, 20, 0.82);
-                border: 1px solid rgba(255, 190, 74, 0.54);
-                color: #fff3d0;
+                background-color: rgba(77, 40, 20, 0.82);
+                border: 1px solid rgba(255, 136, 74, 0.54);
+                color: #ffd8c8;
                 min-height: 28px;
                 text-align: center;
             }
@@ -608,13 +660,13 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton#pidStop {
-                background-color: rgba(96, 20, 22, 0.84);
-                border: 1px solid rgba(255, 94, 94, 0.62);
+                background-color: rgba(96, 20, 31, 0.84);
+                border: 1px solid rgba(255, 81, 105, 0.62);
                 color: #ffe4e4;
                 min-height: 28px;
                 text-align: center;
             }
-            """
+            """.replace("__APP_FONT__", app_font)
         )
 
 
