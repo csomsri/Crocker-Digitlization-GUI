@@ -2,10 +2,15 @@ from collections.abc import Callable
 
 from PySide6.QtWidgets import (
     QHBoxLayout,
+    QPushButton,
     QVBoxLayout,
 )
 
-from python.app.PageShell import CnlPanelButton, CnlViewportPlaceholder, PageShell
+from python.app.PageShell import (
+    CnlPanelButton,
+    CnlViewportPlaceholder,
+    PageShell,
+)
 
 
 HOME_LABELS = {
@@ -21,6 +26,7 @@ class HomePage(PageShell):
         self,
         categories: list[str],
         show_category: Callable[[str], None],
+        exit_app: Callable[[], None],
         ) -> None:
         super().__init__("Crocker Nuclear Lab Digital Control", "")
 
@@ -41,6 +47,13 @@ class HomePage(PageShell):
                 lambda checked=False, name=category: show_category(name)
             )
             button_stack.addWidget(button)
+
+        exit_button = QPushButton("EXIT")
+        exit_button.setObjectName("homeExitButton")
+        exit_button.setMinimumSize(330, 64)
+        exit_button.setMaximumSize(380, 76)
+        exit_button.clicked.connect(lambda checked=False: exit_app())
+        button_stack.addWidget(exit_button)
 
         viewport = CnlViewportPlaceholder()
 

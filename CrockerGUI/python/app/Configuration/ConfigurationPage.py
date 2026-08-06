@@ -6,8 +6,8 @@ from python.app.PageShell import CategoryPage, PageSpec
 CONFIGURATION_PAGES: list[PageSpec] = [
     ("Database Monitoring", "SQLite data viewer"),
     ("Recall", "Load/preview saved snapshots"),
-    ("Settings", "App settings"),
     ("Scaling", "Scaling and calibration setup"),
+    ("Settings", "App settings"),
 ]
 
 

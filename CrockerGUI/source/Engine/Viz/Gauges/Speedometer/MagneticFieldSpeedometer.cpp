@@ -119,9 +119,10 @@ void MagneticFieldSpeedometer::Render(int width, int height)
                      1.0f, 0.0f, 0.74f, 0.055f);
     }
 
-    const float usable = std::min(w * 0.82f, h * 1.02f);
-    const float radius = std::max(42.0f, usable * 0.36f);
-    const Point center { w * 0.50f, h * 0.37f + radius * 0.30f };
+    // Reserve distinct header and footer lanes so the dial never crowds the
+    // status text or the large value readouts on short/wide widgets.
+    const float radius = std::max(42.0f, std::min(w * 0.24f, h * 0.32f));
+    const Point center { w * 0.50f, h * 0.51f };
 
     const bool drawGridLines = false;
     if (drawGridLines) {
@@ -174,6 +175,11 @@ void MagneticFieldSpeedometer::Render(int width, int height)
     DrawSegments(minorTicks, 1.0f, 0.0f, 0.74f, 0.45f);
     DrawSegments(majorTicks, 0.86f, 1.0f, 1.0f, 0.95f);
 
+    DrawTargetMarker(center, radius);
+    DrawNeedle(center, radius);
+
+    // Labels are deliberately the last dial layer. The moving needle and the
+    // target pointer may cross their positions, but must never obscure them.
     for (int value : { 0, 250, 500, 750, 1000 }) {
         const float angle = AngleForValue(static_cast<float>(value));
         const float labelRadius = value == 500 ? radius * 0.50f : radius * 0.70f;
@@ -181,12 +187,20 @@ void MagneticFieldSpeedometer::Render(int width, int height)
         if (value == 0 || value == 1000) {
             labelPoint.y += radius * 0.035f;
         }
-        DrawText(std::to_string(value), labelPoint.x, labelPoint.y,
-                 std::clamp(radius * 0.0145f, 1.4f, 2.4f), 0.88f, 0.99f, 1.0f, 0.92f);
+        const std::string label = std::to_string(value);
+        const float labelScale = std::clamp(radius * 0.0145f, 1.4f, 2.4f);
+        const float labelWidth = (static_cast<float>(label.size()) * 6.0f - 1.0f) * labelScale;
+        const float labelHeight = 7.0f * labelScale;
+        const float padding = 2.0f * labelScale;
+        DrawVertices(rect(labelPoint.x - labelWidth * 0.5f - padding,
+                          labelPoint.y - labelHeight * 0.5f - padding,
+                          labelPoint.x + labelWidth * 0.5f + padding,
+                          labelPoint.y + labelHeight * 0.5f + padding,
+                          viewport),
+                     GL_TRIANGLES, 0.0f, 0.0f, 0.0f, 0.88f);
+        DrawText(label, labelPoint.x, labelPoint.y, labelScale,
+                 0.88f, 0.99f, 1.0f, 1.0f);
     }
-
-    DrawTargetMarker(center, radius);
-    DrawNeedle(center, radius);
 
     DrawText(channel + " FEEDBACK", w * 0.5f, h - 28.0f, std::clamp(w * 0.0042f, 1.7f, 2.8f),
              0.50f, 1.0f, 0.70f, 0.95f);
@@ -196,20 +210,41 @@ void MagneticFieldSpeedometer::Render(int width, int height)
                                  (timingActive ? " RUN" : "");
     const std::string errorText = "ERROR " + fixed(error, 2) + " A";
 
-    DrawText(convergenceText, w * 0.14f, h - 54.0f, std::clamp(radius * 0.012f, 1.2f, 2.1f),
-             converged ? 0.48f : 1.0f, converged ? 1.0f : 0.24f, converged ? 0.66f : 0.22f, 0.92f);
-    DrawText(toleranceText, w * 0.14f, h - 82.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
-             0.60f, 0.96f, 1.0f, 0.82f);
-    DrawText(timeText, w * 0.14f, h - 108.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
-             1.0f, 0.72f, 0.16f, 0.88f);
-    DrawText(errorText, w * 0.88f, h - 66.0f, std::clamp(radius * 0.012f, 1.2f, 2.1f),
-             1.0f, 0.24f, 0.22f, 0.94f);
+    const auto drawProtectedStatus = [this, w](const std::string& text, float preferredX, float y, float scale,
+                                                float red, float green, float blue, float alpha) {
+        const float textWidth = (static_cast<float>(text.size()) * 6.0f - 1.0f) * scale;
+        const float textHeight = 7.0f * scale;
+        const float padding = 3.0f * scale;
+        const float edgeMargin = 18.0f;
+        const float centerX = std::clamp(preferredX,
+                                         edgeMargin + textWidth * 0.5f,
+                                         w - edgeMargin - textWidth * 0.5f);
+        DrawVertices(rect(centerX - textWidth * 0.5f - padding,
+                          y - textHeight * 0.5f - padding,
+                          centerX + textWidth * 0.5f + padding,
+                          y + textHeight * 0.5f + padding,
+                          viewport),
+                     GL_TRIANGLES, 0.0f, 0.0f, 0.0f, 0.96f);
+        DrawText(text, centerX, y, scale, red, green, blue, alpha);
+    };
 
-    DrawText("ACTUAL", w * 0.22f, h * 0.16f, std::clamp(radius * 0.014f, 1.3f, 2.2f),
+    drawProtectedStatus(convergenceText, w * 0.16f, h - 54.0f,
+                        std::clamp(radius * 0.012f, 1.2f, 2.1f),
+                        converged ? 0.48f : 1.0f, converged ? 1.0f : 0.24f,
+                        converged ? 0.66f : 0.22f, 1.0f);
+    DrawText(toleranceText, w * 0.16f, h - 82.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
+             0.60f, 0.96f, 1.0f, 0.82f);
+    DrawText(timeText, w * 0.16f, h - 108.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
+             1.0f, 0.72f, 0.16f, 0.88f);
+    drawProtectedStatus(errorText, w * 0.82f, h - 66.0f,
+                        std::clamp(radius * 0.012f, 1.2f, 2.1f),
+                        1.0f, 0.24f, 0.22f, 1.0f);
+
+    DrawText("ACTUAL", w * 0.22f, h * 0.145f, std::clamp(radius * 0.014f, 1.3f, 2.2f),
              0.60f, 0.96f, 1.0f, 0.82f);
     DrawText(fixed(actual, 2), w * 0.22f, h * 0.085f, std::clamp(radius * 0.030f, 2.6f, 4.5f),
              1.0f, 0.0f, 0.74f, 0.95f);
-    DrawText("TARGET", w * 0.78f, h * 0.16f, std::clamp(radius * 0.014f, 1.3f, 2.2f),
+    DrawText("TARGET", w * 0.78f, h * 0.145f, std::clamp(radius * 0.014f, 1.3f, 2.2f),
              1.0f, 0.72f, 0.16f, 0.82f);
     DrawText(fixed(target, 2), w * 0.78f, h * 0.085f, std::clamp(radius * 0.026f, 2.3f, 3.8f),
              1.0f, 0.72f, 0.16f, 0.90f);

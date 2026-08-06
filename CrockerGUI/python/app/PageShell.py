@@ -121,10 +121,11 @@ class CnlPanelButton(QPushButton):
         path = QPainterPath()
         path.addPolygon(QPolygonF(points))
         path.closeSubpath()
-        painter.fillPath(path, PANEL_BLACK)
-        painter.fillPath(path, QColor(16, 38, 38, 82))
-        pen_width = 3 if self.underMouse() else 2
-        painter.setPen(QPen(CYAN, pen_width))
+        highlighted = self.underMouse()
+        painter.fillPath(path, CYAN if highlighted else PANEL_BLACK)
+        if not highlighted:
+            painter.fillPath(path, QColor(16, 38, 38, 82))
+        painter.setPen(QPen(QColor("#b9fbff") if highlighted else CYAN, 3 if highlighted else 2))
         painter.drawPath(path)
         painter.setPen(QPen(HUD_RED, 1))
         painter.drawLine(QPointF(rect.left() + 18, rect.top() + 8), QPointF(rect.left() + 72, rect.top() + 8))
@@ -135,10 +136,11 @@ class CnlPanelButton(QPushButton):
         family = app_family or "Segoe UI"
         font = _fitted_font(family, self.text(), rect, max_size=24, min_size=9)
         painter.setFont(font)
-        painter.setPen(QPen(QColor("#003744"), 5))
+        painter.setPen(QPen(QColor("#003744"), 5 if not highlighted else 2))
         painter.drawText(rect, Qt.AlignCenter, self.text())
-        painter.setPen(QPen(TEXT_CYAN, 1))
-        painter.drawText(rect, Qt.AlignCenter, self.text())
+        if not highlighted:
+            painter.setPen(QPen(TEXT_CYAN, 1))
+            painter.drawText(rect, Qt.AlignCenter, self.text())
 
 
 class CnlViewportPlaceholder(QWidget):

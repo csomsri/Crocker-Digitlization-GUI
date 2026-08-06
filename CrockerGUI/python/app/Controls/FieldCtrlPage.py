@@ -186,6 +186,9 @@ class FieldCtrlPage(DetailPage):
             label.setObjectName("fieldHeader")
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label, 1, col)
+        layout.setColumnStretch(0, 2)
+        for col in range(1, 5):
+            layout.setColumnStretch(col, 1)
 
         for row, channel in enumerate(CHANNEL_NAMES, start=2):
             card = QFrame()
@@ -220,9 +223,9 @@ class FieldCtrlPage(DetailPage):
             enable_toggle.setChecked(True)
             plot_toggle.setChecked(True)
             plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
-            layout.addWidget(on_toggle, row, 2, Qt.AlignCenter)
-            layout.addWidget(enable_toggle, row, 3, Qt.AlignCenter)
-            layout.addWidget(plot_toggle, row, 4, Qt.AlignCenter)
+            layout.addWidget(on_toggle, row, 2, Qt.AlignVCenter)
+            layout.addWidget(enable_toggle, row, 3, Qt.AlignVCenter)
+            layout.addWidget(plot_toggle, row, 4, Qt.AlignVCenter)
 
             self.value_labels.append(value)
             self.channel_cards.append(card)

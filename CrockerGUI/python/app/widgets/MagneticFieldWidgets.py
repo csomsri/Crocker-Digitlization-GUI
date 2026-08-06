@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF, QRadialGradient
+from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QWidget
 
@@ -22,25 +22,42 @@ class BubbleToggle(QPushButton):
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
         self.setToolTip(tooltip)
-        self.setFixedSize(32, 32)
+        self.setMinimumSize(96, 28)
+        self.setMaximumHeight(28)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setFlat(True)
         self._color = QColor(color)
 
     def paintEvent(self, event) -> None:
+        del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        radius = min(self.width(), self.height()) * 0.5 - 2
-        center = QPointF(self.width() * 0.5, self.height() * 0.5)
+        bounds = QRectF(self.rect()).adjusted(6.0, 1.5, -6.0, -1.5)
+        checked = self.isChecked()
+        hovered = self.underMouse()
 
-        fill = QRadialGradient(center, radius)
-        fill.setColorAt(0.0, QColor(42, 61, 61))
-        fill.setColorAt(1.0, QColor(4, 10, 10))
-        if self.isChecked():
-            fill.setColorAt(0.15, QColor(255, 255, 255, 190))
-            fill.setColorAt(0.55, QColor(self._color.red(), self._color.green(), self._color.blue(), 165))
+        border = QColor(self._color)
+        border.setAlpha(245 if checked else (165 if hovered else 105))
+        fill = QColor(self._color)
+        fill.setAlpha(42 if checked else (16 if hovered else 5))
 
-        painter.setPen(QPen(self._color, 2 if self.isChecked() else 1))
+        painter.setPen(QPen(border, 2.0 if checked else 1.2))
         painter.setBrush(fill)
-        painter.drawEllipse(center, radius, radius)
+        painter.drawRoundedRect(bounds, 6.0, 6.0)
+
+        # Offset inner rails give the control a compact cyberpunk HUD profile.
+        rail = QColor(self._color)
+        rail.setAlpha(180 if checked else 55)
+        painter.setPen(QPen(rail, 1.0))
+        painter.drawLine(QPointF(bounds.left() + 8, bounds.top() + 4),
+                         QPointF(bounds.right() - 18, bounds.top() + 4))
+        painter.drawLine(QPointF(bounds.left() + 18, bounds.bottom() - 4),
+                         QPointF(bounds.right() - 8, bounds.bottom() - 4))
+
+        text_color = QColor(self._color)
+        text_color.setAlpha(255 if checked else 125)
+        painter.setPen(text_color)
+        painter.drawText(bounds, Qt.AlignCenter, "ON" if checked else "OFF")
 
 
 class ClickableValue(QLabel):
@@ -66,6 +83,7 @@ class NativeSpeedometer(QOpenGLWidget):
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._target = 0.0
         self._actual = 0.0
+        self._display_actual = 0.0
         self._channel = CHANNEL_NAMES[0]
         self._converged = True
         self._error = 0.0
@@ -75,16 +93,40 @@ class NativeSpeedometer(QOpenGLWidget):
         self._native = None
         self._ready = False
         self._frame_timer = QElapsedTimer()
+        self._animation_clock = QElapsedTimer()
+        self._animation_timer = QTimer(self)
+        self._animation_timer.setInterval(16)
+        self._animation_timer.timeout.connect(self._animate_needle)
 
     def set_values(self, target: float, actual: float, channel: str) -> None:
+        channel_changed = channel != self._channel
         self._target = clamp(target)
         self._actual = clamp(actual)
         self._channel = channel
+        if channel_changed:
+            self._display_actual = self._actual
+        if abs(self._actual - self._display_actual) >= 0.01:
+            if not self._animation_clock.isValid():
+                self._animation_clock.start()
+            self._animation_timer.start()
+        self._push_values()
+
+    def _animate_needle(self) -> None:
+        elapsed_ms = max(1, self._animation_clock.restart())
+        blend = 1.0 - math.exp(-elapsed_ms / 140.0)
+        self._display_actual += (self._actual - self._display_actual) * blend
+        if abs(self._actual - self._display_actual) < 0.01:
+            self._display_actual = self._actual
+            self._animation_timer.stop()
+        self._push_values()
+
+    def _push_values(self) -> None:
+        changed = True
         if self._ready and self._native is not None:
-            changed = self._native.set_values(self._target, self._actual, MAX_GAUGE_VALUE, self._channel)
-            if not changed:
-                return
-        if not self._frame_timer.isValid() or self._frame_timer.elapsed() >= 45:
+            changed = self._native.set_values(
+                self._target, self._display_actual, MAX_GAUGE_VALUE, self._channel
+            )
+        if changed and (not self._frame_timer.isValid() or self._frame_timer.elapsed() >= 14):
             self._frame_timer.restart()
             self.update()
 
@@ -128,7 +170,8 @@ class NativeSpeedometer(QOpenGLWidget):
 
             CycloViz.load_opengl(get_proc)
             self._native = CycloViz.MagneticFieldSpeedometer()
-            self._native.set_values(self._target, self._actual, MAX_GAUGE_VALUE, self._channel)
+            self._display_actual = self._actual
+            self._native.set_values(self._target, self._display_actual, MAX_GAUGE_VALUE, self._channel)
             self._native.set_status(
                 self._converged,
                 self._error,
