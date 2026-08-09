@@ -38,6 +38,14 @@ enum class AlarmSeverity {
     Critical
 };
 
+enum class PidTrialState {
+    Idle,
+    Running,
+    Completed,
+    Stopped,
+    Faulted
+};
+
 // Desired state for one hardware channel, expressed in engineering units.
 struct ChannelCommand {
     double target = 0.0;
@@ -46,6 +54,40 @@ struct ChannelCommand {
 };
 
 using ControlCommand = std::array<ChannelCommand, ChannelCount>;
+
+// Configuration for a bounded PID field trial. Allocation coefficients map the
+// scalar PID output onto hardware channels; zero leaves a channel untouched.
+struct PidTrialConfig {
+    ChannelId measurementChannel = 0;
+    double setpoint = 0.0;
+    double kp = 0.0;
+    double ki = 0.0;
+    double kd = 0.0;
+    double updateRateHz = 20.0;
+    double durationSeconds = 3.0;
+    double telemetryTimeoutSeconds = 1.0;
+    std::array<double, ChannelCount> allocation{};
+    std::array<double, ChannelCount> commandBias{};
+    std::array<double, ChannelCount> minimumCommand{};
+    std::array<double, ChannelCount> maximumCommand{};
+    std::array<double, ChannelCount> maximumSlewPerSecond{};
+    bool allocationCalibrated = false;
+    bool hardwareArmed = false;
+    bool dryRun = true;
+};
+
+struct PidTrialStatus {
+    PidTrialState state = PidTrialState::Idle;
+    std::string message = "Idle";
+    double elapsedSeconds = 0.0;
+    double measuredField = 0.0;
+    double error = 0.0;
+    double controlOutput = 0.0;
+    std::uint64_t iterations = 0;
+    bool saturated = false;
+    bool rateLimited = false;
+    bool watchdogHealthy = false;
+};
 
 // Latest measured state for one hardware channel.
 struct ChannelTelemetry {

@@ -68,6 +68,68 @@ const char* ToString(Controls::AlarmSeverity severity)
     return "Info";
 }
 
+const char* ToString(Controls::PidTrialState state)
+{
+    switch (state) {
+    case Controls::PidTrialState::Idle: return "Idle";
+    case Controls::PidTrialState::Running: return "Running";
+    case Controls::PidTrialState::Completed: return "Completed";
+    case Controls::PidTrialState::Stopped: return "Stopped";
+    case Controls::PidTrialState::Faulted: return "Faulted";
+    }
+    return "Idle";
+}
+
+template <typename Array>
+void ReadDoubleArray(const py::dict& source, const char* key, Array& destination)
+{
+    const py::sequence values = source[key].cast<py::sequence>();
+    if (values.size() != static_cast<py::ssize_t>(Controls::ChannelCount)) {
+        throw py::value_error(std::string(key) + " must contain one value per control channel");
+    }
+    for (std::size_t index = 0; index < Controls::ChannelCount; ++index) {
+        destination[index] = py::cast<double>(values[index]);
+    }
+}
+
+Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
+{
+    Controls::PidTrialConfig config;
+    config.measurementChannel = source["measurement_channel"].cast<Controls::ChannelId>();
+    config.setpoint = source["setpoint"].cast<double>();
+    config.kp = source["kp"].cast<double>();
+    config.ki = source["ki"].cast<double>();
+    config.kd = source["kd"].cast<double>();
+    config.updateRateHz = source["update_rate_hz"].cast<double>();
+    config.durationSeconds = source["duration_seconds"].cast<double>();
+    config.telemetryTimeoutSeconds = source["telemetry_timeout_seconds"].cast<double>();
+    ReadDoubleArray(source, "allocation", config.allocation);
+    ReadDoubleArray(source, "command_bias", config.commandBias);
+    ReadDoubleArray(source, "minimum_command", config.minimumCommand);
+    ReadDoubleArray(source, "maximum_command", config.maximumCommand);
+    ReadDoubleArray(source, "maximum_slew_per_second", config.maximumSlewPerSecond);
+    config.allocationCalibrated = source["allocation_calibrated"].cast<bool>();
+    config.hardwareArmed = source["hardware_armed"].cast<bool>();
+    config.dryRun = source["dry_run"].cast<bool>();
+    return config;
+}
+
+py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
+{
+    py::dict out;
+    out["state"] = ToString(status.state);
+    out["message"] = status.message;
+    out["elapsed_seconds"] = status.elapsedSeconds;
+    out["measured_field"] = status.measuredField;
+    out["error"] = status.error;
+    out["control_output"] = status.controlOutput;
+    out["iterations"] = status.iterations;
+    out["saturated"] = status.saturated;
+    out["rate_limited"] = status.rateLimited;
+    out["watchdog_healthy"] = status.watchdogHealthy;
+    return out;
+}
+
 py::dict ChannelTelemetryToDict(const Controls::ChannelTelemetry& telemetry)
 {
     py::dict out;
@@ -190,5 +252,13 @@ void BindControlService(py::module_& module)
         })
         .def("Health", [](const Controls::ControlService& service) {
             return HealthToDict(service.Health());
+        })
+        .def("StartPidTrial", [](Controls::ControlService& service, const py::dict& config) {
+            service.StartPidTrial(PidTrialConfigFromDict(config));
+        }, py::arg("config"))
+        .def("StopPidTrial", &Controls::ControlService::StopPidTrial,
+            py::arg("disable_allocated_channels") = true)
+        .def("PidTrialStatus", [](const Controls::ControlService& service) {
+            return PidTrialStatusToDict(service.PidTrialStatusSnapshot());
         });
 }

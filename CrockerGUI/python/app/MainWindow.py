@@ -10,8 +10,6 @@ from pathlib import Path
 from threading import Event, Thread
 
 from python.app.Automation.AutomationPage import AutomationPage
-from python.app.Automation.ExplorationPage import ExplorationPage
-from python.app.Automation.OptimizationPage import OptimizationPage
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.CyberpunkMotion import CyberpunkMotionController
 from python.app.Controls.AlarmPage import AlarmPage
@@ -67,9 +65,7 @@ DETAIL_BUILDERS = {
     "Recall": ("Configuration", RecallPage),
     "Settings": ("Configuration", SettingsPage),
     "Scaling": ("Configuration", ScalingPage),
-    "Exploration": ("Automation", ExplorationPage),
     "PID Control": ("Automation", PidControlPage),
-    "Assisted Tuning": ("Automation", OptimizationPage),
 }
 
 
@@ -133,7 +129,7 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title in {"Field Ctrl", "PID Control", "Assisted Tuning"}:
+            if title in {"Field Ctrl", "PID Control"}:
                 field_backend_mode = (
                     "zmq"
                     if self.simulation_mode == "cyclotron"
@@ -280,7 +276,7 @@ class MainWindow(QMainWindow):
         if page_name in DETAIL_BUILDERS:
             parent_category, builder = DETAIL_BUILDERS[page_name]
             go_back = lambda checked=False: host.set_page(parent_category)
-            if page_name in {"Field Ctrl", "PID Control", "Assisted Tuning"}:
+            if page_name in {"Field Ctrl", "PID Control"}:
                 field_backend_mode = (
                     "zmq"
                     if self.simulation_mode == "cyclotron"

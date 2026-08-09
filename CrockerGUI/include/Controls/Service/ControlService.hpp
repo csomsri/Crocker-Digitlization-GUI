@@ -6,6 +6,8 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <atomic>
+#include <thread>
 
 namespace crocker::controls {
 
@@ -37,8 +39,15 @@ public:
     [[nodiscard]] TelemetrySnapshot LatestSnapshot() const;
     [[nodiscard]] HealthStatus Health() const;
 
+    void StartPidTrial(const PidTrialConfig& config);
+    void StopPidTrial(bool disableAllocatedChannels = true) noexcept;
+    [[nodiscard]] PidTrialStatus PidTrialStatusSnapshot() const;
+
 private:
     void StopUnlocked() noexcept;
+    void RunPidTrial(PidTrialConfig config) noexcept;
+    void SetPidTrialFault(const std::string& message) noexcept;
+    static void ValidatePidTrialConfig(const PidTrialConfig& config);
 
     static void ValidateChannel(ChannelId channel);
     static TelemetrySnapshot DisconnectedSnapshot();
@@ -49,6 +58,12 @@ private:
     mutable std::mutex mutex_;
     std::unique_ptr<ControlTransportBase> transport_;
     ControlCommand pendingCommand_{};
+
+    mutable std::mutex pidTrialMutex_;
+    std::thread pidTrialWorker_;
+    std::atomic_bool pidTrialRunning_{false};
+    PidTrialStatus pidTrialStatus_{};
+    std::array<bool, ChannelCount> pidAllocatedChannels_{};
 };
 
 } // namespace crocker::controls

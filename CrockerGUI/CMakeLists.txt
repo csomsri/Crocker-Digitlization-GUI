@@ -96,6 +96,12 @@ if(BUILD_TESTING)
     )
     target_include_directories(CyclotronModelTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
     add_test(NAME CyclotronModelTest COMMAND CyclotronModelTest)
+
+    add_executable(ControlServicePidTrialTest
+        tests/ControlServicePidTrialTest.cpp
+    )
+    target_link_libraries(ControlServicePidTrialTest PRIVATE crocker_engine)
+    add_test(NAME ControlServicePidTrialTest COMMAND ControlServicePidTrialTest)
 endif()
 
 if(MSVC)

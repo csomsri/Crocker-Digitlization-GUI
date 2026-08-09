@@ -2,6 +2,12 @@
 This is a document addressing the current status, plans, and direction of the project.
 
 ## Current Status
+**8/8/2026**:
+
+    Simplified the AI Control section to expose only the operational PID Control
+    page. Removed the Exploration and PID gain-tuning experiment pages from the
+    GUI while the tuning workflow is reconsidered.
+
 **7/14/2026**:
 
     Right now the backend of the GUI is able to read data from a simulator and be able change the magnetic field from the simulator via hardcoded control commands in a test case.

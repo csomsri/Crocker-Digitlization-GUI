@@ -6,8 +6,31 @@ The long-term goal is a Torch/BoTorch-based optimizer that proposes PID gain can
 
 The optimizer should never command hardware directly. Its role is to propose and record trials. The GUI and control layer must remain responsible for arming, dry-run behavior, operator approval, command bounds, max-step limits, interlock/fault checks, observation windows, and emergency stop behavior.
 
-Current status: `trial_suggestion.py` contains an assisted trial suggester, not a real Torch/BoTorch Bayesian optimizer. It is a conservative scaffold used by the Automation assisted tuning page to suggest bounded one-at-a-time command trials, record scores, and log results while the actual safe BO PID tuner is still being designed. The operator enters a target and normally approves each prepared trial with Enter. An optional Automatically Approve Trials checkbox can remove that approval step after the other safety gates are satisfied. The allowed command range is the absolute measured error clamped between the configured minimum and initial ranges. For example, with a 10 A initial range, the runner stays at +/-10 A while error exceeds 10 A and only enters single-digit ranges once error is below 10 A. The session pauses when the result is within the configured target tolerance.
+Current status: the AI Control section exposes only the operational PID Control
+page. The previous assisted/BO tuning and exploration pages were removed while
+their workflow is reconsidered. The optimizer code in this directory is not
+connected to the frontend or normal PID operation.
 
-`bayesian_optimization.py` is reserved for the real Torch/BoTorch PID gain optimizer. That implementation should propose batches of `Kp`, `Ki`, and `Kd` candidates, consume scored PID response trials, and use a BoTorch acquisition function to select the next batch.
+`bayesian_optimization.py` implements the Torch/BoTorch PID gain optimizer. It
+starts with reproducible, space-filling Sobol candidates and, after enough safe
+trials, fits a `SingleTaskGP` and proposes batches with
+`qLogExpectedImprovement`. Trial scores are costs (lower is better), so the GP
+models their negative. Unsafe trials remain in the audit history but are not
+used to teach the performance model.
 
-Note: this scaffold may be removed later once the real safe Bayesian Optimization PID tuner is implemented.
+Typical outer loop:
+
+```python
+optimizer = BotorchPidOptimizer((0, 5), (0, 2), (0, 1))
+for candidate in optimizer.propose_batch(4):
+    # Apply candidate gains through the control layer, run the closed-loop
+    # observation window, calculate response metrics, and enforce interlocks.
+    optimizer.record_results([measured_trial_result])
+```
+
+The score supplied in `PidTrialResult` should combine the metrics appropriate
+for the machine, for example weighted settling time, overshoot, steady-state
+error, and control effort. Keep the units normalized before combining them.
+
+Run `python CrockerGUI/tests/BotorchPidOptimizerTest.py` from the repository root
+for a CPU smoke test of both the Sobol and GP/qLogEI proposal paths.
