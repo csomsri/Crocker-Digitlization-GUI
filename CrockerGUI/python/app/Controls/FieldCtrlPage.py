@@ -85,7 +85,8 @@ class FieldCtrlPage(DetailPage):
         self._start_backend()
         self._promote_instruction_header()
 
-        _, workspace = self.add_workspace()
+        workspace_frame, workspace = self.add_workspace()
+        workspace_frame.setObjectName("fieldControlWorkspace")
         workspace.setContentsMargins(12, 12, 12, 12)
 
         splitter = QSplitter(Qt.Horizontal)

@@ -443,7 +443,13 @@ class MainWindow(QMainWindow):
             QFrame#workspace {
                 background-color: rgba(3, 12, 12, 0.90);
                 border: 1px solid #35f4ff;
-                border-radius: 12px;
+                border-radius: 0;
+            }
+
+            QFrame#fieldControlWorkspace {
+                background-color: rgba(3, 12, 12, 0.90);
+                border: 1px solid #35f4ff;
+                border-radius: 0;
             }
 
             QPushButton {
@@ -460,6 +466,25 @@ class MainWindow(QMainWindow):
             QPushButton#backButton {
                 max-width: 150px;
                 text-align: center;
+            }
+
+            QPushButton#pidBackButton {
+                background-color: rgba(5, 17, 18, 0.94);
+                border: 1px solid #35f4ff;
+                border-radius: 4px;
+                color: #6df8ff;
+                margin-left: 18px;
+                margin-bottom: 8px;
+                max-width: 150px;
+                min-height: 34px;
+                padding: 6px 12px;
+                text-align: center;
+            }
+
+            QPushButton#pidBackButton:hover {
+                background-color: #35f4ff;
+                border-color: #35f4ff;
+                color: #031315;
             }
 
             QPushButton#categoryButton {
@@ -744,6 +769,43 @@ class MainWindow(QMainWindow):
                 min-height: 36px;
             }
 
+            QFrame#pidPanel QCheckBox#toggleRow {
+                background-color: rgba(3, 15, 16, 0.82);
+                border: 1px solid rgba(53, 244, 255, 0.24);
+                border-radius: 6px;
+                color: rgba(216, 253, 255, 0.76);
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                min-height: 28px;
+                padding: 3px 9px;
+            }
+
+            QFrame#pidPanel QCheckBox#toggleRow:hover {
+                border-color: rgba(53, 244, 255, 0.68);
+                color: #eaffff;
+            }
+
+            QFrame#pidPanel QCheckBox#toggleRow:checked {
+                background-color: rgba(20, 126, 92, 0.64);
+                border-color: rgba(143, 255, 210, 0.92);
+                color: #eaffff;
+            }
+
+            QFrame#pidPanel QCheckBox#toggleRow::indicator {
+                background-color: rgba(1, 8, 9, 0.96);
+                border: 1px solid rgba(216, 253, 255, 0.48);
+                border-radius: 7px;
+                height: 14px;
+                image: none;
+                width: 14px;
+            }
+
+            QFrame#pidPanel QCheckBox#toggleRow::indicator:checked {
+                background-color: #8fffd2;
+                border-color: #eaffff;
+                image: none;
+            }
+
             QProgressBar {
                 background-color: rgba(2, 12, 13, 0.96);
                 border: 1px solid rgba(53, 244, 255, 0.58);
@@ -816,6 +878,40 @@ class MainWindow(QMainWindow):
                 color: #d8fdff;
                 font-size: 12px;
                 font-weight: 700;
+            }
+
+            QLabel#pidStatusCard {
+                background-color: rgba(2, 10, 11, 0.86);
+                border: 1px solid rgba(53, 244, 255, 0.28);
+                border-radius: 6px;
+                color: #d8fdff;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 6px 10px;
+            }
+
+            QFrame#pidControllerState {
+                background-color: rgba(4, 24, 25, 0.92);
+                border: 1px solid rgba(143, 255, 210, 0.48);
+                border-radius: 6px;
+            }
+
+            QLabel#pidControllerMetric {
+                background-color: rgba(2, 12, 13, 0.86);
+                border: 1px solid rgba(53, 244, 255, 0.24);
+                border-radius: 4px;
+                color: #8fffd2;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 3px 8px;
+            }
+
+            QWidget#pidVisualizationViewport {
+                background-color: rgba(1, 7, 8, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                border-radius: 9px;
             }
 
             QFrame#fieldRow {
@@ -993,6 +1089,34 @@ class MainWindow(QMainWindow):
                 font-weight: 700;
             }
 
+            QFrame#pidControlTitlePanel {
+                background-color: rgba(5, 25, 26, 0.72);
+                border: none;
+                border-left: 3px solid #8fffd2;
+                border-radius: 3px;
+            }
+
+            QLabel#pidControlTitle,
+            QLabel#pidControlSubtitle {
+                background: transparent;
+                border: none;
+                font-family: "Segoe UI", Arial, sans-serif;
+            }
+
+            QLabel#pidControlTitle {
+                color: #eaffff;
+                font-size: 17px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+
+            QLabel#pidControlSubtitle {
+                color: rgba(143, 255, 210, 0.70);
+                font-size: 9px;
+                font-weight: 600;
+                letter-spacing: 1px;
+            }
+
             QLabel#pidStatus {
                 color: #8fffd2;
                 font-family: "__APP_FONT__", Consolas, monospace;
@@ -1007,6 +1131,10 @@ class MainWindow(QMainWindow):
             }
 
             QComboBox#pidChannelSelect,
+            QComboBox#pidTunerChannel,
+            QComboBox#pidTunerProfile,
+            QComboBox#pidTunerSafetyProfile,
+            QSpinBox#pidSpin,
             QDoubleSpinBox#pidSpin {
                 background-color: rgba(3, 18, 19, 0.96);
                 border: 1px solid rgba(53, 244, 255, 0.48);
@@ -1014,6 +1142,120 @@ class MainWindow(QMainWindow):
                 color: #eaffff;
                 min-height: 28px;
                 padding: 3px 8px;
+            }
+
+            QLabel#pidTunerSubtitle {
+                color: rgba(216, 253, 255, 0.70);
+                font-size: 12px;
+            }
+
+            QFrame#pidCandidatePanel {
+                background-color: rgba(2, 10, 11, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.38);
+                border-radius: 7px;
+            }
+
+            QFrame#pidBoundsPanel {
+                background-color: rgba(2, 10, 11, 0.72);
+                border: 1px solid rgba(53, 244, 255, 0.30);
+                border-radius: 7px;
+            }
+
+            QFrame#pidBoundCard {
+                background-color: rgba(4, 19, 20, 0.88);
+                border: 1px solid rgba(53, 244, 255, 0.28);
+                border-radius: 5px;
+            }
+
+            QLabel#pidSectionTitle,
+            QLabel#pidBoundTitle,
+            QLabel#pidBoundSummary,
+            QLabel#pidBoundLabel {
+                border: none;
+                color: #d8fdff;
+                font-family: "Segoe UI", Arial, sans-serif;
+            }
+
+            QLabel#pidSectionTitle,
+            QLabel#pidBoundTitle {
+                font-size: 12px;
+                font-weight: 700;
+            }
+
+            QLabel#pidBoundTitle {
+                color: #8fffd2;
+                font-size: 17px;
+            }
+
+            QLabel#pidBoundSummary {
+                color: #eaffff;
+                font-size: 14px;
+                font-weight: 600;
+                padding: 4px 2px;
+            }
+
+            QLabel#pidBoundLabel {
+                color: rgba(216, 253, 255, 0.70);
+                font-size: 10px;
+            }
+
+            QPushButton#pidCompactAction {
+                min-height: 22px;
+                padding: 2px 9px;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                text-align: center;
+            }
+
+            QLabel#pidTunerStatus {
+                background-color: rgba(5, 23, 24, 0.96);
+                border: 1px solid rgba(143, 255, 210, 0.58);
+                border-radius: 5px;
+                color: #d8fdff;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                min-height: 26px;
+                padding: 6px 10px;
+            }
+
+            QLabel#pidCandidateValue,
+            QLabel#pidStatusValue {
+                background-color: rgba(7, 31, 32, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.64);
+                border-radius: 5px;
+                color: #eaffff;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 5px 9px;
+            }
+
+            QLabel#pidStatusValue {
+                background-color: rgba(4, 19, 20, 0.96);
+                border-color: rgba(53, 244, 255, 0.38);
+                color: rgba(216, 253, 255, 0.90);
+                font-size: 12px;
+            }
+
+            QFrame#pidTunerViewport {
+                background-color: rgba(1, 7, 8, 0.94);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                border-radius: 10px;
+            }
+
+            QPushButton#pidTunerOpen,
+            QPushButton#pidTunerBack,
+            QPushButton#pidApplyTunedGains {
+                min-height: 28px;
+                padding: 4px 12px;
+                text-align: center;
+            }
+
+            QPushButton#pidApplyTunedGains:enabled {
+                background-color: rgba(20, 126, 92, 0.82);
+                border-color: rgba(143, 255, 210, 0.82);
+                color: #eaffff;
             }
 
             QPushButton#pidEnable {
