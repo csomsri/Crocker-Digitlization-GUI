@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include <vector>
 
 struct ChartColor {
@@ -9,6 +10,7 @@ struct ChartColor {
 };
 
 struct ChartStyle {
+    std::string fontPath {};
     ChartColor lineColor { 0.10f, 0.72f, 0.95f };
     std::vector<ChartColor> lineColors {
         { 0.10f, 0.72f, 0.95f },
@@ -32,8 +34,10 @@ struct ChartStyle {
     float gridWidth = 1.0f;
     float pointRadius = 4.0f;
     float shadowOpacity = 0.18f;
-    float titleSize = 3.0f;
-    float axisTitleSize = 2.0f;
+    float titleSize = 32.0f;
+    float axisTitleSize = 22.0f;
+    float tickLabelSize = 22.0f;
+    float legendSize = 21.0f;
     float plotPadding = 14.0f;
     float leftMargin = 58.0f;
     float bottomMargin = 46.0f;
@@ -46,4 +50,6 @@ struct ChartStyle {
     bool showLineShadow = true;
     bool showTitle = true;
     bool showAxisTitles = true;
+    bool showTickLabels = true;
+    bool showLegend = true;
 };

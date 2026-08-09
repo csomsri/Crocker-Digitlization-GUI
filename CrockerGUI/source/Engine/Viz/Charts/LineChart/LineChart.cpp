@@ -3,7 +3,26 @@
 #include "../ChartOpenGL.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <iomanip>
 #include <limits>
+#include <sstream>
+
+namespace {
+std::string FormatTick(float value, float span) {
+    if (std::abs(value) < std::max(std::abs(span), 1.0f) * 0.0001f) value = 0.0f;
+    const float absoluteSpan = std::abs(span);
+    const int precision = absoluteSpan >= 20.0f ? 0 : (absoluteSpan >= 2.0f ? 1 : 2);
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(precision) << value;
+    std::string label = stream.str();
+    if (precision > 0) {
+        while (!label.empty() && label.back() == '0') label.pop_back();
+        if (!label.empty() && label.back() == '.') label.pop_back();
+    }
+    return label;
+}
+} // namespace
 
 LineChart::~LineChart() {
     chart_gl::DestroyResources(vertexArray, vertexBuffer, shaderProgram);
@@ -48,7 +67,8 @@ void LineChart::Render(const ChartRect& area) {
 
     GLint viewport[4];
     glGetIntegerv(GL_VIEWPORT, viewport);
-    const auto plot = chart_gl::InnerArea(area, style, !title.empty());
+    const bool legendInHeader = style.showLegend && seriesCount > 0 && title.empty();
+    const auto plot = chart_gl::InnerArea(area, style, !title.empty() || legendInHeader);
     std::vector<std::vector<float>> seriesPoints(seriesCount);
 
     for (std::size_t series = 0; series < seriesCount; ++series) {
@@ -102,6 +122,52 @@ void LineChart::Render(const ChartRect& area) {
         if (!style.showPoints) continue;
         chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, points, GL_POINTS,
                        color.r, color.g, color.b, style.pointRadius * 2.0f);
+    }
+
+    if (style.showTickLabels) {
+        const int divisions = std::max(style.gridDivisions, 1);
+        for (int tick = 0; tick <= divisions; ++tick) {
+            const float amount = static_cast<float>(tick) / static_cast<float>(divisions);
+            const float x = plot.left + amount * (plot.right - plot.left);
+            const float y = plot.bottom + amount * (plot.top - plot.bottom);
+            font_renderer::DrawText(
+                FormatTick(minX + amount * (maxX - minX), maxX - minX),
+                x, plot.bottom - style.tickLabelSize * 0.72f,
+                style.tickLabelSize, false, style.textColor, 0.9f, style.fontPath);
+            font_renderer::DrawText(
+                FormatTick(minY + amount * (maxY - minY), maxY - minY),
+                plot.left - style.leftMargin * 0.43f, y,
+                style.tickLabelSize, false, style.textColor, 0.9f, style.fontPath);
+        }
+    }
+
+    if (style.showLegend && seriesCount > 0) {
+        constexpr float slotWidth = 94.0f;
+        const float totalWidth = slotWidth * static_cast<float>(seriesCount);
+        const float startX = std::max(plot.left, plot.right - totalWidth);
+        const float legendY = legendInHeader
+            ? area.y + area.height - style.titleMargin * 0.5f
+            : plot.top - style.legendSize * 0.8f;
+        for (std::size_t series = 0; series < seriesCount; ++series) {
+            const ChartColor color = seriesCount == 1 || style.lineColors.empty()
+                ? style.lineColor : style.lineColors[series % style.lineColors.size()];
+            const float slotLeft = startX + static_cast<float>(series) * slotWidth;
+            const float swatchLeft = slotLeft + 4.0f;
+            const float swatchRight = swatchLeft + 18.0f;
+            const std::vector<float> swatch {
+                chart_gl::ToNdcX(swatchLeft, viewport), chart_gl::ToNdcY(legendY, viewport),
+                chart_gl::ToNdcX(swatchRight, viewport), chart_gl::ToNdcY(legendY, viewport),
+            };
+            chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, swatch, GL_LINES,
+                           color.r, color.g, color.b, style.lineWidth);
+            const std::size_t column = firstYColumn + series;
+            const std::string label = column < table.columnNames.size()
+                ? table.columnNames[column]
+                : "Series " + std::to_string(series + 1);
+            font_renderer::DrawText(label, slotLeft + 57.0f, legendY,
+                                    style.legendSize, false, style.textColor,
+                                    0.95f, style.fontPath);
+        }
     }
 
     chart_gl::DrawLabels(vertexArray, vertexBuffer, shaderProgram, area, plot, viewport,

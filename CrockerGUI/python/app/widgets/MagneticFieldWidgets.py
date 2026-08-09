@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QColor, QPainter, QPen, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QWidget
 
@@ -79,6 +79,9 @@ class ClickableValue(QLabel):
 class NativeSpeedometer(QOpenGLWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        surface_format = self.format()
+        surface_format.setSamples(8)
+        self.setFormat(surface_format)
         self.setMinimumSize(360, 320)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._target = 0.0
@@ -222,111 +225,54 @@ class MissingNativeSpeedometer(QLabel):
         return
 
 
-class TimeDomainPlot(QWidget):
+class TimeDomainPlot(QOpenGLWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        surface_format = self.format()
+        surface_format.setSamples(8)
+        self.setFormat(surface_format)
         self.setMinimumHeight(155)
         self.setMaximumHeight(170)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setObjectName("timeDomainPlot")
         self._samples: list[tuple[float, float, float, float]] = []
+        self._native = None
+        self._ready = False
 
     def set_samples(self, samples: list[tuple[float, float, float, float]]) -> None:
-        self._samples = samples
+        self._samples = list(samples)
+        if self._ready and self._native is not None:
+            self._native.set_samples(self._samples)
         self.update()
 
-    def paintEvent(self, event) -> None:
-        painter = QPainter(self)
-        painter.setRenderHints(QPainter.Antialiasing | QPainter.TextAntialiasing)
-        bounds = QRectF(0, 0, self.width(), self.height())
-        painter.fillRect(bounds, QColor(3, 8, 8))
+    def initializeGL(self) -> None:
+        try:
+            import CycloViz
+            from PySide6.QtGui import QOpenGLContext
 
-        plot = bounds.adjusted(54, 38, -18, -42)
-        painter.setPen(QPen(QColor(53, 244, 255, 90), 1))
-        painter.drawRect(plot)
-        for i in range(1, 4):
-            y = plot.top() + plot.height() * i / 4.0
-            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+            context = QOpenGLContext.currentContext()
 
-        painter.setPen(QColor(216, 253, 255, 190))
-        painter.drawText(QRectF(10, 8, 180, 16), Qt.AlignLeft | Qt.AlignVCenter, "Time Response")
-        self._draw_legend(painter, plot)
+            def get_proc(name: str) -> int:
+                address = context.getProcAddress(name.encode("ascii"))
+                return int(address) if address else 0
 
-        if len(self._samples) < 2:
-            painter.setPen(QColor(109, 248, 255, 130))
-            painter.drawText(plot, Qt.AlignCenter, "Waiting for samples")
+            CycloViz.load_opengl(get_proc)
+            self._native = CycloViz.TimeDomainLinePlot()
+            self._native.set_samples(self._samples)
+            self._ready = True
+        except Exception as exc:
+            self._ready = False
+            self._native = None
+            print(f"[FieldCtrl] Native OpenGL time-domain plot unavailable: {exc}")
+
+    def paintGL(self) -> None:
+        if not self._ready or self._native is None:
             return
-
-        values = [value for _, actual, target, error in self._samples for value in (actual, target, error)]
-        low = min(values)
-        high = max(values)
-        if high - low < 1.0:
-            low -= 0.5
-            high += 0.5
-
-        start = self._samples[0][0]
-        end = self._samples[-1][0]
-        if end <= start:
-            end = start + 1.0
-        span = end - start
-
-        def map_point(sample: tuple[float, float, float, float], value: float) -> QPointF:
-            x = plot.left() + (sample[0] - start) / span * plot.width()
-            y = plot.bottom() - (value - low) / (high - low) * plot.height()
-            return QPointF(x, y)
-
-        self._draw_time_axis(painter, plot, span)
-        self._draw_series(painter, [map_point(sample, sample[1]) for sample in self._samples], QColor(53, 244, 255))
-        self._draw_series(painter, [map_point(sample, sample[2]) for sample in self._samples], QColor(143, 255, 210))
-        self._draw_series(painter, [map_point(sample, sample[3]) for sample in self._samples], QColor(255, 81, 105))
-
-        painter.setPen(QColor(216, 253, 255, 150))
-        painter.drawText(QRectF(5, plot.top() - 6, 38, 16), Qt.AlignRight | Qt.AlignVCenter, f"{high:.0f}")
-        painter.drawText(QRectF(5, plot.bottom() - 10, 38, 16), Qt.AlignRight | Qt.AlignVCenter, f"{low:.0f}")
-        painter.drawText(QRectF(plot.left(), bounds.bottom() - 22, plot.width(), 16), Qt.AlignCenter, "Time (s)")
-
-    def _draw_series(self, painter: QPainter, points: list[QPointF], color: QColor) -> None:
-        if len(points) < 2:
-            return
-        painter.setPen(QPen(color, 2))
-        painter.drawPolyline(QPolygonF(points))
-
-    def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
-        items = (
-            ("Actual", QColor(53, 244, 255)),
-            ("Target", QColor(143, 255, 210)),
-            ("Error", QColor(255, 81, 105)),
+        pixel_ratio = self.devicePixelRatio()
+        self._native.render(
+            max(1, int(round(self.width() * pixel_ratio))),
+            max(1, int(round(self.height() * pixel_ratio))),
         )
-        x = plot.right() - 210
-        for label, color in items:
-            painter.setPen(QPen(color, 2))
-            painter.drawLine(QPointF(x, 16), QPointF(x + 20, 16))
-            painter.setPen(QColor(216, 253, 255, 185))
-            painter.drawText(QRectF(x + 25, 8, 48, 16), Qt.AlignLeft | Qt.AlignVCenter, label)
-            x += 72
-
-    def _draw_time_axis(self, painter: QPainter, plot: QRectF, span: float) -> None:
-        step = self._nice_time_step(span)
-        painter.setPen(QPen(QColor(53, 244, 255, 70), 1))
-        tick = 0.0
-        while tick <= span + step * 0.5:
-            x = plot.left() + min(tick / span, 1.0) * plot.width()
-            painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-            painter.setPen(QColor(216, 253, 255, 150))
-            painter.drawText(QRectF(x - 22, plot.bottom() + 4, 44, 16), Qt.AlignCenter, f"{tick:g}")
-            painter.setPen(QPen(QColor(53, 244, 255, 70), 1))
-            tick += step
-
-    def _nice_time_step(self, span: float) -> float:
-        if span <= 6.0:
-            return 1.0
-        rough = span / 4.0
-        magnitude = 10 ** math.floor(math.log10(max(rough, 1.0)))
-        for multiplier in (1.0, 2.0, 5.0, 10.0):
-            step = multiplier * magnitude
-            if rough <= step:
-                return step
-        return 10.0 * magnitude
 
 
 class SimulatedActual:

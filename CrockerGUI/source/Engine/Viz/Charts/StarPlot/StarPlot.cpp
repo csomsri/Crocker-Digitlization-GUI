@@ -39,11 +39,10 @@ void StarPlot::Render(const ChartRect& area) {
         spokes.insert(spokes.end(), { chart_gl::ToNdcX(centerX, viewport), chart_gl::ToNdcY(centerY, viewport),
                                       chart_gl::ToNdcX(x, viewport), chart_gl::ToNdcY(y, viewport) });
         if (axis < table.columnNames.size()) {
-            const auto label = chart_gl::Text(table.columnNames[axis], centerX + std::cos(angle) * radius * 1.16f,
-                                               centerY + std::sin(angle) * radius * 1.16f,
-                                               style.axisTitleSize, false, viewport);
-            chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, label, GL_TRIANGLES,
-                           style.textColor.r, style.textColor.g, style.textColor.b);
+            font_renderer::DrawText(
+                table.columnNames[axis], centerX + std::cos(angle) * radius * 1.16f,
+                centerY + std::sin(angle) * radius * 1.16f, style.axisTitleSize,
+                false, style.textColor, 1.0f, style.fontPath);
         }
     }
     chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, spokes, GL_LINES,

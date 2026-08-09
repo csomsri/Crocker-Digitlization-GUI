@@ -52,6 +52,7 @@ add_library(crocker_engine STATIC
     source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
     source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
     source/Engine/Viz/Charts/BarChart/BarChart.cpp
+    source/Engine/Viz/Text/FontRenderer.cpp
     source/Engine/Viz/Gauges/Speedometer/MagneticFieldSpeedometer.cpp
     source/Controls/Network/ZMQProtocol.cpp
     source/Controls/Network/ZMQReceiver.cpp
@@ -75,6 +76,10 @@ target_include_directories(crocker_engine
 )
 
 target_link_libraries(crocker_engine PUBLIC OpenGL::GL)
+
+target_compile_definitions(crocker_engine PRIVATE
+    CROCKER_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/assets"
+)
 
 if(TARGET cppzmq-static)
     target_link_libraries(crocker_engine PUBLIC cppzmq-static)

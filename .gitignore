@@ -13,6 +13,7 @@ CrockerGUI/*.vcxproj
 CrockerGUI/*.vcxproj.filters
 
 # Python
+.venv/
 __pycache__/
 *.py[cod]
 CrockerGUI/data/

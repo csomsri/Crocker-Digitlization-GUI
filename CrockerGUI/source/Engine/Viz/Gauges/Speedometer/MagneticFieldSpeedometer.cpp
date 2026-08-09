@@ -1,6 +1,7 @@
 #include "Engine/Viz/Gauges/MagneticFieldSpeedometer.hpp"
 
 #include "Engine/Viz/Data/DataTable.hpp"
+#include "Engine/Viz/Text/FontRenderer.hpp"
 
 #include "../../Charts/ChartOpenGL.hpp"
 
@@ -96,6 +97,9 @@ void MagneticFieldSpeedometer::Render(int width, int height)
     EnsureOpenGLResources();
 
     glDisable(GL_DEPTH_TEST);
+    glEnable(GL_MULTISAMPLE);
+    glEnable(GL_LINE_SMOOTH);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -210,15 +214,12 @@ void MagneticFieldSpeedometer::Render(int width, int height)
                                  (timingActive ? " RUN" : "");
     const std::string errorText = "ERROR " + fixed(error, 2) + " A";
 
-    const auto drawProtectedStatus = [this, w](const std::string& text, float preferredX, float y, float scale,
+    const auto drawProtectedStatus = [this](const std::string& text, float preferredX, float y, float scale,
                                                 float red, float green, float blue, float alpha) {
         const float textWidth = (static_cast<float>(text.size()) * 6.0f - 1.0f) * scale;
         const float textHeight = 7.0f * scale;
         const float padding = 3.0f * scale;
-        const float edgeMargin = 18.0f;
-        const float centerX = std::clamp(preferredX,
-                                         edgeMargin + textWidth * 0.5f,
-                                         w - edgeMargin - textWidth * 0.5f);
+        const float centerX = preferredX;
         DrawVertices(rect(centerX - textWidth * 0.5f - padding,
                           y - textHeight * 0.5f - padding,
                           centerX + textWidth * 0.5f + padding,
@@ -228,16 +229,16 @@ void MagneticFieldSpeedometer::Render(int width, int height)
         DrawText(text, centerX, y, scale, red, green, blue, alpha);
     };
 
-    drawProtectedStatus(convergenceText, w * 0.16f, h - 54.0f,
-                        std::clamp(radius * 0.012f, 1.2f, 2.1f),
+    drawProtectedStatus(convergenceText, w * 0.14f, h - 54.0f,
+                        std::clamp(radius * 0.016f, 1.7f, 2.7f),
                         converged ? 0.48f : 1.0f, converged ? 1.0f : 0.24f,
                         converged ? 0.66f : 0.22f, 1.0f);
-    DrawText(toleranceText, w * 0.16f, h - 82.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
+    DrawText(toleranceText, w * 0.14f, h - 84.0f, std::clamp(radius * 0.015f, 1.6f, 2.4f),
              0.60f, 0.96f, 1.0f, 0.82f);
-    DrawText(timeText, w * 0.16f, h - 108.0f, std::clamp(radius * 0.010f, 1.0f, 1.7f),
+    DrawText(timeText, w * 0.14f, h - 112.0f, std::clamp(radius * 0.015f, 1.6f, 2.4f),
              1.0f, 0.72f, 0.16f, 0.88f);
     drawProtectedStatus(errorText, w * 0.82f, h - 66.0f,
-                        std::clamp(radius * 0.012f, 1.2f, 2.1f),
+                        std::clamp(radius * 0.016f, 1.7f, 2.7f),
                         1.0f, 0.24f, 0.22f, 1.0f);
 
     DrawText("ACTUAL", w * 0.22f, h * 0.145f, std::clamp(radius * 0.014f, 1.3f, 2.2f),
@@ -367,6 +368,6 @@ void MagneticFieldSpeedometer::DrawTargetMarker(Point center, float radius)
 void MagneticFieldSpeedometer::DrawText(const std::string& text, float centerX, float centerY, float scale,
                                         float red, float green, float blue, float alpha)
 {
-    const auto vertices = chart_gl::Text(text, centerX, centerY, scale, false, viewport);
-    DrawVertices(vertices, GL_TRIANGLES, red, green, blue, alpha);
+    font_renderer::DrawText(text, centerX, centerY, scale * 10.5f, false,
+                            { red, green, blue }, alpha);
 }

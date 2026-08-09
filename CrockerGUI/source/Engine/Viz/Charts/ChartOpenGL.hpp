@@ -4,6 +4,7 @@
 
 #include "Engine/Viz/Charts/ChartRect.hpp"
 #include "Engine/Viz/Charts/ChartStyle.hpp"
+#include "Engine/Viz/Text/FontRenderer.hpp"
 
 #include <algorithm>
 #include <array>
@@ -320,21 +321,25 @@ inline std::vector<float> Text(
 inline void DrawLabels(GLuint vao, GLuint vbo, GLuint program, const ChartRect& area,
                        const PlotArea& plot, const GLint viewport[4], const ChartStyle& style,
                        const std::string& title, const std::string& xTitle, const std::string& yTitle) {
+    (void)vao;
+    (void)vbo;
+    (void)program;
+    (void)viewport;
     const auto color = style.textColor;
     if (style.showTitle && !title.empty()) {
-        const auto vertices = Text(title, (plot.left + plot.right) * 0.5f,
-            area.y + area.height - style.titleMargin * 0.5f, style.titleSize, false, viewport);
-        Draw(vao, vbo, program, vertices, GL_TRIANGLES, color.r, color.g, color.b);
+        font_renderer::DrawText(title, (plot.left + plot.right) * 0.5f,
+            area.y + area.height - style.titleMargin * 0.5f, style.titleSize,
+            false, color, 1.0f, style.fontPath);
     }
     if (style.showAxisTitles && !xTitle.empty()) {
-        const auto vertices = Text(xTitle, (plot.left + plot.right) * 0.5f,
-            area.y + style.bottomMargin * 0.35f, style.axisTitleSize, false, viewport);
-        Draw(vao, vbo, program, vertices, GL_TRIANGLES, color.r, color.g, color.b);
+        font_renderer::DrawText(xTitle, (plot.left + plot.right) * 0.5f,
+            area.y + style.bottomMargin * 0.35f, style.axisTitleSize,
+            false, color, 1.0f, style.fontPath);
     }
     if (style.showAxisTitles && !yTitle.empty()) {
-        const auto vertices = Text(yTitle, area.x + style.leftMargin * 0.25f,
-            (plot.bottom + plot.top) * 0.5f, style.axisTitleSize, true, viewport);
-        Draw(vao, vbo, program, vertices, GL_TRIANGLES, color.r, color.g, color.b);
+        font_renderer::DrawText(yTitle, area.x + style.leftMargin * 0.25f,
+            (plot.bottom + plot.top) * 0.5f, style.axisTitleSize,
+            true, color, 1.0f, style.fontPath);
     }
 }
 
