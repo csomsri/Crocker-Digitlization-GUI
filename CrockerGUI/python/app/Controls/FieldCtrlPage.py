@@ -85,6 +85,8 @@ class FieldCtrlPage(DetailPage):
         self.backend_destination = "None"
         self.backend_packets = 0
         self._status_tick = 0
+        self._last_pending_signature = None
+        self._local_edit_dirty = False
 
         if self.owns_backend:
             self._start_backend()
@@ -231,6 +233,8 @@ class FieldCtrlPage(DetailPage):
             on_toggle.setChecked(True)
             enable_toggle.setChecked(True)
             plot_toggle.setChecked(True)
+            on_toggle.toggled.connect(lambda checked=False: self._mark_pending_signature_from_ui())
+            enable_toggle.toggled.connect(lambda checked=False: self._mark_pending_signature_from_ui())
             plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
             layout.addWidget(on_toggle, row, 2, Qt.AlignVCenter)
             layout.addWidget(enable_toggle, row, 3, Qt.AlignVCenter)
@@ -397,6 +401,7 @@ class FieldCtrlPage(DetailPage):
             card.style().polish(card)
 
     def _set_selected_target(self, value: float) -> None:
+        self._local_edit_dirty = True
         next_value = clamp(value)
         if abs(next_value - self.target_values[self.selected_index]) >= 0.01:
             self.target_values[self.selected_index] = next_value
@@ -485,6 +490,12 @@ class FieldCtrlPage(DetailPage):
             command = self.backend.PendingCommand()
         except Exception:
             return
+        if self._local_edit_dirty:
+            return
+        signature = self._pending_signature(command)
+        if signature == self._last_pending_signature:
+            return
+        self._last_pending_signature = signature
         changed = False
         for index, channel in enumerate(command[:len(CHANNEL_NAMES)]):
             target = clamp(float(channel["target"]))
@@ -492,11 +503,25 @@ class FieldCtrlPage(DetailPage):
                 self.target_values[index] = target
                 changed = True
             if index < len(self.on_buttons):
+                self.on_buttons[index].blockSignals(True)
                 self.on_buttons[index].setChecked(bool(channel["on"]))
+                self.on_buttons[index].blockSignals(False)
             if index < len(self.enable_buttons):
+                self.enable_buttons[index].blockSignals(True)
                 self.enable_buttons[index].setChecked(bool(channel["enabled"]))
+                self.enable_buttons[index].blockSignals(False)
         if changed:
             self._refresh_target_display()
+
+    def _pending_signature(self, command) -> tuple[tuple[float, bool, bool], ...]:
+        return tuple(
+            (
+                round(clamp(float(channel["target"])), 4),
+                bool(channel["on"]),
+                bool(channel["enabled"]),
+            )
+            for channel in command[:len(CHANNEL_NAMES)]
+        )
 
     def _update_speedometer(self) -> None:
         target = self.target_values[self.selected_index]
@@ -551,7 +576,10 @@ class FieldCtrlPage(DetailPage):
         if self.backend_available and self.backend is not None:
             try:
                 self.backend.SetChannelCommand(index, target, on, enabled)
+                if hasattr(self.backend, "PendingCommand"):
+                    self._last_pending_signature = self._pending_signature(self.backend.PendingCommand())
                 applied = bool(self.backend.ApplyCommand())
+                self._local_edit_dirty = False
                 mode = self.backend_mode.upper()
                 self.backend_status = f"{mode} command applied" if applied else f"{mode} command rejected"
                 self.backend_label.setText(self.backend_status)
@@ -572,10 +600,15 @@ class FieldCtrlPage(DetailPage):
                 self._begin_convergence_timer(index)
         ok_count = sum(1 for ok in applied if ok)
         self.backend_label.setText(f"{ok_count}/{len(CHANNEL_NAMES)} channel commands applied")
+        self._local_edit_dirty = False
 
     def _set_all_toggles(self, buttons: list[BubbleToggle], checked: bool) -> None:
         for button in buttons:
             button.setChecked(checked)
+        self._local_edit_dirty = True
+
+    def _mark_pending_signature_from_ui(self) -> None:
+        self._local_edit_dirty = True
 
     def _hold_selected_actual(self) -> None:
         self._set_selected_target(self.actual_values[self.selected_index])
