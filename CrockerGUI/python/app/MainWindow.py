@@ -16,6 +16,7 @@ from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
 from python.app.Controls.ManualControlsPage import ManualControlsPage
+from python.app.Controls.SequencerPage import SequencerPage
 from python.app.HomePage import HomePage
 from python.app.Controls.SnapshotPage import SnapshotPage
 from python.app.Configuration.ConfigurationPage import ConfigurationPage
@@ -43,6 +44,11 @@ from python.app.Monitoring.VacuumBeamMonitoringPage import (
 from source.Python.Data.pipeline_manager import DataPipelineManager
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
+try:
+    import CycloViz
+except Exception:
+    CycloViz = None
+
 
 PAGE_BUILDERS = {
     "Monitoring": MonitoringPage,
@@ -58,6 +64,7 @@ DETAIL_BUILDERS = {
     "Vacuum / Beam Monitoring": ("Monitoring", VacuumBeamMonitoringPage),
     "RF Power Monitoring": ("Monitoring", RfPowerMonitoringPage),
     "Field Ctrl": ("Manual Controls", FieldCtrlPage),
+    "Sequencer": ("Field Ctrl", SequencerPage),
     "Beam Range": ("Manual Controls", BeamRangePage),
     "Alarm": ("Manual Controls", AlarmPage),
     "Snapshot": ("Manual Controls", SnapshotPage),
@@ -86,6 +93,7 @@ class MainWindow(QMainWindow):
         self.enable_data_pipeline = enable_data_pipeline
         self.db_path = Path(db_path)
         self._data_pipeline: DataPipelineManager | None = None
+        self._control_backend = None
         self._settings = QSettings("Crocker Nuclear Lab", "Digitalization")
         self._display_mode = self._settings.value(
             "display/mode", "Windowed", type=str
@@ -129,18 +137,39 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title in {"Field Ctrl", "PID Control"}:
-                field_backend_mode = (
-                    "zmq"
-                    if self.simulation_mode == "cyclotron"
-                    else self.backend_mode
-                )
-                detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
-                    backend_mode=field_backend_mode,
-                    zmq_endpoint=self.zmq_endpoint,
-                )
+            if title in {"Field Ctrl", "PID Control", "Sequencer"}:
+                field_backend_mode = self._field_backend_mode()
+                if title == "Field Ctrl":
+                    shared_backend = self._shared_control_backend(field_backend_mode)
+                    detail_page = page_builder(
+                        lambda checked=False, category=parent_category:
+                            self.show_category(category),
+                        backend_mode=field_backend_mode,
+                        zmq_endpoint=self.zmq_endpoint,
+                        open_sequencer=lambda: self.open_placeholder(
+                            "Sequencer",
+                            "Sequence control",
+                        ),
+                        control_backend=shared_backend,
+                    )
+                elif title == "Sequencer":
+                    shared_backend = self._shared_control_backend(field_backend_mode)
+                    detail_page = page_builder(
+                        lambda checked=False: self.open_placeholder(
+                            "Field Ctrl",
+                            "Magnetic field control",
+                        ),
+                        backend_mode=field_backend_mode,
+                        zmq_endpoint=self.zmq_endpoint,
+                        control_backend=shared_backend,
+                    )
+                else:
+                    detail_page = page_builder(
+                        lambda checked=False, category=parent_category:
+                            self.show_category(category),
+                        backend_mode=field_backend_mode,
+                        zmq_endpoint=self.zmq_endpoint,
+                    )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
                 self.detail_parent[title] = parent_category
@@ -276,12 +305,25 @@ class MainWindow(QMainWindow):
         if page_name in DETAIL_BUILDERS:
             parent_category, builder = DETAIL_BUILDERS[page_name]
             go_back = lambda checked=False: host.set_page(parent_category)
-            if page_name in {"Field Ctrl", "PID Control"}:
-                field_backend_mode = (
-                    "zmq"
-                    if self.simulation_mode == "cyclotron"
-                    else self.backend_mode
-                )
+            if page_name in {"Field Ctrl", "PID Control", "Sequencer"}:
+                field_backend_mode = self._field_backend_mode()
+                if page_name == "Field Ctrl":
+                    shared_backend = self._shared_control_backend(field_backend_mode)
+                    return builder(
+                        go_back,
+                        backend_mode=field_backend_mode,
+                        zmq_endpoint=self.zmq_endpoint,
+                        open_sequencer=lambda: host.set_page("Sequencer"),
+                        control_backend=shared_backend,
+                    )
+                if page_name == "Sequencer":
+                    shared_backend = self._shared_control_backend(field_backend_mode)
+                    return builder(
+                        go_back,
+                        backend_mode=field_backend_mode,
+                        zmq_endpoint=self.zmq_endpoint,
+                        control_backend=shared_backend,
+                    )
                 return builder(
                     go_back,
                     backend_mode=field_backend_mode,
@@ -290,6 +332,27 @@ class MainWindow(QMainWindow):
             return builder(go_back)
         fallback = QWidget()
         return fallback
+
+    def _field_backend_mode(self) -> str:
+        return "zmq" if self.simulation_mode == "cyclotron" else self.backend_mode
+
+    def _shared_control_backend(self, field_backend_mode: str):
+        if self._control_backend is not None:
+            return self._control_backend
+        if CycloViz is None or not hasattr(CycloViz, "ControlService"):
+            return None
+        try:
+            backend = CycloViz.ControlService()
+            if field_backend_mode == "simulation":
+                backend.StartSimulator(20.0)
+            elif field_backend_mode == "zmq":
+                backend.StartServer(self.zmq_endpoint)
+            else:
+                return None
+            self._control_backend = backend
+        except Exception:
+            self._control_backend = None
+        return self._control_backend
 
     def set_display_mode(self, mode: str, save: bool = True) -> None:
         if mode not in {"Windowed", "Borderless Window", "Full Screen"}:
@@ -312,11 +375,13 @@ class MainWindow(QMainWindow):
 
         # Changing FramelessWindowHint recreates the native window on Windows.
         # Hide it first, update the flags once, then show it in the requested
-        # state so transitions such as Borderless -> Full Screen are reliable.
+        # state. Use a borderless desktop-sized window for Full Screen instead
+        # of Qt's native WindowFullScreen state; embedded QGraphicsView canvases
+        # such as NodeGraphQt can lose drag/focus behavior in native fullscreen.
         self.hide()
         self.setWindowState(Qt.WindowState.WindowNoState)
         flags = self.windowFlags()
-        if mode == "Borderless Window":
+        if mode in {"Borderless Window", "Full Screen"}:
             flags |= Qt.WindowType.FramelessWindowHint
         else:
             flags &= ~Qt.WindowType.FramelessWindowHint
@@ -334,7 +399,10 @@ class MainWindow(QMainWindow):
                 self.setWindowState(Qt.WindowState.WindowMaximized)
                 self.show()
             else:
-                self.setWindowState(Qt.WindowState.WindowFullScreen)
+                screen = self.screen() or QApplication.primaryScreen()
+                if screen is not None:
+                    self.setGeometry(screen.availableGeometry())
+                self.setWindowState(Qt.WindowState.WindowNoState)
                 self.show()
 
         QTimer.singleShot(0, finish_transition)
@@ -395,6 +463,11 @@ class MainWindow(QMainWindow):
         self._monitor_windows.clear()
         if self._data_pipeline is not None:
             self._data_pipeline.stop()
+        if self._control_backend is not None:
+            try:
+                self._control_backend.Stop()
+            except Exception:
+                pass
         stop = getattr(self, "_cyclotron_stop", None)
         if stop is not None:
             stop.set()
@@ -468,6 +541,11 @@ class MainWindow(QMainWindow):
                 text-align: center;
             }
 
+            QPushButton#fieldSequencerButton {
+                max-width: 150px;
+                text-align: center;
+            }
+
             QPushButton#pidBackButton {
                 background-color: rgba(5, 17, 18, 0.94);
                 border: 1px solid #35f4ff;
@@ -487,6 +565,96 @@ class MainWindow(QMainWindow):
                 color: #031315;
             }
 
+            QFrame#sequencerWorkspace {
+                background-color: rgba(3, 12, 12, 0.92);
+                border: 1px solid #35f4ff;
+                border-radius: 0;
+            }
+
+            QFrame#sequencerToolbar,
+            QFrame#sequencerPanel {
+                background-color: rgba(4, 14, 15, 0.90);
+                border: 1px solid rgba(53, 244, 255, 0.46);
+                border-radius: 8px;
+            }
+
+            QPushButton#sequencerAction {
+                background-color: rgba(5, 17, 18, 0.94);
+                border: 1px solid rgba(53, 244, 255, 0.62);
+                color: #d8fdff;
+                min-height: 28px;
+                padding: 4px 10px;
+                text-align: center;
+            }
+
+            QPushButton#sequencerAction:hover {
+                background-color: #35f4ff;
+                border-color: #35f4ff;
+                color: #031315;
+            }
+
+            QLabel#sequencerPanelTitle {
+                color: #8fffd2;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 0;
+            }
+
+            QLabel#sequencerStatus {
+                color: rgba(216, 253, 255, 0.78);
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            QLabel#sequencerStatusCard,
+            QLabel#sequencerStateCard {
+                background-color: rgba(2, 10, 11, 0.88);
+                border: 1px solid rgba(53, 244, 255, 0.30);
+                border-radius: 6px;
+                color: #d8fdff;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                min-height: 52px;
+                padding: 8px 10px;
+            }
+
+            QLabel#sequencerStatusCard {
+                border-color: rgba(143, 255, 210, 0.46);
+                color: #8fffd2;
+            }
+
+            QProgressBar#sequencerProgress {
+                background-color: rgba(1, 7, 8, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.48);
+                border-radius: 6px;
+                color: #d8fdff;
+                min-height: 28px;
+                text-align: center;
+            }
+
+            QProgressBar#sequencerProgress::chunk {
+                background-color: qlineargradient(
+                    x1: 0, y1: 0, x2: 1, y2: 0,
+                    stop: 0 #35f4ff,
+                    stop: 0.55 #8fffd2,
+                    stop: 1 #ff5169
+                );
+                border-radius: 5px;
+            }
+
+            QTextEdit#sequencerPreview {
+                background-color: rgba(1, 7, 8, 0.96);
+                border: 1px solid rgba(53, 244, 255, 0.42);
+                border-radius: 6px;
+                color: #d8fdff;
+                font-family: Consolas, "Cascadia Mono", monospace;
+                font-size: 11px;
+                padding: 8px;
+            }
+
             QPushButton#categoryButton {
                 min-height: 120px;
                 min-width: 180px;
@@ -501,6 +669,7 @@ class MainWindow(QMainWindow):
 
             QPushButton#pageButton:hover,
             QPushButton#categoryButton:hover,
+            QPushButton#fieldSequencerButton:hover,
             QPushButton#backButton:hover {
                 background-color: #35f4ff;
                 border-color: #35f4ff;

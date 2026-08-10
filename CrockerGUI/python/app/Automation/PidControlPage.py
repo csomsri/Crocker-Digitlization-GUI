@@ -554,7 +554,7 @@ class PidControlPage(DetailPage):
         self.stop_tuning_button.setEnabled(True)
         self.approve_gains_button.setEnabled(False)
         self.apply_tuned_gains_button.setEnabled(False)
-        self.tuner_status.setText("BoTorch is preparing the next gain candidate.")
+        self.tuner_status.setText("System preparing the next gain candidate.")
         self._request_tuning_candidate()
 
     def _request_tuning_candidate(self) -> None:

@@ -47,6 +47,8 @@ class FieldCtrlPage(DetailPage):
         go_back: Callable[[], None],
         backend_mode: str,
         zmq_endpoint: str = "tcp://0.0.0.0:5555",
+        open_sequencer: Callable[[], None] | None = None,
+        control_backend=None,
     ) -> None:
         super().__init__(
             "Field Ctrl",
@@ -57,6 +59,7 @@ class FieldCtrlPage(DetailPage):
 
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
+        self.open_sequencer = open_sequencer
         self.selected_index = 0
         self.target_values = [0.0 for _ in CHANNEL_NAMES]
         self.actual_models = [SimulatedActual() for _ in CHANNEL_NAMES]
@@ -74,15 +77,21 @@ class FieldCtrlPage(DetailPage):
         self.digit_steps = (1000.0, 100.0, 10.0, 1.0, 0.1, 0.01)
         self.selected_digit_index = 3
         self.target_slider: QSlider | None = None
-        self.backend = None
-        self.backend_available = False
+        self.backend = control_backend
+        self.backend_available = control_backend is not None
+        self.owns_backend = control_backend is None
         self.backend_status = f"{self.backend_mode.upper()} backend not connected"
         self.backend_connection = "Not Connected"
         self.backend_destination = "None"
         self.backend_packets = 0
         self._status_tick = 0
 
-        self._start_backend()
+        if self.owns_backend:
+            self._start_backend()
+        elif self.backend_available:
+            self.backend_connection = "Connected"
+            self.backend_destination = "Shared ControlService"
+            self.backend_status = f"{self.backend_mode.upper()} shared backend connected"
         self._promote_instruction_header()
 
         workspace_frame, workspace = self.add_workspace()
@@ -128,7 +137,7 @@ class FieldCtrlPage(DetailPage):
             if widget is not None:
                 widget.hide()
 
-        nav_item = self.layout.itemAt(2)
+        nav_item = self.layout.itemAt(3)
         nav_layout = nav_item.layout() if nav_item is not None else None
         if nav_layout is None:
             return
@@ -137,16 +146,15 @@ class FieldCtrlPage(DetailPage):
         back_button = back_item.widget() if back_item is not None else None
         while nav_layout.count():
             nav_layout.takeAt(0)
-        instruction = QLabel(
-            "Select and adjust channels: choose a channel on the left, set Target Current, "
-            "then Apply. Use All On / All Plot / Apply All for bulk changes."
-        )
-        instruction.setObjectName("fieldInstruction")
-        instruction.setWordWrap(True)
-        instruction.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        nav_layout.insertWidget(0, instruction, 1)
         if back_button is not None:
-            nav_layout.insertWidget(1, back_button)
+            nav_layout.addWidget(back_button)
+        nav_layout.addStretch(1)
+        if self.open_sequencer is not None:
+            sequencer_button = QPushButton("Sequencer")
+            sequencer_button.setObjectName("fieldSequencerButton")
+            sequencer_button.setCursor(Qt.PointingHandCursor)
+            sequencer_button.clicked.connect(lambda checked=False: self.open_sequencer())
+            nav_layout.addWidget(sequencer_button)
 
     def _build_channel_matrix(self) -> QWidget:
         body = QWidget()
@@ -444,6 +452,7 @@ class FieldCtrlPage(DetailPage):
                 channels = snapshot["channels"]
                 for index in range(min(len(CHANNEL_NAMES), len(channels))):
                     self.actual_values[index] = float(channels[index]["actual"])
+                self._sync_pending_command()
                 health = self.backend.Health()
                 self.backend_connection = str(health["connection"])
                 self.backend_destination = str(health["endpoint"])
@@ -468,6 +477,26 @@ class FieldCtrlPage(DetailPage):
             target = self.target_values[self.selected_index]
             self.actual_values[self.selected_index] = self.actual_models[self.selected_index].step(target)
         self._update_speedometer()
+
+    def _sync_pending_command(self) -> None:
+        if self.backend is None or not hasattr(self.backend, "PendingCommand"):
+            return
+        try:
+            command = self.backend.PendingCommand()
+        except Exception:
+            return
+        changed = False
+        for index, channel in enumerate(command[:len(CHANNEL_NAMES)]):
+            target = clamp(float(channel["target"]))
+            if abs(self.target_values[index] - target) >= 0.01:
+                self.target_values[index] = target
+                changed = True
+            if index < len(self.on_buttons):
+                self.on_buttons[index].setChecked(bool(channel["on"]))
+            if index < len(self.enable_buttons):
+                self.enable_buttons[index].setChecked(bool(channel["enabled"]))
+        if changed:
+            self._refresh_target_display()
 
     def _update_speedometer(self) -> None:
         target = self.target_values[self.selected_index]
@@ -597,7 +626,7 @@ class FieldCtrlPage(DetailPage):
         super().closeEvent(event)
 
     def stop_backend(self) -> None:
-        if self.backend is not None:
+        if self.owns_backend and self.backend is not None:
             try:
                 self.backend.Stop()
             except Exception:
