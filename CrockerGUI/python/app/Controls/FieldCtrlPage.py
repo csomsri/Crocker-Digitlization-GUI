@@ -47,8 +47,6 @@ class FieldCtrlPage(DetailPage):
         go_back: Callable[[], None],
         backend_mode: str,
         zmq_endpoint: str = "tcp://0.0.0.0:5555",
-        open_sequencer: Callable[[], None] | None = None,
-        control_backend=None,
     ) -> None:
         super().__init__(
             "Field Ctrl",
@@ -59,7 +57,6 @@ class FieldCtrlPage(DetailPage):
 
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
-        self.open_sequencer = open_sequencer
         self.selected_index = 0
         self.target_values = [0.0 for _ in CHANNEL_NAMES]
         self.actual_models = [SimulatedActual() for _ in CHANNEL_NAMES]
@@ -77,23 +74,15 @@ class FieldCtrlPage(DetailPage):
         self.digit_steps = (1000.0, 100.0, 10.0, 1.0, 0.1, 0.01)
         self.selected_digit_index = 3
         self.target_slider: QSlider | None = None
-        self.backend = control_backend
-        self.backend_available = control_backend is not None
-        self.owns_backend = control_backend is None
+        self.backend = None
+        self.backend_available = False
         self.backend_status = f"{self.backend_mode.upper()} backend not connected"
         self.backend_connection = "Not Connected"
         self.backend_destination = "None"
         self.backend_packets = 0
         self._status_tick = 0
-        self._last_pending_signature = None
-        self._local_edit_dirty = False
 
-        if self.owns_backend:
-            self._start_backend()
-        elif self.backend_available:
-            self.backend_connection = "Connected"
-            self.backend_destination = "Shared ControlService"
-            self.backend_status = f"{self.backend_mode.upper()} shared backend connected"
+        self._start_backend()
         self._promote_instruction_header()
 
         workspace_frame, workspace = self.add_workspace()
@@ -151,12 +140,6 @@ class FieldCtrlPage(DetailPage):
         if back_button is not None:
             nav_layout.addWidget(back_button)
         nav_layout.addStretch(1)
-        if self.open_sequencer is not None:
-            sequencer_button = QPushButton("Sequencer")
-            sequencer_button.setObjectName("fieldSequencerButton")
-            sequencer_button.setCursor(Qt.PointingHandCursor)
-            sequencer_button.clicked.connect(lambda checked=False: self.open_sequencer())
-            nav_layout.addWidget(sequencer_button)
 
     def _build_channel_matrix(self) -> QWidget:
         body = QWidget()
@@ -233,8 +216,6 @@ class FieldCtrlPage(DetailPage):
             on_toggle.setChecked(True)
             enable_toggle.setChecked(True)
             plot_toggle.setChecked(True)
-            on_toggle.toggled.connect(lambda checked=False: self._mark_pending_signature_from_ui())
-            enable_toggle.toggled.connect(lambda checked=False: self._mark_pending_signature_from_ui())
             plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
             layout.addWidget(on_toggle, row, 2, Qt.AlignVCenter)
             layout.addWidget(enable_toggle, row, 3, Qt.AlignVCenter)
@@ -401,7 +382,6 @@ class FieldCtrlPage(DetailPage):
             card.style().polish(card)
 
     def _set_selected_target(self, value: float) -> None:
-        self._local_edit_dirty = True
         next_value = clamp(value)
         if abs(next_value - self.target_values[self.selected_index]) >= 0.01:
             self.target_values[self.selected_index] = next_value
@@ -457,7 +437,6 @@ class FieldCtrlPage(DetailPage):
                 channels = snapshot["channels"]
                 for index in range(min(len(CHANNEL_NAMES), len(channels))):
                     self.actual_values[index] = float(channels[index]["actual"])
-                self._sync_pending_command()
                 health = self.backend.Health()
                 self.backend_connection = str(health["connection"])
                 self.backend_destination = str(health["endpoint"])
@@ -482,46 +461,6 @@ class FieldCtrlPage(DetailPage):
             target = self.target_values[self.selected_index]
             self.actual_values[self.selected_index] = self.actual_models[self.selected_index].step(target)
         self._update_speedometer()
-
-    def _sync_pending_command(self) -> None:
-        if self.backend is None or not hasattr(self.backend, "PendingCommand"):
-            return
-        try:
-            command = self.backend.PendingCommand()
-        except Exception:
-            return
-        if self._local_edit_dirty:
-            return
-        signature = self._pending_signature(command)
-        if signature == self._last_pending_signature:
-            return
-        self._last_pending_signature = signature
-        changed = False
-        for index, channel in enumerate(command[:len(CHANNEL_NAMES)]):
-            target = clamp(float(channel["target"]))
-            if abs(self.target_values[index] - target) >= 0.01:
-                self.target_values[index] = target
-                changed = True
-            if index < len(self.on_buttons):
-                self.on_buttons[index].blockSignals(True)
-                self.on_buttons[index].setChecked(bool(channel["on"]))
-                self.on_buttons[index].blockSignals(False)
-            if index < len(self.enable_buttons):
-                self.enable_buttons[index].blockSignals(True)
-                self.enable_buttons[index].setChecked(bool(channel["enabled"]))
-                self.enable_buttons[index].blockSignals(False)
-        if changed:
-            self._refresh_target_display()
-
-    def _pending_signature(self, command) -> tuple[tuple[float, bool, bool], ...]:
-        return tuple(
-            (
-                round(clamp(float(channel["target"])), 4),
-                bool(channel["on"]),
-                bool(channel["enabled"]),
-            )
-            for channel in command[:len(CHANNEL_NAMES)]
-        )
 
     def _update_speedometer(self) -> None:
         target = self.target_values[self.selected_index]
@@ -576,10 +515,7 @@ class FieldCtrlPage(DetailPage):
         if self.backend_available and self.backend is not None:
             try:
                 self.backend.SetChannelCommand(index, target, on, enabled)
-                if hasattr(self.backend, "PendingCommand"):
-                    self._last_pending_signature = self._pending_signature(self.backend.PendingCommand())
                 applied = bool(self.backend.ApplyCommand())
-                self._local_edit_dirty = False
                 mode = self.backend_mode.upper()
                 self.backend_status = f"{mode} command applied" if applied else f"{mode} command rejected"
                 self.backend_label.setText(self.backend_status)
@@ -600,15 +536,10 @@ class FieldCtrlPage(DetailPage):
                 self._begin_convergence_timer(index)
         ok_count = sum(1 for ok in applied if ok)
         self.backend_label.setText(f"{ok_count}/{len(CHANNEL_NAMES)} channel commands applied")
-        self._local_edit_dirty = False
 
     def _set_all_toggles(self, buttons: list[BubbleToggle], checked: bool) -> None:
         for button in buttons:
             button.setChecked(checked)
-        self._local_edit_dirty = True
-
-    def _mark_pending_signature_from_ui(self) -> None:
-        self._local_edit_dirty = True
 
     def _hold_selected_actual(self) -> None:
         self._set_selected_target(self.actual_values[self.selected_index])
