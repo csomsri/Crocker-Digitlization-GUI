@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QMargins, QRect, QSettings, Qt, QTimer
 from PySide6.QtGui import QFontDatabase
 from pathlib import Path
+import socket
 from threading import Event, Thread
 
 from python.app.Automation.AutomationPage import AutomationPage
@@ -91,8 +92,8 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.backend_mode = backend_mode
-        self.zmq_endpoint = zmq_endpoint
         self.simulation_mode = simulation_mode
+        self.zmq_endpoint = self._simulation_endpoint(zmq_endpoint, simulation_mode)
         self.enable_data_pipeline = enable_data_pipeline
         self.db_path = Path(db_path)
         self._data_pipeline: DataPipelineManager | None = None
@@ -145,11 +146,11 @@ class MainWindow(QMainWindow):
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
             if title in {"Field Ctrl", "PID Control"}:
-                field_backend_mode = (
-                    "zmq"
-                    if self.simulation_mode == "cyclotron"
-                    else self.backend_mode
-                )
+                field_backend_mode = self.backend_mode
+                if title == "Field Ctrl" and self.simulation_mode in {"cyclotron", "smoke2"}:
+                    field_backend_mode = "zmq"
+                elif title == "PID Control" and self.simulation_mode == "cyclotron":
+                    field_backend_mode = "zmq"
                 detail_page = page_builder(
                     lambda checked=False, category=parent_category:
                         self.show_category(category),
@@ -201,8 +202,8 @@ class MainWindow(QMainWindow):
         self.apply_styles()
         self.motion = UIAnimationController(self.stack, self)
         self.motion.attach_to(self)
-        if self.simulation_mode == "cyclotron":
-            self._start_cyclotron_plant()
+        if self.simulation_mode in {"cyclotron", "smoke2"}:
+            self._start_zmq_simulation_plant(self.simulation_mode)
         if self.enable_data_pipeline:
             self._start_data_pipeline()
         app = QApplication.instance()
@@ -211,7 +212,7 @@ class MainWindow(QMainWindow):
             app.screenRemoved.connect(lambda screen: self._screens_changed())
         QTimer.singleShot(
             0,
-            lambda: self.set_display_mode(self._display_mode, save=False),
+            lambda: self.set_display_mode(self._display_mode, save=False, force=True),
         )
         QTimer.singleShot(100, self._restore_monitor_assignments)
 
@@ -352,8 +353,18 @@ class MainWindow(QMainWindow):
         fallback = QWidget()
         return fallback
 
-    def set_display_mode(self, mode: str, save: bool = True) -> None:
+    def set_display_mode(
+        self,
+        mode: str,
+        save: bool = True,
+        force: bool = False,
+    ) -> None:
         if mode not in {"Windowed", "Borderless Window", "Full Screen"}:
+            return
+        if not force and mode == self._display_mode:
+            if save:
+                self._settings.setValue("display/mode", mode)
+                self._settings.sync()
             return
 
         leaving_normal_window = (
@@ -371,21 +382,22 @@ class MainWindow(QMainWindow):
             self._settings.setValue("display/mode", mode)
             self._settings.sync()
 
-        self.hide()
-        self.setWindowState(Qt.WindowState.WindowNoState)
         flags = self.windowFlags()
-        flags &= ~Qt.WindowType.FramelessWindowHint
-        self.setWindowFlags(flags)
+        if flags & Qt.WindowType.FramelessWindowHint:
+            flags &= ~Qt.WindowType.FramelessWindowHint
+            self.setWindowFlags(flags)
 
         def finish_transition() -> None:
             if transition != self._display_transition:
                 return
             if mode == "Windowed":
-                self.setWindowState(Qt.WindowState.WindowNoState)
-                self.showNormal()
+                if self.isFullScreen() or self.isMaximized():
+                    self.setWindowState(Qt.WindowState.WindowNoState)
+                    self.showNormal()
                 self._apply_windowed_resolution()
             else:
-                self.showFullScreen()
+                if not self.isFullScreen():
+                    self.showFullScreen()
             for window in self._monitor_windows.values():
                 window.apply_display_mode(mode, self._window_resolution_size())
 
@@ -393,6 +405,11 @@ class MainWindow(QMainWindow):
 
     def set_window_resolution(self, resolution: str, save: bool = True) -> None:
         if resolution not in WINDOW_RESOLUTIONS:
+            return
+        if resolution == self._window_resolution:
+            if save:
+                self._settings.setValue("display/window_resolution", resolution)
+                self._settings.sync()
             return
         self._window_resolution = resolution
         self._windowed_geometry = None
@@ -453,29 +470,45 @@ class MainWindow(QMainWindow):
         families = QFontDatabase.applicationFontFamilies(font_id)
         return families[0] if families else "Segoe UI"
 
-    def _start_cyclotron_plant(self) -> None:
+    def _simulation_endpoint(
+        self,
+        zmq_endpoint: str,
+        simulation_mode: str | None,
+    ) -> str:
+        if simulation_mode not in {"cyclotron", "smoke2"}:
+            return zmq_endpoint
+        if zmq_endpoint not in {"tcp://0.0.0.0:5555", "tcp://127.0.0.1:5555"}:
+            return zmq_endpoint
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.bind(("127.0.0.1", 0))
+            _host, port = probe.getsockname()
+        return f"tcp://127.0.0.1:{port}"
+
+    def _start_zmq_simulation_plant(self, simulation_mode: str) -> None:
         from source.Python.Simulator.ZMQSimulator import (
             CyclotronPlant,
+            Smoke2Plant,
             ZMQSimulator,
         )
 
-        self._cyclotron_stop = Event()
+        self._simulation_plant_stop = Event()
         endpoint = self.zmq_endpoint.replace("0.0.0.0", "127.0.0.1")
+        plant = CyclotronPlant() if simulation_mode == "cyclotron" else Smoke2Plant()
 
         def run_plant() -> None:
             simulator = ZMQSimulator(endpoint)
             simulator.stream(
                 rate_hz=20.0,
-                stop_event=self._cyclotron_stop,
-                plant=CyclotronPlant(),
+                stop_event=self._simulation_plant_stop,
+                plant=plant,
             )
 
-        self._cyclotron_thread = Thread(
+        self._simulation_plant_thread = Thread(
             target=run_plant,
-            name="cyclotron-zmq-plant",
+            name=f"{simulation_mode}-zmq-plant",
             daemon=True,
         )
-        self._cyclotron_thread.start()
+        self._simulation_plant_thread.start()
 
     def _start_data_pipeline(self) -> None:
         crocker_root = Path(__file__).resolve().parents[2]
@@ -496,7 +529,7 @@ class MainWindow(QMainWindow):
         self._monitor_windows.clear()
         if self._data_pipeline is not None:
             self._data_pipeline.stop()
-        stop = getattr(self, "_cyclotron_stop", None)
+        stop = getattr(self, "_simulation_plant_stop", None)
         if stop is not None:
             stop.set()
         super().closeEvent(event)
@@ -834,7 +867,10 @@ class MainWindow(QMainWindow):
 
             QLineEdit,
             QDoubleSpinBox,
+            QSpinBox,
+            QDateEdit,
             QComboBox,
+            QListWidget,
             QTableWidget {
                 background-color: rgba(15, 23, 42, 0.90);
                 border: 1px solid rgba(71, 85, 105, 0.88);
@@ -847,10 +883,128 @@ class MainWindow(QMainWindow):
 
             QLineEdit:focus,
             QDoubleSpinBox:focus,
+            QSpinBox:focus,
+            QDateEdit:focus,
             QComboBox:focus {
                 background-color: rgba(17, 24, 39, 0.96);
                 border: 1px solid rgba(96, 165, 250, 0.72);
                 color: #ffffff;
+            }
+
+            QListWidget {
+                alternate-background-color: rgba(30, 41, 59, 0.42);
+            }
+
+            QListWidget::item {
+                border-radius: 5px;
+                min-height: 25px;
+                padding: 4px 8px;
+            }
+
+            QListWidget::item:selected {
+                background-color: rgba(37, 99, 235, 0.46);
+                color: #ffffff;
+            }
+
+            QFrame#historyToolbar {
+                background-color: rgba(15, 23, 42, 0.82);
+                border: 1px solid rgba(51, 65, 85, 0.86);
+                border-radius: 8px;
+            }
+
+            QFrame#historySegment,
+            QFrame#historyToolbarGroup,
+            QFrame#historyStatusCard {
+                background-color: rgba(17, 24, 39, 0.78);
+                border: 1px solid rgba(51, 65, 85, 0.78);
+                border-radius: 7px;
+            }
+
+            QFrame#historyToolbarActions {
+                background-color: transparent;
+                border: none;
+            }
+
+            QLabel#historyToolbarLabel {
+                background-color: transparent;
+                border: none;
+                color: #94a3b8;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 20px;
+                padding: 0 2px;
+            }
+
+            QLabel#historyPathPill {
+                background-color: transparent;
+                border: none;
+                color: #dbeafe;
+                font-size: 13px;
+                min-height: 26px;
+                min-width: 210px;
+                padding: 0;
+            }
+
+            QLabel#historyStatusCaption {
+                color: #64748b;
+                font-size: 10px;
+                font-weight: 800;
+                padding: 0;
+            }
+
+            QLabel#historyStatusValue {
+                color: #dbeafe;
+                font-size: 13px;
+                font-weight: 600;
+                min-width: 190px;
+                padding: 0;
+            }
+
+            QPushButton#historyTabButton {
+                background-color: transparent;
+                border: 1px solid transparent;
+                border-radius: 5px;
+                color: #94a3b8;
+                font-weight: 600;
+                min-height: 28px;
+                min-width: 86px;
+                padding: 5px 14px;
+                text-align: center;
+            }
+
+            QPushButton#historyTabButton:checked {
+                background-color: rgba(30, 41, 59, 0.92);
+                border-color: rgba(96, 165, 250, 0.70);
+                color: #e5e7eb;
+            }
+
+            QPushButton#historyTabButton:hover {
+                color: #ffffff;
+            }
+
+            QFrame#historySummaryHeader {
+                background-color: rgba(15, 23, 42, 0.84);
+                border: 1px solid rgba(51, 65, 85, 0.84);
+                border-radius: 8px;
+            }
+
+            QLabel#historySummaryTitle {
+                color: #e5e7eb;
+                font-size: 16px;
+                font-weight: 700;
+            }
+
+            QLabel#historySummaryMeta {
+                color: #94a3b8;
+                font-size: 12px;
+                font-weight: 600;
+            }
+
+            QTableWidget#historySummaryTable {
+                background-color: rgba(15, 23, 42, 0.82);
+                border: 1px solid rgba(51, 65, 85, 0.86);
+                border-radius: 8px;
+                padding: 4px;
             }
 
             QTableWidget {
@@ -1034,7 +1188,8 @@ class MainWindow(QMainWindow):
                 font-weight: 700;
             }
 
-            QLabel#fieldValue {
+            QLabel#fieldValue,
+            QLabel#fieldActualValue {
                 background-color: rgba(15, 23, 42, 0.90);
                 border: 1px solid rgba(71, 85, 105, 0.88);
                 border-radius: 4px;
@@ -1044,6 +1199,12 @@ class MainWindow(QMainWindow):
                 font-weight: 600;
                 min-width: 74px;
                 padding: 4px;
+            }
+
+            QLabel#fieldActualValue {
+                background-color: rgba(6, 78, 59, 0.16);
+                border-color: rgba(45, 212, 191, 0.34);
+                color: #a7f3d0;
             }
 
             QPushButton#fieldSelect,
@@ -1425,5 +1586,6 @@ def run_app(
 if __name__ == "__main__":
     raise SystemExit(
         "Use python main.py -simulation -smoke, "
+        "python main.py -simulation -smoke2, "
         "python main.py -simulation -cyclotron, or python main.py -ZMQ"
     )

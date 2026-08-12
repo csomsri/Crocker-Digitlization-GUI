@@ -17,6 +17,10 @@ def main() -> int:
     assert cyclotron.backend_mode == "simulation"
     assert cyclotron.simulation_mode == "cyclotron"
 
+    smoke2 = parse_args(["-simulation", "-smoke2"])
+    assert smoke2.backend_mode == "simulation"
+    assert smoke2.simulation_mode == "smoke2"
+
     zmq = parse_args(["-ZMQ"])
     assert zmq.backend_mode == "zmq"
     assert zmq.simulation_mode is None

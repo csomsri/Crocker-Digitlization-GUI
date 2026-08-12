@@ -55,15 +55,93 @@ def generate_frame(step: int, amplitude: float = 35.0, baseline: float = 300.0) 
     return SimulatorFrame(timestamp=timestamp, channels=channels, bitmask=bitmask)
 
 
+class Smoke2Plant:
+    """Running-machine smoke plant for GUI handoff tests.
+
+    The plant starts with nonzero live currents and reports output-on telemetry,
+    but control-enable is false. Until the GUI enables control for a channel,
+    that channel keeps following its own small running drift. Once the GUI sends
+    Enable is treated as GUI authority. Until Enable is true for a channel,
+    server replies are telemetry handshakes only and do not change the running
+    output state. Once Enable is true, Output and Target become active commands.
+    """
+
+    def __init__(self) -> None:
+        self.step = 0
+        self.running_values = [
+            200.0,
+            185.0,
+            212.0,
+            198.0,
+            226.0,
+            174.0,
+            241.0,
+            193.0,
+            205.0,
+            219.0,
+            187.0,
+            232.0,
+            510.0,
+            64.0,
+        ]
+        self.channels = list(self.running_values)
+        self.targets = list(self.running_values)
+        self.on_off = [True] * NUM_CHANNELS
+        self.enabled = [False] * NUM_CHANNELS
+
+    def frame(self) -> SimulatorFrame:
+        return SimulatorFrame(
+            timestamp=time.time() + EPOCH_OFFSET,
+            channels=list(self.channels),
+            bitmask=build_bitmask(self.on_off, self.enabled),
+        )
+
+    def apply_reply(self, reply: list[float], dt: float) -> None:
+        if len(reply) < NUM_CHANNELS + 1:
+            return
+
+        requested_targets = reply[:NUM_CHANNELS]
+        mask = int(round(reply[NUM_CHANNELS]))
+        requested_on = [bool(mask & (1 << index)) for index in range(NUM_CHANNELS)]
+        requested_enabled = [
+            bool(mask & (1 << (NUM_CHANNELS + index))) for index in range(NUM_CHANNELS)
+        ]
+
+        self.step += 1
+        response_alpha = min(1.0, 2.8 * max(0.0, dt))
+        drift_alpha = min(1.0, 1.2 * max(0.0, dt))
+        for index in range(NUM_CHANNELS):
+            self.enabled[index] = requested_enabled[index]
+            if requested_enabled[index]:
+                self.on_off[index] = requested_on[index]
+                self.targets[index] = requested_targets[index]
+                target = self.targets[index] if self.on_off[index] else 0.0
+                alpha = response_alpha
+            else:
+                target = self._running_value(index)
+                alpha = drift_alpha
+            self.channels[index] += (target - self.channels[index]) * alpha
+
+    def _running_value(self, index: int) -> float:
+        return self.running_values[index] + 4.0 * math.sin((self.step * 0.08) + (index * 0.7))
+
+
 class ZMQSimulator:
     def __init__(self, endpoint: str = ADDRESS, timeout_ms: int = 1500) -> None:
         self.endpoint = endpoint
+        self.timeout_ms = timeout_ms
         self.context = zmq.Context()
+        self.socket: zmq.Socket | None = None
+        self._connect_socket()
+
+    def _connect_socket(self) -> None:
+        if self.socket is not None:
+            self.socket.close(0)
         self.socket = self.context.socket(zmq.REQ)
         self.socket.setsockopt(zmq.LINGER, 0)
-        self.socket.setsockopt(zmq.RCVTIMEO, timeout_ms)
-        self.socket.setsockopt(zmq.SNDTIMEO, timeout_ms)
-        self.socket.connect(endpoint)
+        self.socket.setsockopt(zmq.RCVTIMEO, self.timeout_ms)
+        self.socket.setsockopt(zmq.SNDTIMEO, self.timeout_ms)
+        self.socket.connect(self.endpoint)
 
     def send_frame(self, frame: SimulatorFrame) -> list[float]:
         packet = struct.pack(
@@ -72,9 +150,15 @@ class ZMQSimulator:
             *frame.channels,
             float(frame.bitmask),
         )
-        self.socket.send(packet)
-        reply = self.socket.recv()
-        return list(struct.unpack(f"<{len(reply) // 8}d", reply))
+        if self.socket is None:
+            self._connect_socket()
+        try:
+            self.socket.send(packet)
+            reply = self.socket.recv()
+            return list(struct.unpack(f"<{len(reply) // 8}d", reply))
+        except zmq.ZMQError:
+            self._connect_socket()
+            raise
 
     def stream(
         self,
@@ -90,7 +174,14 @@ class ZMQSimulator:
         try:
             while (frames is None or step < frames) and not (stop_event and stop_event.is_set()):
                 frame = plant.frame() if plant is not None else generate_frame(step)
-                reply = self.send_frame(frame)
+                try:
+                    reply = self.send_frame(frame)
+                except zmq.ZMQError as exc:
+                    if stop_event and stop_event.is_set():
+                        break
+                    print(f"simulator waiting for REP server on {self.endpoint}: {exc}")
+                    time.sleep(max(interval_seconds, 0.05))
+                    continue
                 if plant is not None:
                     plant.apply_reply(reply, interval_seconds)
                 if plant is None:
@@ -107,7 +198,9 @@ class ZMQSimulator:
             self.close()
 
     def close(self) -> None:
-        self.socket.close(0)
+        if self.socket is not None:
+            self.socket.close(0)
+            self.socket = None
         self.context.term()
 
 
@@ -179,13 +272,18 @@ def main() -> int:
     parser.add_argument("--rate-hz", type=float, default=20.0)
     parser.add_argument(
         "--plant",
-        choices=("smoke", "cyclotron"),
+        choices=("smoke", "smoke2", "cyclotron"),
         default="smoke",
         help="Plant model to stream. Default: smoke",
     )
     args = parser.parse_args()
 
-    plant = CyclotronPlant() if args.plant == "cyclotron" else None
+    if args.plant == "cyclotron":
+        plant = CyclotronPlant()
+    elif args.plant == "smoke2":
+        plant = Smoke2Plant()
+    else:
+        plant = None
     ZMQSimulator(args.endpoint).stream(frames=args.frames, rate_hz=args.rate_hz, plant=plant)
     return 0
 

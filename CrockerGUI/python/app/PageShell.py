@@ -287,14 +287,14 @@ class PageShell(QWidget):
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
-        header = CnlTitleBar(title)
+        self.header = CnlTitleBar(title)
 
         subheader = QLabel(subtitle)
         subheader.setObjectName("subheader")
         subheader.hide()
 
         self.layout.addSpacing(2)
-        self.layout.addWidget(header, 0, Qt.AlignHCenter)
+        self.layout.addWidget(self.header, 0, Qt.AlignHCenter)
         self.layout.addWidget(subheader)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name

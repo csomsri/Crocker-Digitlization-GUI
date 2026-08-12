@@ -27,6 +27,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Use the existing 14-channel equipment smoke simulator.",
     )
     parser.add_argument(
+        "-smoke2",
+        action="store_true",
+        help=(
+            "Use the running-machine smoke simulator. Channels start at "
+            "nonzero current and accept GUI commands after control is enabled."
+        ),
+    )
+    parser.add_argument(
         "-cyclotron",
         action="store_true",
         help="Use the cyclotron model as the ZMQ control plant.",
@@ -49,13 +57,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     args.db_path = str(Path(args.db_path))
     if args.simulation:
-        if args.smoke == args.cyclotron:
-            parser.error("-simulation requires exactly one of -smoke or -cyclotron")
+        selected_modes = sum(bool(mode) for mode in (args.smoke, args.smoke2, args.cyclotron))
+        if selected_modes != 1:
+            parser.error("-simulation requires exactly one of -smoke, -smoke2, or -cyclotron")
         args.backend_mode = "simulation"
-        args.simulation_mode = "cyclotron" if args.cyclotron else "smoke"
+        if args.cyclotron:
+            args.simulation_mode = "cyclotron"
+        elif args.smoke2:
+            args.simulation_mode = "smoke2"
+        else:
+            args.simulation_mode = "smoke"
     else:
-        if args.smoke or args.cyclotron:
-            parser.error("-smoke and -cyclotron may only be used with -simulation")
+        if args.smoke or args.smoke2 or args.cyclotron:
+            parser.error("-smoke, -smoke2, and -cyclotron may only be used with -simulation")
         args.simulation_mode = None
     return args
 

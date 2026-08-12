@@ -63,9 +63,14 @@ From the `CrockerGUI` directory, choose one launch mode:
 
 ```powershell
 python main.py -simulation -smoke
+python main.py -simulation -smoke2
 python main.py -simulation -cyclotron
 python main.py -ZMQ
 ```
+
+`-smoke2` starts a running-machine simulator: channels begin at nonzero live
+currents, Field Ctrl reads those values on connect, and simulated control only
+follows GUI targets after the channel is enabled and applied.
 
 The cyclotron mode requires a freshly built `CycloViz` extension containing
 the cyclotron model bindings. It runs the regular GUI and uses that model as

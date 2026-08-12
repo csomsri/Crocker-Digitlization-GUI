@@ -66,6 +66,7 @@ class FieldCtrlPage(DetailPage):
         self.convergence_elapsed = [0.0 for _ in CHANNEL_NAMES]
         self.converged = [True for _ in CHANNEL_NAMES]
         self.value_labels: list[QLabel] = []
+        self.actual_value_labels: list[QLabel] = []
         self.channel_cards: list[QFrame] = []
         self.on_buttons: list[BubbleToggle] = []
         self.enable_buttons: list[BubbleToggle] = []
@@ -81,6 +82,9 @@ class FieldCtrlPage(DetailPage):
         self.backend_destination = "None"
         self.backend_packets = 0
         self._status_tick = 0
+        self.owns_backend = False
+        self._telemetry_state_synced = False
+        self._operator_toggle_edited = False
 
         self._start_backend()
         self._promote_instruction_header()
@@ -172,16 +176,18 @@ class FieldCtrlPage(DetailPage):
             button.setObjectName("fieldBulk")
             button.clicked.connect(handler)
             bulk_controls.addWidget(button)
-        layout.addLayout(bulk_controls, 0, 0, 1, 5)
+        layout.addLayout(bulk_controls, 0, 0, 1, 6)
 
-        headers = ["Channel", "Target", "On", "En", "Plot"]
+        headers = ["Channel", "Actual", "Target", "Output", "En", "Plot"]
         for col, text in enumerate(headers):
             label = QLabel(text)
             label.setObjectName("fieldHeader")
             label.setAlignment(Qt.AlignCenter)
             layout.addWidget(label, 1, col)
-        layout.setColumnStretch(0, 2)
-        for col in range(1, 5):
+        layout.setColumnStretch(0, 3)
+        for col in (1, 2):
+            layout.setColumnStretch(col, 2)
+        for col in range(3, 6):
             layout.setColumnStretch(col, 1)
 
         for row, channel in enumerate(CHANNEL_NAMES, start=2):
@@ -197,31 +203,39 @@ class FieldCtrlPage(DetailPage):
             name = QLabel(channel)
             name.setObjectName("fieldName")
 
-            value = QLabel("0.00")
-            value.setObjectName("fieldValue")
-            value.setAlignment(Qt.AlignCenter)
-
             select = QPushButton("Select")
             select.setObjectName("fieldSelect")
             select.clicked.connect(lambda checked=False, idx=row - 2: self._select_channel(idx))
 
             card_layout.addWidget(name, 0, 0)
-            card_layout.addWidget(value, 0, 1)
-            card_layout.addWidget(select, 0, 2)
+            card_layout.addWidget(select, 0, 1)
 
-            layout.addWidget(card, row, 0, 1, 2)
+            actual_value = QLabel("0.00")
+            actual_value.setObjectName("fieldActualValue")
+            actual_value.setAlignment(Qt.AlignCenter)
+
+            target_value = QLabel("0.00")
+            target_value.setObjectName("fieldValue")
+            target_value.setAlignment(Qt.AlignCenter)
+
+            layout.addWidget(card, row, 0)
+            layout.addWidget(actual_value, row, 1)
+            layout.addWidget(target_value, row, 2)
             on_toggle = BubbleToggle(f"{channel} output on", "#49e6ff")
             enable_toggle = BubbleToggle(f"{channel} enabled", "#7cffb2")
             plot_toggle = BubbleToggle(f"{channel} plotted", "#ffb52d")
             on_toggle.setChecked(True)
-            enable_toggle.setChecked(True)
+            enable_toggle.setChecked(False)
             plot_toggle.setChecked(True)
+            on_toggle.toggled.connect(lambda checked=False: self._mark_operator_toggle_edit())
+            enable_toggle.toggled.connect(lambda checked=False: self._mark_operator_toggle_edit())
             plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
-            layout.addWidget(on_toggle, row, 2, Qt.AlignVCenter)
-            layout.addWidget(enable_toggle, row, 3, Qt.AlignVCenter)
-            layout.addWidget(plot_toggle, row, 4, Qt.AlignVCenter)
+            layout.addWidget(on_toggle, row, 3, Qt.AlignVCenter)
+            layout.addWidget(enable_toggle, row, 4, Qt.AlignVCenter)
+            layout.addWidget(plot_toggle, row, 5, Qt.AlignVCenter)
 
-            self.value_labels.append(value)
+            self.value_labels.append(target_value)
+            self.actual_value_labels.append(actual_value)
             self.channel_cards.append(card)
             self.on_buttons.append(on_toggle)
             self.enable_buttons.append(enable_toggle)
@@ -430,14 +444,31 @@ class FieldCtrlPage(DetailPage):
         self._refresh_digit_display(target)
         self._update_speedometer()
 
+    def _refresh_actual_display(self) -> None:
+        for index, value in enumerate(self.actual_values):
+            if index < len(self.actual_value_labels):
+                self.actual_value_labels[index].setText(f"{value:.2f}")
+
     def _tick_feedback(self) -> None:
         if self.backend_available and self.backend is not None:
             try:
                 snapshot = self.backend.LatestSnapshot()
                 channels = snapshot["channels"]
-                for index in range(min(len(CHANNEL_NAMES), len(channels))):
-                    self.actual_values[index] = float(channels[index]["actual"])
                 health = self.backend.Health()
+                has_real_telemetry = (
+                    int(health["received_packets"]) > 0
+                    or int(snapshot.get("sequence_number", 0)) > 0
+                    or str(snapshot.get("connection", "")).lower() == "connected"
+                )
+                for index in range(min(len(CHANNEL_NAMES), len(channels))):
+                    channel = channels[index]
+                    if has_real_telemetry:
+                        self.actual_values[index] = float(channel["actual"])
+                    if has_real_telemetry and not self._operator_toggle_edited and not self._telemetry_state_synced:
+                        self._set_toggle_from_telemetry(self.on_buttons[index], bool(channel["on"]))
+                        self._set_toggle_from_telemetry(self.enable_buttons[index], bool(channel["enabled"]))
+                if has_real_telemetry and channels and not self._operator_toggle_edited:
+                    self._telemetry_state_synced = True
                 self.backend_connection = str(health["connection"])
                 self.backend_destination = str(health["endpoint"])
                 self.backend_packets = int(health["received_packets"])
@@ -452,6 +483,7 @@ class FieldCtrlPage(DetailPage):
                     self._refresh_backend_status_panel()
             except Exception as exc:
                 self.backend_available = False
+                self._telemetry_state_synced = False
                 self.backend_connection = "Not Connected"
                 self.backend_destination = self.backend_mode.upper()
                 self.backend_status = f"{self.backend_mode.upper()} fallback: {exc}"
@@ -460,6 +492,7 @@ class FieldCtrlPage(DetailPage):
         else:
             target = self.target_values[self.selected_index]
             self.actual_values[self.selected_index] = self.actual_models[self.selected_index].step(target)
+        self._refresh_actual_display()
         self._update_speedometer()
 
     def _update_speedometer(self) -> None:
@@ -480,6 +513,7 @@ class FieldCtrlPage(DetailPage):
             return
         try:
             self.backend = CycloViz.ControlService()
+            self.owns_backend = True
             if self.backend_mode == "simulation":
                 self.backend.StartSimulator(20.0)
                 self.backend_connection = "Connected"
@@ -496,6 +530,7 @@ class FieldCtrlPage(DetailPage):
             self._refresh_backend_status_panel()
         except Exception as exc:
             self.backend = None
+            self.owns_backend = False
             self.backend_available = False
             self.backend_connection = "Not Connected"
             self.backend_destination = self.backend_mode.upper()
@@ -538,11 +573,27 @@ class FieldCtrlPage(DetailPage):
         self.backend_label.setText(f"{ok_count}/{len(CHANNEL_NAMES)} channel commands applied")
 
     def _set_all_toggles(self, buttons: list[BubbleToggle], checked: bool) -> None:
+        self._operator_toggle_edited = True
         for button in buttons:
             button.setChecked(checked)
 
     def _hold_selected_actual(self) -> None:
         self._set_selected_target(self.actual_values[self.selected_index])
+
+    def _mark_operator_toggle_edit(self) -> None:
+        if self._building_telemetry_state():
+            return
+        self._operator_toggle_edited = True
+
+    def _building_telemetry_state(self) -> bool:
+        return getattr(self, "_syncing_telemetry_state", False)
+
+    def _set_toggle_from_telemetry(self, button: BubbleToggle, checked: bool) -> None:
+        self._syncing_telemetry_state = True
+        button.blockSignals(True)
+        button.setChecked(checked)
+        button.blockSignals(False)
+        self._syncing_telemetry_state = False
 
     def _begin_convergence_timer(self, index: int) -> None:
         self.convergence_started_at[index] = time.perf_counter()

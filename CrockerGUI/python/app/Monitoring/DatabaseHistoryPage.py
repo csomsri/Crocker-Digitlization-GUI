@@ -3,13 +3,15 @@ from __future__ import annotations
 import csv
 import sqlite3
 from collections.abc import Callable
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QDateTime
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
+from PySide6.QtCore import QPointF, QRectF, Qt, QDate, QDateTime, QMimeData, QTime
+from PySide6.QtGui import QColor, QDrag, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QButtonGroup,
+    QDateEdit,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -19,12 +21,12 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
-    QSpacerItem,
+    QSpinBox,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QDateTimeEdit,
 )
 
 from python.app.PageShell import DetailPage
@@ -73,17 +75,160 @@ PLOT_COLORS = [
 ]
 
 
+class ChannelListWidget(QListWidget):
+    def startDrag(self, supported_actions) -> None:  # noqa: N802 - Qt API name
+        del supported_actions
+        items = self.selectedItems()
+        if not items and self.currentItem() is not None:
+            items = [self.currentItem()]
+        channels = [
+            str(item.data(Qt.UserRole))
+            for item in items
+            if item.data(Qt.UserRole)
+        ]
+        if not channels:
+            return
+        mime = QMimeData()
+        mime.setText(",".join(channels))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(Qt.CopyAction)
+
+
 class HistoryPlotWidget(QWidget):
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        channels_changed: Callable[[], None],
+        parent: QWidget | None = None,
+    ) -> None:
         super().__init__(parent)
+        self.title = title
+        self.channels_changed = channels_changed
+        self.channels: list[str] = []
         self.series: dict[str, list[tuple[float, float]]] = {}
-        self.setObjectName("chartPlaceholder")
-        self.setMinimumHeight(300)
+        self.units: dict[str, str] = {}
+        self._hover_time: float | None = None
+        self._hover_point: tuple[str, float, float] | None = None
+        self._pinned_times: list[float] = []
+        self.setAcceptDrops(True)
+        self.setMouseTracking(True)
+        self.setObjectName("historyPlot")
+        self.setMinimumHeight(315)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def add_channels(self, channels: list[str]) -> None:
+        changed = False
+        for channel in channels:
+            if channel and channel not in self.channels:
+                self.channels.append(channel)
+                changed = True
+        if changed:
+            self.channels_changed()
+            self.update()
+
+    def clear_channels(self) -> None:
+        if not self.channels:
+            return
+        self.channels.clear()
+        self.series.clear()
+        self._pinned_times.clear()
+        self.channels_changed()
+        self.update()
+
+    def clear_pinned_tooltips(self) -> None:
+        self._pinned_times.clear()
+        self.update()
 
     def set_series(self, series: dict[str, list[tuple[float, float]]]) -> None:
         self.series = series
         self.update()
+
+    def set_units(self, units: dict[str, str]) -> None:
+        self.units = units
+        self.update()
+
+    def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+        else:
+            super().dragEnterEvent(event)
+
+    def dragMoveEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if event.mimeData().hasText():
+            event.acceptProposedAction()
+        else:
+            super().dragMoveEvent(event)
+
+    def dropEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        channels = [
+            channel.strip()
+            for channel in event.mimeData().text().split(",")
+            if channel.strip()
+        ]
+        self.add_channels(channels)
+        event.acceptProposedAction()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        self._update_hover_at(event.position())
+        self.update()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if event.button() == Qt.MouseButton.LeftButton and self._update_hover_at(event.position()):
+            if self._hover_time is not None:
+                self._pinned_times.append(self._hover_time)
+                self.update()
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        del event
+        self._hover_time = None
+        self._hover_point = None
+        self.update()
+
+    def _update_hover_at(self, position: QPointF) -> bool:
+        plot = self._plot_rect()
+        all_points = [point for values in self.series.values() for point in values]
+        if not plot.contains(position) or not all_points:
+            self._hover_time = None
+            self._hover_point = None
+            return False
+
+        start, end, _low, _high = self._bounds(all_points)
+        x_ratio = (position.x() - plot.left()) / max(1.0, plot.width())
+        hover_time = start + (end - start) * max(0.0, min(1.0, x_ratio))
+        nearest: tuple[str, float, float] | None = None
+        nearest_delta = float("inf")
+        for channel, points in self.series.items():
+            for timestamp, value in points:
+                delta = abs(timestamp - hover_time)
+                if delta < nearest_delta:
+                    nearest_delta = delta
+                    nearest = (channel, timestamp, value)
+        self._hover_time = hover_time
+        self._hover_point = nearest
+        return nearest is not None
+
+    def _plot_rect(self) -> QRectF:
+        top = 46.0 + self._legend_rows() * 20.0
+        return QRectF(self.rect()).adjusted(58.0, top, -22.0, -80.0)
+
+    def _legend_rows(self) -> int:
+        if not self.channels:
+            return 1
+        usable_width = max(1.0, self.width() - 80.0)
+        rows = 1
+        row_width = 0.0
+        for channel in self.channels:
+            label = self._short_label(channel)
+            item_width = max(92.0, min(170.0, 58.0 + len(label) * 7.0))
+            if row_width and row_width + item_width > usable_width:
+                rows += 1
+                row_width = 0.0
+            row_width += item_width
+        return rows
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -91,9 +236,17 @@ class HistoryPlotWidget(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.fillRect(self.rect(), QColor("#0f172a"))
 
-        plot = QRectF(self.rect()).adjusted(64.0, 28.0, -24.0, -48.0)
+        plot = self._plot_rect()
         if plot.width() <= 8 or plot.height() <= 8:
             return
+
+        painter.setPen(QColor("#e5e7eb"))
+        painter.drawText(
+            QRectF(18, 8, self.width() - 36, 18),
+            Qt.AlignLeft | Qt.AlignVCenter,
+            self.title,
+        )
+        self._draw_legend(painter, plot)
 
         painter.setPen(QPen(QColor(51, 65, 85, 150), 1))
         for step in range(5):
@@ -103,21 +256,21 @@ class HistoryPlotWidget(QWidget):
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
         painter.setPen(QPen(QColor("#475569"), 1))
         painter.drawRect(plot)
+        footer = self._footer_rect(plot)
+        painter.setPen(QPen(QColor(51, 65, 85, 120), 1))
+        painter.drawLine(QPointF(plot.left(), footer.top()), QPointF(plot.right(), footer.top()))
 
         all_points = [point for values in self.series.values() for point in values]
         if not all_points:
             painter.setPen(QColor("#94a3b8"))
-            painter.drawText(plot, Qt.AlignCenter, "Select channels and plot database history")
+            if self.channels:
+                text = "No samples in the selected date range"
+            else:
+                text = "No variables assigned"
+            painter.drawText(plot, Qt.AlignCenter, text)
             return
 
-        times = [point[0] for point in all_points]
-        values = [point[1] for point in all_points]
-        start, end = min(times), max(times)
-        low, high = min(values), max(values)
-        if end <= start:
-            end = start + 1.0
-        if high <= low:
-            high = low + 1.0
+        start, end, low, high = self._bounds(all_points)
 
         painter.setPen(QColor("#94a3b8"))
         painter.drawText(
@@ -130,13 +283,15 @@ class HistoryPlotWidget(QWidget):
             Qt.AlignRight | Qt.AlignVCenter,
             f"{low:.2g}",
         )
-        painter.drawText(
-            QRectF(plot.left(), plot.bottom() + 24, plot.width(), 20),
-            Qt.AlignCenter,
-            "Time",
-        )
+        if self._hover_time is None:
+            painter.drawText(
+                QRectF(plot.left(), plot.bottom() + 24, plot.width(), 20),
+                Qt.AlignCenter,
+                "Time",
+            )
 
-        for index, (channel, points) in enumerate(self.series.items()):
+        for index, channel in enumerate(self.channels):
+            points = self.series.get(channel, [])
             if len(points) < 2:
                 continue
             color = PLOT_COLORS[index % len(PLOT_COLORS)]
@@ -146,19 +301,164 @@ class HistoryPlotWidget(QWidget):
             painter.setPen(QPen(color, 2))
             painter.drawPath(path)
 
-        legend_x = plot.left() + 12
-        legend_y = plot.top() + 10
-        for index, channel in enumerate(self.series):
-            color = PLOT_COLORS[index % len(PLOT_COLORS)]
-            y = legend_y + index * 18
-            painter.setPen(QPen(color, 2))
-            painter.drawLine(QPointF(legend_x, y + 8), QPointF(legend_x + 22, y + 8))
-            painter.setPen(QColor("#cbd5e1"))
-            painter.drawText(
-                QRectF(legend_x + 30, y, 210, 18),
-                Qt.AlignLeft | Qt.AlignVCenter,
-                CHANNEL_LABELS.get(channel, channel),
+        for index, pinned_time in enumerate(self._pinned_times):
+            self._draw_marker_set(
+                painter, plot, footer, start, end, low, high, pinned_time, index
             )
+
+        if self._hover_point is not None and self._hover_time is not None:
+            self._draw_marker_set(
+                painter, plot, footer, start, end, low, high, self._hover_time, len(self._pinned_times)
+            )
+
+    def _footer_rect(self, plot: QRectF) -> QRectF:
+        return QRectF(plot.left(), plot.bottom() + 8.0, plot.width(), 42.0)
+
+    def _draw_marker_set(
+        self,
+        painter: QPainter,
+        plot: QRectF,
+        footer: QRectF,
+        start: float,
+        end: float,
+        low: float,
+        high: float,
+        marker_time: float,
+        lane_index: int,
+    ) -> None:
+        samples = self._nearest_samples(marker_time)
+        if not samples:
+            return
+        x_ratio = (marker_time - start) / (end - start)
+        x = plot.left() + plot.width() * max(0.0, min(1.0, x_ratio))
+        painter.setPen(QPen(QColor("#cbd5e1"), 1, Qt.DashLine))
+        painter.drawLine(QPointF(x, plot.top()), QPointF(x, footer.bottom()))
+        for channel, timestamp, value in samples:
+            point = self._plot_point(plot, (timestamp, value), start, end, low, high)
+            color_index = self.channels.index(channel) if channel in self.channels else 0
+            painter.setPen(QPen(PLOT_COLORS[color_index % len(PLOT_COLORS)], 2))
+            painter.drawLine(QPointF(point.x() - 6, point.y()), QPointF(point.x() + 6, point.y()))
+            painter.drawLine(QPointF(point.x(), point.y() - 6), QPointF(point.x(), point.y() + 6))
+        self._draw_value_label(painter, QPointF(x, plot.top()), samples, lane_index)
+        self._draw_time_label(painter, x, footer, marker_time)
+
+    def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
+        if not self.channels:
+            return
+        x = plot.left()
+        y = 34.0
+        max_x = plot.right()
+        for index, channel in enumerate(self.channels):
+            label = self._short_label(channel)
+            item_width = max(92.0, min(170.0, 58.0 + len(label) * 7.0))
+            if x + item_width > max_x:
+                x = plot.left()
+                y += 20.0
+            color = PLOT_COLORS[index % len(PLOT_COLORS)]
+            painter.setPen(QPen(color, 2))
+            painter.drawLine(QPointF(x, y + 9), QPointF(x + 26, y + 9))
+            painter.setPen(QColor("#cbd5e1"))
+            painter.drawText(QRectF(x + 34, y, item_width - 34, 18), Qt.AlignLeft | Qt.AlignVCenter, label)
+            x += item_width
+
+    def _draw_value_label(
+        self,
+        painter: QPainter,
+        anchor: QPointF,
+        samples: list[tuple[str, float, float]],
+        lane_index: int,
+    ) -> None:
+        if not samples:
+            return
+        lines = []
+        for channel, _timestamp, value in samples:
+            units = self.units.get(channel, "")
+            suffix = f" {units}" if units else ""
+            lines.append(f"{self._short_label(channel)}  {value:.5g}{suffix}")
+        box_width = max(180.0, min(280.0, max(len(line) for line in lines) * 7.4 + 24.0))
+        box_height = 22.0 + len(lines) * 19.0
+        x = anchor.x() + 12.0
+        y = anchor.y() + 10.0 + (lane_index % 3) * 8.0
+        if x + box_width > self.width() - 10:
+            x = anchor.x() - box_width - 12.0
+        if y < 10:
+            y = anchor.y() + 12.0
+        box = QRectF(
+            max(10.0, min(x, self.width() - box_width - 10.0)),
+            max(10.0, min(y, self.height() - box_height - 10.0)),
+            box_width,
+            box_height,
+        )
+        painter.setPen(QPen(QColor(96, 165, 250, 170), 1))
+        painter.setBrush(QColor(15, 23, 42, 236))
+        painter.drawRoundedRect(box, 7, 7)
+        for index, line in enumerate(lines):
+            channel = samples[index][0]
+            color_index = self.channels.index(channel) if channel in self.channels else 0
+            y_line = box.top() + 10 + index * 19
+            painter.setPen(QPen(PLOT_COLORS[color_index % len(PLOT_COLORS)], 2))
+            painter.drawLine(QPointF(box.left() + 10, y_line + 8), QPointF(box.left() + 26, y_line + 8))
+            painter.setPen(QColor("#e5e7eb"))
+            painter.drawText(QRectF(box.left() + 34, y_line, box.width() - 44, 17), Qt.AlignLeft | Qt.AlignVCenter, line)
+
+    def _draw_time_label(
+        self,
+        painter: QPainter,
+        x: float,
+        footer: QRectF,
+        marker_time: float,
+    ) -> None:
+        time_text = datetime.fromtimestamp(marker_time).strftime("%Y-%m-%d %H:%M:%S")
+        box_width = 156.0
+        box_height = 28.0
+        box = QRectF(
+            max(footer.left() + 6.0, min(x - box_width / 2, footer.right() - box_width - 6.0)),
+            footer.center().y() - box_height / 2,
+            box_width,
+            box_height,
+        )
+        painter.setPen(QPen(QColor(71, 85, 105, 190), 1))
+        painter.setBrush(QColor(15, 23, 42, 236))
+        painter.drawRoundedRect(box, 7, 7)
+        painter.setPen(QColor("#bfdbfe"))
+        painter.drawText(box, Qt.AlignCenter, time_text)
+
+    def _nearest_samples(
+        self,
+        hover_time: float | None,
+    ) -> list[tuple[str, float, float]]:
+        if hover_time is None:
+            return []
+        samples: list[tuple[str, float, float]] = []
+        for channel in self.channels:
+            points = self.series.get(channel, [])
+            if not points:
+                continue
+            timestamp, value = min(points, key=lambda point: abs(point[0] - hover_time))
+            samples.append((channel, timestamp, value))
+        return samples
+
+    def _short_label(self, channel: str) -> str:
+        if channel.startswith("ch") and channel[2:].isdigit():
+            return f"TC{channel[2:]}"
+        return CHANNEL_LABELS.get(channel, channel)
+
+    def _bounds(self, all_points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
+        times = [point[0] for point in all_points]
+        values = [point[1] for point in all_points]
+        start, end = min(times), max(times)
+        low, high = min(values), max(values)
+        if end <= start:
+            end = start + 1.0
+        if high <= low:
+            padding = max(abs(high) * 0.05, 1.0)
+            low -= padding
+            high += padding
+        else:
+            padding = (high - low) * 0.08
+            low -= padding
+            high += padding
+        return start, end, low, high
 
     def _plot_point(
         self,
@@ -192,58 +492,134 @@ class DatabaseHistoryPage(DetailPage):
         )
         self.db_path = self._resolve_db_path(Path(db_path))
         self.last_rows: list[tuple[float, str, float, str]] = []
+        self.header.hide()
 
         _, panel_layout = self.add_workspace()
+        panel_layout.setContentsMargins(18, 8, 18, 16)
+        panel_layout.setSpacing(10)
 
-        top = QHBoxLayout()
+        toolbar = QFrame()
+        toolbar.setObjectName("historyToolbar")
+        top = QHBoxLayout(toolbar)
+        top.setContentsMargins(8, 8, 8, 8)
+        top.setSpacing(8)
         self.path_label = QLabel(str(self.db_path))
-        self.path_label.setObjectName("workspaceBody")
+        self.path_label.setObjectName("historyPathPill")
         self.status_label = QLabel("")
-        self.status_label.setObjectName("workspaceBody")
+        self.status_label.setObjectName("historyStatusValue")
         browse_button = QPushButton("Open DB")
         reload_button = QPushButton("Reload")
         browse_button.clicked.connect(self._choose_db)
         reload_button.clicked.connect(self.reload)
         for button in (browse_button, reload_button):
             button.setCursor(Qt.PointingHandCursor)
-        top.addWidget(QLabel("Database:"))
-        top.addWidget(self.path_label, 1)
-        top.addWidget(browse_button)
-        top.addWidget(reload_button)
-        panel_layout.addLayout(top)
+        self.tab_group = QButtonGroup(self)
+        self.tab_group.setExclusive(True)
+        self.plots_tab_button = QPushButton("Plots")
+        self.summary_tab_button = QPushButton("Summary")
+        tab_cluster = QFrame()
+        tab_cluster.setObjectName("historySegment")
+        tab_layout = QHBoxLayout(tab_cluster)
+        tab_layout.setContentsMargins(3, 3, 3, 3)
+        tab_layout.setSpacing(3)
+        for index, button in enumerate((self.plots_tab_button, self.summary_tab_button)):
+            button.setObjectName("historyTabButton")
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            self.tab_group.addButton(button, index)
+            tab_layout.addWidget(button)
+        top.addWidget(tab_cluster)
+        self.plots_tab_button.setChecked(True)
 
-        range_row = QHBoxLayout()
-        now = QDateTime.currentDateTime()
-        self.start_edit = QDateTimeEdit(now.addSecs(-24 * 3600))
-        self.end_edit = QDateTimeEdit(now)
-        for editor in (self.start_edit, self.end_edit):
-            editor.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
+        db_group = QFrame()
+        db_group.setObjectName("historyToolbarGroup")
+        db_layout = QHBoxLayout(db_group)
+        db_layout.setContentsMargins(9, 5, 9, 5)
+        db_layout.setSpacing(8)
+        database_label = QLabel("Database")
+        database_label.setObjectName("historyToolbarLabel")
+        db_layout.addWidget(database_label)
+        db_layout.addWidget(self.path_label)
+        top.addWidget(db_group, 1)
+
+        self.date_edit = QDateEdit(QDate.currentDate())
+        self.date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.date_edit.setCalendarPopup(True)
+        self.sample_limit = QSpinBox()
+        self.sample_limit.setRange(25, 20000)
+        self.sample_limit.setSingleStep(25)
+        self.sample_limit.setValue(500)
+        self.sample_limit.setSuffix(" samples")
+        self.date_edit.dateChanged.connect(lambda date: self.plot())
+        self.sample_limit.valueChanged.connect(lambda value: self.plot())
+        for editor in (self.date_edit,):
             editor.setCalendarPopup(True)
-        range_row.addWidget(QLabel("Start:"))
-        range_row.addWidget(self.start_edit)
-        range_row.addWidget(QLabel("End:"))
-        range_row.addWidget(self.end_edit)
-        for label, hours in (("1h", 1), ("6h", 6), ("24h", 24), ("7d", 24 * 7)):
-            button = QPushButton(label)
+
+        filters_group = QFrame()
+        filters_group.setObjectName("historyToolbarGroup")
+        filters_layout = QHBoxLayout(filters_group)
+        filters_layout.setContentsMargins(9, 5, 9, 5)
+        filters_layout.setSpacing(8)
+        date_label = QLabel("Date")
+        date_label.setObjectName("historyToolbarLabel")
+        filters_layout.addWidget(date_label)
+        filters_layout.addWidget(self.date_edit)
+        samples_label = QLabel("Samples")
+        samples_label.setObjectName("historyToolbarLabel")
+        filters_layout.addWidget(samples_label)
+        filters_layout.addWidget(self.sample_limit)
+        top.addWidget(filters_group)
+
+        first_date = QPushButton("First Date")
+        latest = QPushButton("Latest Date")
+        plot_button = QPushButton("Refresh Plots")
+        first_date.clicked.connect(self._jump_to_first)
+        latest.clicked.connect(self._jump_to_latest)
+        plot_button.clicked.connect(self.plot)
+        actions_group = QFrame()
+        actions_group.setObjectName("historyToolbarActions")
+        actions_layout = QHBoxLayout(actions_group)
+        actions_layout.setContentsMargins(0, 0, 0, 0)
+        actions_layout.setSpacing(7)
+        for button in (first_date, latest, plot_button):
             button.setCursor(Qt.PointingHandCursor)
-            button.clicked.connect(lambda checked=False, h=hours: self._quick_range(h))
-            range_row.addWidget(button)
-        data_range = QPushButton("Data Range")
-        latest = QPushButton("Latest 24h")
-        data_range.clicked.connect(self._fill_data_range)
-        latest.clicked.connect(lambda checked=False: self._jump_to_latest(24))
-        for button in (data_range, latest):
-            button.setCursor(Qt.PointingHandCursor)
-            range_row.addWidget(button)
-        panel_layout.addLayout(range_row)
+            actions_layout.addWidget(button)
+        top.addWidget(actions_group)
+
+        status_group = QFrame()
+        status_group.setObjectName("historyStatusCard")
+        status_layout = QVBoxLayout(status_group)
+        status_layout.setContentsMargins(10, 5, 10, 5)
+        status_layout.setSpacing(0)
+        status_caption = QLabel("STATUS")
+        status_caption.setObjectName("historyStatusCaption")
+        status_layout.addWidget(status_caption)
+        status_layout.addWidget(self.status_label)
+        top.addWidget(status_group)
+
+        file_actions = QFrame()
+        file_actions.setObjectName("historyToolbarActions")
+        file_actions_layout = QHBoxLayout(file_actions)
+        file_actions_layout.setContentsMargins(0, 0, 0, 0)
+        file_actions_layout.setSpacing(7)
+        file_actions_layout.addWidget(browse_button)
+        file_actions_layout.addWidget(reload_button)
+        top.addWidget(file_actions)
+        panel_layout.addWidget(toolbar)
+
+        plots_tab = QWidget()
+        plots_tab_layout = QVBoxLayout(plots_tab)
+        plots_tab_layout.setContentsMargins(0, 0, 0, 0)
+        plots_tab_layout.setSpacing(12)
 
         body = QHBoxLayout()
         left = QFrame()
         left.setObjectName("workspace")
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(12, 12, 12, 12)
-        left_layout.addWidget(QLabel("Channels"))
-        self.channel_list = QListWidget()
+        left_layout.addWidget(QLabel("Variables"))
+        self.channel_list = ChannelListWidget()
+        self.channel_list.setDragEnabled(True)
         self.channel_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         left_layout.addWidget(self.channel_list, 1)
         channel_actions = QHBoxLayout()
@@ -257,28 +633,77 @@ class DatabaseHistoryPage(DetailPage):
         body.addWidget(left, 1)
 
         right = QVBoxLayout()
-        action_row = QHBoxLayout()
-        plot_button = QPushButton("Plot")
+        right.setSpacing(8)
+
+        self.plot_widgets: list[HistoryPlotWidget] = []
+        for index in range(3):
+            plot_row = QHBoxLayout()
+            plot_widget = HistoryPlotWidget(f"Plot {index + 1}", self.plot)
+            self.plot_widgets.append(plot_widget)
+            clear_plot = QPushButton("Clear Plot")
+            clear_plot.setMaximumWidth(96)
+            clear_plot.setCursor(Qt.PointingHandCursor)
+            clear_plot.clicked.connect(
+                lambda checked=False, plot=plot_widget: plot.clear_channels()
+            )
+            clear_tooltips = QPushButton("Clear Marks")
+            clear_tooltips.setMaximumWidth(96)
+            clear_tooltips.setCursor(Qt.PointingHandCursor)
+            clear_tooltips.clicked.connect(
+                lambda checked=False, plot=plot_widget: plot.clear_pinned_tooltips()
+            )
+            plot_actions = QVBoxLayout()
+            plot_actions.setSpacing(8)
+            plot_actions.addStretch(1)
+            plot_actions.addWidget(clear_plot)
+            plot_actions.addWidget(clear_tooltips)
+            plot_actions.addStretch(1)
+            plot_row.addWidget(plot_widget, 1)
+            plot_row.addLayout(plot_actions)
+            right.addLayout(plot_row, 1)
+        body.addLayout(right, 5)
+        plots_tab_layout.addLayout(body, 1)
+
+        summary_tab = QWidget()
+        summary_layout = QVBoxLayout(summary_tab)
+        summary_layout.setContentsMargins(0, 0, 0, 0)
+        summary_layout.setSpacing(10)
+        summary_header = QFrame()
+        summary_header.setObjectName("historySummaryHeader")
+        summary_actions = QHBoxLayout(summary_header)
+        summary_actions.setContentsMargins(12, 10, 12, 10)
+        summary_actions.setSpacing(10)
+        summary_text = QVBoxLayout()
+        summary_text.setSpacing(2)
+        summary_title = QLabel("Summary")
+        summary_title.setObjectName("historySummaryTitle")
+        self.summary_meta_label = QLabel("No plotted channels")
+        self.summary_meta_label.setObjectName("historySummaryMeta")
+        summary_text.addWidget(summary_title)
+        summary_text.addWidget(self.summary_meta_label)
+        summary_actions.addLayout(summary_text, 1)
         export_button = QPushButton("Export CSV")
-        plot_button.clicked.connect(self.plot)
+        export_button.setCursor(Qt.PointingHandCursor)
         export_button.clicked.connect(self.export_csv)
-        for button in (plot_button, export_button):
-            button.setCursor(Qt.PointingHandCursor)
-            action_row.addWidget(button)
-        action_row.addWidget(self.status_label, 1)
-        action_row.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        right.addLayout(action_row)
-
-        self.plot_widget = HistoryPlotWidget()
-        right.addWidget(self.plot_widget, 2)
-
+        summary_actions.addWidget(export_button)
+        summary_layout.addWidget(summary_header)
         self.summary_table = QTableWidget(0, 5)
+        self.summary_table.setObjectName("historySummaryTable")
+        self.summary_table.setAlternatingRowColors(True)
+        self.summary_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.summary_table.setShowGrid(False)
+        self.summary_table.verticalHeader().setVisible(False)
+        self.summary_table.horizontalHeader().setStretchLastSection(True)
         self.summary_table.setHorizontalHeaderLabels(
             ["Channel", "Samples", "Min", "Max", "Latest"]
         )
-        right.addWidget(self.summary_table, 1)
-        body.addLayout(right, 4)
-        panel_layout.addLayout(body, 1)
+        summary_layout.addWidget(self.summary_table, 1)
+
+        self.data_stack = QStackedWidget()
+        self.data_stack.addWidget(plots_tab)
+        self.data_stack.addWidget(summary_tab)
+        self.tab_group.idClicked.connect(self.data_stack.setCurrentIndex)
+        panel_layout.addWidget(self.data_stack, 1)
 
         self.reload()
 
@@ -345,41 +770,36 @@ class DatabaseHistoryPage(DetailPage):
             self.channel_list.addItem(item)
         for row in range(min(4, self.channel_list.count())):
             self.channel_list.item(row).setSelected(True)
+        for plot in getattr(self, "plot_widgets", []):
+            plot.clear_channels()
+        if getattr(self, "plot_widgets", None):
+            for row in range(min(3, self.channel_list.count())):
+                channel = self.channel_list.item(row).data(Qt.UserRole)
+                if channel:
+                    self.plot_widgets[row % len(self.plot_widgets)].channels.append(channel)
 
         if start is not None and end is not None:
-            self._set_range(float(start), float(end))
+            self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(end)).date())
             start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
             end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
-            self.status_label.setText(f"{count} readings | {start_text} to {end_text}")
+            self.status_label.setText(f"{count:,} readings · {start_text} to {end_text}")
         else:
             self.status_label.setText("No readings")
+        self.plot()
 
-    def _selected_channels(self) -> list[str]:
-        return [
-            item.data(Qt.UserRole)
-            for item in self.channel_list.selectedItems()
-            if item.data(Qt.UserRole)
-        ]
-
-    def _quick_range(self, hours: int) -> None:
-        end = QDateTime.currentDateTime()
-        self.end_edit.setDateTime(end)
-        self.start_edit.setDateTime(end.addSecs(-hours * 3600))
-
-    def _fill_data_range(self) -> None:
+    def _jump_to_first(self) -> None:
         try:
             with self._connect() as connection:
-                row = connection.execute(
-                    "SELECT MIN(timestamp), MAX(timestamp) FROM readings"
-                ).fetchone()
+                row = connection.execute("SELECT MIN(timestamp) FROM readings").fetchone()
         except sqlite3.Error as exc:
             QMessageBox.critical(self, "Range Error", str(exc))
             return
-        if row[0] is None or row[1] is None:
+        if row[0] is None:
             return
-        self._set_range(float(row[0]), float(row[1]))
+        self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(row[0])).date())
+        self.plot()
 
-    def _jump_to_latest(self, hours: int) -> None:
+    def _jump_to_latest(self) -> None:
         try:
             with self._connect() as connection:
                 row = connection.execute("SELECT MAX(timestamp) FROM readings").fetchone()
@@ -388,25 +808,25 @@ class DatabaseHistoryPage(DetailPage):
             return
         if row[0] is None:
             return
-        end_dt = datetime.fromtimestamp(float(row[0]))
-        start_dt = end_dt - timedelta(hours=hours)
-        self.start_edit.setDateTime(QDateTime.fromSecsSinceEpoch(int(start_dt.timestamp())))
-        self.end_edit.setDateTime(QDateTime.fromSecsSinceEpoch(int(end_dt.timestamp())))
-
-    def _set_range(self, start: float, end: float) -> None:
-        self.start_edit.setDateTime(QDateTime.fromSecsSinceEpoch(int(start)))
-        self.end_edit.setDateTime(QDateTime.fromSecsSinceEpoch(int(end)))
+        self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(row[0])).date())
+        self.plot()
 
     def plot(self) -> None:
-        channels = self._selected_channels()
+        channels = []
+        for plot_widget in self.plot_widgets:
+            channels.extend(plot_widget.channels)
+        channels = list(dict.fromkeys(channels))
         if not channels:
-            QMessageBox.warning(self, "No Channels", "Select at least one channel.")
+            for plot_widget in self.plot_widgets:
+                plot_widget.set_series({})
+            self._fill_summary({})
+            self.status_label.setText("No variables assigned")
             return
 
-        start = self.start_edit.dateTime().toSecsSinceEpoch()
-        end = self.end_edit.dateTime().toSecsSinceEpoch()
-        if end < start:
-            start, end = end, start
+        selected_date = self.date_edit.date()
+        start_dt = QDateTime(selected_date, QTime(0, 0, 0))
+        start = start_dt.toSecsSinceEpoch()
+        end = start + (24 * 3600) - 1
 
         placeholders = ", ".join("?" for _ in channels)
         query = f"""
@@ -436,16 +856,54 @@ class DatabaseHistoryPage(DetailPage):
             )
             for row in rows
         ]
-        series: dict[str, list[tuple[float, float]]] = {channel: [] for channel in channels}
+        all_series: dict[str, list[tuple[float, float]]] = {channel: [] for channel in channels}
+        units_by_channel: dict[str, str] = {}
         for timestamp, channel, value, _units in self.last_rows:
-            series.setdefault(channel, []).append((timestamp, value))
-        series = {channel: values for channel, values in series.items() if values}
+            all_series.setdefault(channel, []).append((timestamp, value))
+            if _units:
+                units_by_channel[channel] = _units
+        sample_limit = self.sample_limit.value()
+        all_series = {
+            channel: self._limit_points(values, sample_limit)
+            for channel, values in all_series.items()
+            if values
+        }
 
-        self.plot_widget.set_series(series)
-        self._fill_summary(series)
-        self.status_label.setText(f"Plotted {len(self.last_rows)} samples")
+        for plot_widget in self.plot_widgets:
+            plot_widget.set_series({
+                channel: all_series[channel]
+                for channel in plot_widget.channels
+                if channel in all_series
+            })
+            plot_widget.set_units(units_by_channel)
+        self._fill_summary(all_series)
+        day_text = selected_date.toString("yyyy-MM-dd")
+        plotted_samples = sum(len(values) for values in all_series.values())
+        self.status_label.setText(f"{plotted_samples:,} plotted samples · {day_text}")
+
+    def _limit_points(
+        self,
+        points: list[tuple[float, float]],
+        limit: int,
+    ) -> list[tuple[float, float]]:
+        if len(points) <= limit:
+            return points
+        if limit <= 1:
+            return [points[-1]]
+        step = (len(points) - 1) / (limit - 1)
+        limited = [points[round(index * step)] for index in range(limit)]
+        return limited
 
     def _fill_summary(self, series: dict[str, list[tuple[float, float]]]) -> None:
+        if hasattr(self, "summary_meta_label"):
+            channel_count = len(series)
+            sample_count = sum(len(points) for points in series.values())
+            if channel_count:
+                self.summary_meta_label.setText(
+                    f"{channel_count:,} channels · {sample_count:,} plotted samples"
+                )
+            else:
+                self.summary_meta_label.setText("No plotted channels")
         self.summary_table.setRowCount(len(series))
         for row, (channel, points) in enumerate(series.items()):
             values = [point[1] for point in points]

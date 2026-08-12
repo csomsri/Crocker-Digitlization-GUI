@@ -18,16 +18,20 @@ class AssignedMonitorWindow(QMainWindow):
         self.screen_name = screen_name
         self.page_name = ""
         self.setWindowTitle(f"Crocker Display - {screen_name}")
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def apply_display_mode(
         self,
         mode: str,
         window_resolution: tuple[int, int] | None = None,
     ) -> None:
-        self.setWindowState(Qt.WindowState.WindowNoState)
         flags = self.windowFlags()
-        flags &= ~Qt.WindowType.FramelessWindowHint
-        self.setWindowFlags(flags)
+        desired_flags = flags
+        desired_flags &= ~Qt.WindowType.FramelessWindowHint
+        desired_flags |= Qt.WindowType.WindowDoesNotAcceptFocus
+        if desired_flags != flags:
+            self.setWindowFlags(desired_flags)
 
         screen = self._assigned_screen()
         if screen is not None:
@@ -46,9 +50,12 @@ class AssignedMonitorWindow(QMainWindow):
                     geometry.x() + int((geometry.width() - width) / 2),
                     geometry.y() + int((geometry.height() - height) / 2),
                 )
-            self.showNormal()
+            if self.isFullScreen() or self.isMaximized() or not self.isVisible():
+                self.setWindowState(Qt.WindowState.WindowNoState)
+                self.showNormal()
         else:
-            self.showFullScreen()
+            if not self.isFullScreen():
+                self.showFullScreen()
 
     def _frame_margins(self) -> QMargins:
         handle = self.windowHandle()
