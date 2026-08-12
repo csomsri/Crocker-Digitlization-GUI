@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QSurfaceFormat
+from PySide6.QtGui import QColor, QFont, QPainter, QPen, QSurfaceFormat
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QWidget
 
@@ -17,7 +17,7 @@ def clamp(value: float, lower: float = 0.0, upper: float = MAX_GAUGE_VALUE) -> f
 
 
 class BubbleToggle(QPushButton):
-    def __init__(self, tooltip: str, color: str = "#4de8ff", parent: QWidget | None = None) -> None:
+    def __init__(self, tooltip: str, color: str = "#60a5fa", parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setCheckable(True)
         self.setCursor(Qt.PointingHandCursor)
@@ -45,7 +45,7 @@ class BubbleToggle(QPushButton):
         painter.setBrush(fill)
         painter.drawRoundedRect(bounds, 6.0, 6.0)
 
-        # Offset inner rails give the control a compact cyberpunk HUD profile.
+        # Offset inner rails keep the compact toggle readable at small sizes.
         rail = QColor(self._color)
         rail.setAlpha(180 if checked else 55)
         painter.setPen(QPen(rail, 1.0))
@@ -275,6 +275,137 @@ class TimeDomainPlot(QOpenGLWidget):
         )
 
 
+class QtTimeDomainPlot(QWidget):
+    """Qt-painted fallback for the time plot when OpenGL text is unreliable."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setMinimumHeight(155)
+        self.setMaximumHeight(170)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setObjectName("timeDomainPlot")
+        self._samples: list[tuple[float, float, float, float]] = []
+
+    def set_samples(self, samples: list[tuple[float, float, float, float]]) -> None:
+        self._samples = list(samples)
+        self.update()
+
+    def paintEvent(self, event) -> None:
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.fillRect(self.rect(), QColor("#0f172a"))
+
+        plot = QRectF(self.rect()).adjusted(54.0, 28.0, -18.0, -38.0)
+        if plot.width() <= 8 or plot.height() <= 8:
+            return
+
+        grid_pen = QPen(QColor(51, 65, 85, 140), 1.0)
+        painter.setPen(grid_pen)
+        for step in range(4):
+            y = plot.top() + plot.height() * step / 3
+            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
+        for step in range(4):
+            x = plot.left() + plot.width() * step / 3
+            painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
+
+        painter.setPen(QPen(QColor("#475569"), 1.0))
+        painter.drawRect(plot)
+
+        font = QFont(self.font())
+        font.setPointSize(max(8, font.pointSize()))
+        painter.setFont(font)
+
+        samples = self._samples[-240:]
+        if samples:
+            start = samples[0][0]
+            end = max(samples[-1][0], start + 1.0)
+        else:
+            start = 0.0
+            end = 16.8
+
+        values = [0.0]
+        for _, actual, target, error in samples:
+            values.extend([actual, target, error])
+        lower = min(values)
+        upper = max(values)
+        if math.isclose(lower, upper, abs_tol=0.001):
+            lower -= 1.0
+            upper += 1.0
+        padding = max(0.5, (upper - lower) * 0.12)
+        lower -= padding
+        upper += padding
+
+        axis_color = QColor("#cbd5e1")
+        painter.setPen(axis_color)
+        for step in range(4):
+            t = start + (end - start) * step / 3
+            x = plot.left() + plot.width() * step / 3
+            y_value = upper - (upper - lower) * step / 3
+            y = plot.top() + plot.height() * step / 3
+            painter.drawText(QRectF(plot.left() - 52, y - 9, 44, 18), Qt.AlignRight | Qt.AlignVCenter, f"{y_value:.0f}")
+            painter.drawText(QRectF(x - 30, plot.bottom() + 8, 60, 18), Qt.AlignCenter, f"{t - start:.1f}")
+        painter.drawText(QRectF(plot.center().x() - 60, plot.bottom() + 26, 120, 18), Qt.AlignCenter, "Time (s)")
+
+        self._draw_trace(painter, plot, samples, start, end, lower, upper, 1, QColor("#60a5fa"))
+        self._draw_trace(painter, plot, samples, start, end, lower, upper, 2, QColor("#22c55e"))
+        self._draw_trace(painter, plot, samples, start, end, lower, upper, 3, QColor("#f59e0b"))
+        self._draw_legend(painter, plot)
+
+    def _point_for(
+        self,
+        plot: QRectF,
+        sample: tuple[float, float, float, float],
+        start: float,
+        end: float,
+        lower: float,
+        upper: float,
+        value_index: int,
+    ) -> QPointF:
+        x_ratio = (sample[0] - start) / max(0.001, end - start)
+        y_ratio = (sample[value_index] - lower) / max(0.001, upper - lower)
+        return QPointF(
+            plot.left() + plot.width() * x_ratio,
+            plot.bottom() - plot.height() * y_ratio,
+        )
+
+    def _draw_trace(
+        self,
+        painter: QPainter,
+        plot: QRectF,
+        samples: list[tuple[float, float, float, float]],
+        start: float,
+        end: float,
+        lower: float,
+        upper: float,
+        value_index: int,
+        color: QColor,
+    ) -> None:
+        if len(samples) < 2:
+            return
+        painter.setPen(QPen(color, 1.5))
+        previous = self._point_for(plot, samples[0], start, end, lower, upper, value_index)
+        for sample in samples[1:]:
+            current = self._point_for(plot, sample, start, end, lower, upper, value_index)
+            painter.drawLine(previous, current)
+            previous = current
+
+    def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
+        items = (
+            ("Actual", QColor("#60a5fa")),
+            ("Target", QColor("#22c55e")),
+            ("Error", QColor("#f59e0b")),
+        )
+        x = plot.right() - 280
+        y = plot.top() - 22
+        for label, color in items:
+            painter.setPen(QPen(color, 1.5))
+            painter.drawLine(QPointF(x, y + 8), QPointF(x + 18, y + 8))
+            painter.setPen(QColor("#cbd5e1"))
+            painter.drawText(QRectF(x + 28, y, 58, 18), Qt.AlignLeft | Qt.AlignVCenter, label)
+            x += 94
+
+
 class SimulatedActual:
     def __init__(self) -> None:
         self.value = 0.0
@@ -294,3 +425,7 @@ def make_speedometer(parent: QWidget | None = None) -> QWidget:
         return MissingNativeSpeedometer("CycloViz is missing MagneticFieldSpeedometer/load_opengl.", parent)
     except Exception as exc:
         return MissingNativeSpeedometer(str(exc), parent)
+
+
+def make_time_domain_plot(parent: QWidget | None = None) -> QWidget:
+    return QtTimeDomainPlot(parent)

@@ -8,6 +8,7 @@ MONITORING_PAGES: list[PageSpec] = [
     ("Beam Transport Monitoring", "Beam transport live monitoring"),
     ("Beam Source & Extraction", "Source/extraction monitoring"),
     ("Vacuum / Beam Monitoring", "Vacuum, beam, and RF-style HUD monitoring"),
+    ("Database History", "Historical SQLite readings and trend plotting"),
     ("RF Power Monitoring", "Currently routed to the Field Ctrl window"),
 ]
 

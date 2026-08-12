@@ -26,9 +26,9 @@ from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
     MAX_GAUGE_VALUE,
     SimulatedActual,
-    TimeDomainPlot,
     clamp,
     make_speedometer,
+    make_time_domain_plot,
 )
 
 try:
@@ -272,7 +272,7 @@ class FieldCtrlPage(DetailPage):
         self.speedometer.setMinimumHeight(350)
         layout.addWidget(self.speedometer, 1)
 
-        self.time_plot = TimeDomainPlot(panel)
+        self.time_plot = make_time_domain_plot(panel)
         layout.addWidget(self.time_plot)
 
         editor = QFrame()

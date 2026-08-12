@@ -17,12 +17,21 @@ from python.app.PageShell import DetailPage
 
 class SettingsPage(DetailPage):
     DISPLAY_MODES = ("Windowed", "Borderless Window", "Full Screen")
+    RESOLUTIONS = (
+        "1280 x 820",
+        "1366 x 768",
+        "1440 x 900",
+        "1600 x 900",
+        "1920 x 1080",
+    )
 
     def __init__(
         self,
         go_back: Callable[[], None],
         set_display_mode: Callable[[str], None],
+        set_window_resolution: Callable[[str], None],
         current_display_mode: str = "Windowed",
+        current_window_resolution: str = "1280 x 820",
         monitor_entries: list[dict[str, object]] | None = None,
         page_names: list[str] | None = None,
         apply_monitor_assignments: (
@@ -39,6 +48,7 @@ class SettingsPage(DetailPage):
         _, panel_layout = self.add_workspace()
         panel_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         self._set_display_mode = set_display_mode
+        self._set_window_resolution = set_window_resolution
         self._apply_monitor_assignments = apply_monitor_assignments
         self._page_names = page_names or []
         self._monitor_assignments: dict[str, str] = {}
@@ -77,6 +87,31 @@ class SettingsPage(DetailPage):
 
         panel_layout.addWidget(mode_panel)
 
+        resolution_heading = QLabel("DISPLAY RESOLUTION")
+        resolution_heading.setObjectName("settingsHeading")
+        panel_layout.addWidget(resolution_heading)
+
+        resolution_description = QLabel(
+            "Choose the size used by Windowed mode. Full Screen and "
+            "Borderless Window fill the display."
+        )
+        resolution_description.setObjectName("settingsDescription")
+        resolution_description.setWordWrap(True)
+        panel_layout.addWidget(resolution_description)
+
+        resolution_row = QHBoxLayout()
+        resolution_label = QLabel("RESOLUTION")
+        resolution_label.setObjectName("monitorAssignmentLabel")
+        self.resolution_select = QComboBox()
+        self.resolution_select.setObjectName("monitorPageSelect")
+        for resolution in self.RESOLUTIONS:
+            self.resolution_select.addItem(resolution, resolution)
+        resolution_index = self.resolution_select.findData(current_window_resolution)
+        self.resolution_select.setCurrentIndex(max(0, resolution_index))
+        resolution_row.addWidget(resolution_label)
+        resolution_row.addWidget(self.resolution_select, 1)
+        panel_layout.addLayout(resolution_row)
+
         monitor_heading = QLabel("MULTI-MONITOR PAGES")
         monitor_heading.setObjectName("settingsHeading")
         panel_layout.addWidget(monitor_heading)
@@ -109,9 +144,8 @@ class SettingsPage(DetailPage):
         self.set_monitor_entries(monitor_entries or [])
 
         hint = QLabel(
-            "Windowed keeps the title bar and borders. Borderless Window "
-            "fills the desktop "
-            "without borders. Full Screen takes exclusive screen space."
+            "Windowed keeps the title bar and borders. Full Screen and "
+            "Borderless Window use the full display."
         )
         hint.setObjectName("settingsDescription")
         hint.setWordWrap(True)
@@ -126,8 +160,10 @@ class SettingsPage(DetailPage):
 
     def _apply_settings(self) -> None:
         selected = self.mode_group.checkedButton()
+        selected_resolution = self.resolution_select.currentData() or self.RESOLUTIONS[0]
         if selected is not None:
             self._set_display_mode(selected.text())
+        self._set_window_resolution(str(selected_resolution))
         if self._apply_monitor_assignments is not None:
             self._apply_monitor_assignments(dict(self._monitor_assignments))
 
@@ -206,6 +242,8 @@ class SettingsPage(DetailPage):
         for page_name in self._page_names:
             self.monitor_page_select.addItem(page_name, page_name)
         assignment = self._monitor_assignments.get(name, "")
+        if assignment and self.monitor_page_select.findData(assignment) < 0:
+            self.monitor_page_select.addItem(assignment, assignment)
         index = self.monitor_page_select.findData(assignment)
         self.monitor_page_select.setCurrentIndex(max(0, index))
         self.monitor_page_select.blockSignals(False)

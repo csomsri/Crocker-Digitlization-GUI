@@ -32,8 +32,8 @@ from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
     MAX_GAUGE_VALUE,
     SimulatedActual,
-    TimeDomainPlot,
     clamp,
+    make_time_domain_plot,
 )
 from source.Python.PID_Tuner.bayesion_optimization.bayesian_optimization import (
     BotorchPidOptimizer,
@@ -123,7 +123,7 @@ class PidControlPage(DetailPage):
 
         self.control_panel = self._build_control_panel()
         layout.addWidget(self.control_panel, 0, Qt.AlignTop)
-        self.time_plot = TimeDomainPlot()
+        self.time_plot = make_time_domain_plot()
         self.time_plot.setObjectName("pidVisualizationViewport")
         self.time_plot.setMinimumHeight(260)
         self.time_plot.setMaximumHeight(16777215)

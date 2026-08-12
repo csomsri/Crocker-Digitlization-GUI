@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -9,7 +9,6 @@ from PySide6.QtGui import (
     QPainter,
     QPainterPath,
     QPen,
-    QPolygonF,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -37,10 +36,11 @@ from PySide6.QtWidgets import (
 PageSpec = tuple[str, str]
 
 
-CYAN = QColor("#35f4ff")
-TEXT_CYAN = QColor("#6df8ff")
-PANEL_BLACK = QColor("#050a0a")
-HUD_RED = QColor("#bd3044")
+ACCENT = QColor("#3b82f6")
+TEXT = QColor("#e5e7eb")
+MUTED_TEXT = QColor("#94a3b8")
+SURFACE = QColor("#111827")
+BORDER = QColor("#334155")
 
 
 def _fitted_font(
@@ -76,71 +76,28 @@ class CnlPanelButton(QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        rect = self.rect().adjusted(2, 2, -2, -2)
-        notch = 28
-        corner = self.property("corner")
-        points = [
-            QPointF(rect.left(), rect.top()),
-            QPointF(rect.right(), rect.top()),
-            QPointF(rect.right(), rect.bottom()),
-            QPointF(rect.left(), rect.bottom()),
-        ]
-        if corner == "top-left":
-            points = [
-                QPointF(rect.left() + notch, rect.top()),
-                QPointF(rect.right(), rect.top()),
-                QPointF(rect.right(), rect.bottom()),
-                QPointF(rect.left(), rect.bottom()),
-                QPointF(rect.left(), rect.top() + notch),
-            ]
-        elif corner == "top-right":
-            points = [
-                QPointF(rect.left(), rect.top()),
-                QPointF(rect.right() - notch, rect.top()),
-                QPointF(rect.right(), rect.top() + notch),
-                QPointF(rect.right(), rect.bottom()),
-                QPointF(rect.left(), rect.bottom()),
-            ]
-        elif corner == "bottom-left":
-            points = [
-                QPointF(rect.left(), rect.top()),
-                QPointF(rect.right(), rect.top()),
-                QPointF(rect.right(), rect.bottom()),
-                QPointF(rect.left() + notch, rect.bottom()),
-                QPointF(rect.left(), rect.bottom() - notch),
-            ]
-        elif corner == "bottom-right":
-            points = [
-                QPointF(rect.left(), rect.top()),
-                QPointF(rect.right(), rect.top()),
-                QPointF(rect.right(), rect.bottom() - notch),
-                QPointF(rect.right() - notch, rect.bottom()),
-                QPointF(rect.left(), rect.bottom()),
-            ]
-
+        rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
         path = QPainterPath()
-        path.addPolygon(QPolygonF(points))
-        path.closeSubpath()
+        path.addRoundedRect(rect, 8, 8)
         highlighted = self.underMouse()
-        painter.fillPath(path, CYAN if highlighted else PANEL_BLACK)
-        if not highlighted:
-            painter.fillPath(path, QColor(16, 38, 38, 82))
-        painter.setPen(QPen(QColor("#b9fbff") if highlighted else CYAN, 3 if highlighted else 2))
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        if highlighted:
+            gradient.setColorAt(0, QColor(30, 41, 59, 246))
+            gradient.setColorAt(1, QColor(15, 23, 42, 246))
+        else:
+            gradient.setColorAt(0, QColor(17, 24, 39, 238))
+            gradient.setColorAt(1, QColor(15, 23, 42, 238))
+        painter.fillPath(path, gradient)
+        painter.setPen(QPen(QColor("#64748b") if highlighted else BORDER, 1))
         painter.drawPath(path)
-        painter.setPen(QPen(HUD_RED, 1))
-        painter.drawLine(QPointF(rect.left() + 18, rect.top() + 8), QPointF(rect.left() + 72, rect.top() + 8))
-        painter.drawLine(QPointF(rect.right() - 88, rect.bottom() - 8), QPointF(rect.right() - 18, rect.bottom() - 8))
 
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
         font = _fitted_font(family, self.text(), rect, max_size=24, min_size=9)
         painter.setFont(font)
-        painter.setPen(QPen(QColor("#003744"), 5 if not highlighted else 2))
+        painter.setPen(QPen(TEXT if highlighted else QColor("#cbd5e1"), 1))
         painter.drawText(rect, Qt.AlignCenter, self.text())
-        if not highlighted:
-            painter.setPen(QPen(TEXT_CYAN, 1))
-            painter.drawText(rect, Qt.AlignCenter, self.text())
 
 
 class CnlViewportPlaceholder(QWidget):
@@ -154,50 +111,30 @@ class CnlViewportPlaceholder(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         rect = QRectF(self.rect()).adjusted(2, 2, -2, -2)
-        painter.fillRect(rect, PANEL_BLACK)
-        painter.fillRect(rect.adjusted(10, 10, -10, -10), QColor(4, 20, 19, 150))
-        painter.setPen(QPen(CYAN, 2))
-        painter.drawRect(rect)
-        painter.setPen(QPen(QColor("#153336"), 1))
-        for x in range(int(rect.left()) + 40, int(rect.right()), 42):
-            painter.drawLine(QPointF(x, rect.top() + 18), QPointF(x + 18, rect.top() + 18))
-        painter.setPen(QPen(HUD_RED, 1))
-        painter.drawLine(QPointF(rect.left() + 22, rect.bottom() - 18), QPointF(rect.left() + 120, rect.bottom() - 18))
-        painter.drawLine(QPointF(rect.right() - 160, rect.top() + 18), QPointF(rect.right() - 42, rect.top() + 18))
+        path = QPainterPath()
+        path.addRoundedRect(rect, 10, 10)
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        gradient.setColorAt(0, QColor(17, 24, 39, 244))
+        gradient.setColorAt(1, QColor(15, 23, 42, 244))
+        painter.fillPath(path, gradient)
+        painter.setPen(QPen(BORDER, 1))
+        painter.drawPath(path)
 
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
         painter.setFont(_fitted_font(family, "CYCLOVIZ VIEWPORT", rect, max_size=20, min_size=10))
-        painter.setPen(QPen(QColor("#003744"), 5))
-        painter.drawText(rect, Qt.AlignCenter, "CYCLOVIZ VIEWPORT")
-        painter.setPen(QPen(TEXT_CYAN, 1))
+        painter.setPen(QPen(MUTED_TEXT, 1))
         painter.drawText(rect, Qt.AlignCenter, "CYCLOVIZ VIEWPORT")
 
 
 class CnlCircleDisplay(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._sweep_phase = 0
-        self._sweep_timer = QTimer(self)
-        self._sweep_timer.setInterval(70)
-        self._sweep_timer.timeout.connect(self._advance_sweep)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumSize(360, 360)
         self.title = "Monitoring"
         self.preview_lines: list[str] = []
-
-    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        super().showEvent(event)
-        self._sweep_timer.start()
-
-    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        self._sweep_timer.stop()
-        super().hideEvent(event)
-
-    def _advance_sweep(self) -> None:
-        self._sweep_phase = (self._sweep_phase + 1) % 120
-        self.update(self._circle_ring_rect())
 
     def _circle_ring_rect(self) -> QRect:
         size = max(1, min(self.width(), self.height()) - 8)
@@ -224,40 +161,33 @@ class CnlCircleDisplay(QWidget):
             size,
             size,
         )
-        painter.setBrush(QColor("#050909"))
-        painter.setPen(QPen(CYAN, 2))
+        radial = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        radial.setColorAt(0, QColor(17, 24, 39, 244))
+        radial.setColorAt(1, QColor(15, 23, 42, 244))
+        painter.setBrush(radial)
+        painter.setPen(QPen(BORDER, 1))
         painter.drawEllipse(rect)
-        painter.setPen(QPen(QColor("#15383b"), 1))
+        painter.setPen(QPen(QColor("#1f2937"), 1))
         painter.drawEllipse(rect.adjusted(24, 24, -24, -24))
         painter.drawEllipse(rect.adjusted(58, 58, -58, -58))
 
         center = rect.center()
-        painter.setPen(QPen(QColor("#214f52"), 1))
+        painter.setPen(QPen(QColor("#334155"), 1))
         painter.drawLine(QPointF(center.x(), rect.top() + 28), QPointF(center.x(), rect.bottom() - 28))
         painter.drawLine(QPointF(rect.left() + 28, center.y()), QPointF(rect.right() - 28, center.y()))
-        sweep_angle = (self._sweep_phase * 3) % 360
-        painter.setPen(QPen(QColor(53, 244, 255, 155), 2))
-        painter.drawArc(rect.adjusted(14, 14, -14, -14), sweep_angle * 16, 44 * 16)
-        painter.setPen(QPen(QColor(255, 81, 105, 135), 1))
-        painter.drawArc(rect.adjusted(46, 46, -46, -46), ((sweep_angle + 160) % 360) * 16, 30 * 16)
-
-        painter.setPen(QPen(HUD_RED, 1))
-        for index in range(5):
-            y = rect.top() + 96 + index * 34
-            painter.drawLine(QPointF(center.x() - 125, y), QPointF(center.x() + 40 + index * 12, y + 18))
+        painter.setPen(QPen(ACCENT, 2))
+        painter.drawArc(rect.adjusted(14, 14, -14, -14), 20 * 16, 72 * 16)
 
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
         title_rect = QRectF(rect.left() + 70, rect.top() + 72, rect.width() - 140, 58)
         painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=20, min_size=9))
-        painter.setPen(QPen(QColor("#113437"), 5))
-        painter.drawText(title_rect, Qt.AlignCenter, self.title.upper())
-        painter.setPen(QPen(TEXT_CYAN, 1))
+        painter.setPen(QPen(TEXT, 1))
         painter.drawText(title_rect, Qt.AlignCenter, self.title.upper())
 
         painter.setFont(_fitted_font(family, "DATA VISUALIZATION PREVIEW", rect, max_size=10, min_size=7, weight=QFont.Normal))
-        painter.setPen(QColor(216, 253, 255, 190))
+        painter.setPen(MUTED_TEXT)
         text_y = center.y() + 20
         for line in self.preview_lines[:4]:
             painter.drawText(
@@ -289,65 +219,41 @@ class CnlMonitorSelectionButton(QPushButton):
         circle = QRectF(4, (self.height() - circle_size) / 2, circle_size, circle_size)
         box = QRectF(circle.right() + 28, (self.height() - 52) / 2, self.width() - circle.right() - 34, 52)
 
-        fill = QColor("#071313")
+        fill = QColor(17, 24, 39, 238)
         if selected:
-            fill = QColor("#35f4ff")
+            fill = QColor(37, 99, 235, 190)
         painter.setBrush(fill)
-        painter.setPen(QPen(CYAN, 3 if selected else 2))
+        painter.setPen(QPen(QColor("#93c5fd") if selected else BORDER, 1))
         painter.drawEllipse(circle)
 
-        painter.setBrush(QColor("#071313"))
-        painter.setPen(QPen(CYAN, 3 if selected else 2))
-        painter.drawRoundedRect(box, 3, 3)
-        painter.setPen(QPen(HUD_RED, 1))
-        painter.drawLine(QPointF(box.left() + 8, box.bottom() - 7), QPointF(box.left() + 58, box.bottom() - 7))
+        box_gradient = QLinearGradient(box.topLeft(), box.bottomRight())
+        box_gradient.setColorAt(0, QColor(30, 41, 59, 236 if selected else 220))
+        box_gradient.setColorAt(1, QColor(15, 23, 42, 238))
+        painter.setBrush(box_gradient)
+        painter.setPen(QPen(QColor("#64748b") if selected else BORDER, 1))
+        painter.drawRoundedRect(box, 8, 8)
 
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
         title_rect = box.adjusted(18, 4, -16, -24)
         painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=13, min_size=7))
-        painter.setPen(QPen(QColor("#12363a"), 4))
-        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
-        painter.setPen(QPen(TEXT_CYAN if not selected else QColor("#031315"), 1))
+        painter.setPen(QPen(TEXT if selected else QColor("#cbd5e1"), 1))
         painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
 
         desc_rect = box.adjusted(18, 34, -16, -5)
         painter.setFont(_fitted_font(family, self.description.upper(), desc_rect, max_size=8, min_size=6, weight=QFont.Normal))
-        painter.setPen(QColor(216, 253, 255, 155))
+        painter.setPen(MUTED_TEXT)
         painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter, self.description.upper())
 
 
 class CnlTitleBar(QWidget):
     def __init__(self, title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self._pulse_phase = 0
-        self._pulse_timer = QTimer(self)
-        self._pulse_timer.setInterval(80)
-        self._pulse_timer.timeout.connect(self._advance_pulse)
         self.title = title.upper()
         self.setMinimumHeight(58)
         self.setMaximumWidth(1160)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-
-    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        super().showEvent(event)
-        self._pulse_timer.start()
-
-    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        self._pulse_timer.stop()
-        super().hideEvent(event)
-
-    def _advance_pulse(self) -> None:
-        old_rect = self._title_pulse_rect()
-        self._pulse_phase = (self._pulse_phase + 1) % 48
-        self.update(old_rect.united(self._title_pulse_rect()).adjusted(-4, -2, 4, 2))
-
-    def _title_pulse_rect(self) -> QRect:
-        rect = QRectF(self.rect()).adjusted(8, 4, -8, -4)
-        baseline = rect.bottom() - 12
-        pulse_x = rect.left() + ((self._pulse_phase * 18) % max(1, int(rect.width())))
-        return QRect(int(pulse_x - 26), int(baseline - 5), 94, 16)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -363,50 +269,18 @@ class CnlTitleBar(QWidget):
 
         baseline = rect.bottom() - 12
         center = rect.center().x()
-        painter.setPen(QPen(QColor("#551924"), 2))
-        painter.drawLine(QPointF(rect.left(), baseline + 6), QPointF(center - 150, baseline + 6))
-        painter.drawLine(QPointF(center + 150, baseline + 6), QPointF(rect.right(), baseline + 6))
-
-        painter.setPen(QPen(CYAN, 2))
-        tab = QPainterPath()
-        tab.moveTo(rect.left() + 48, baseline - 2)
-        tab.lineTo(center - 235, baseline - 2)
-        tab.lineTo(center - 205, baseline - 14)
-        tab.lineTo(center + 205, baseline - 14)
-        tab.lineTo(center + 235, baseline - 2)
-        tab.lineTo(rect.right() - 48, baseline - 2)
-        painter.drawPath(tab)
-
-        painter.setPen(QPen(QColor("#2fefff"), 1))
-        painter.drawLine(QPointF(rect.left() + 110, baseline), QPointF(center - 180, baseline))
-        painter.drawLine(QPointF(center + 180, baseline), QPointF(rect.right() - 110, baseline))
-        pulse_x = self._title_pulse_rect().left() + 26
-        painter.setPen(QPen(QColor(53, 244, 255, 160), 2))
-        painter.drawLine(QPointF(pulse_x, baseline + 6), QPointF(min(rect.right(), pulse_x + 64), baseline + 6))
-        painter.setPen(QPen(QColor(255, 81, 105, 130), 1))
-        painter.drawLine(QPointF(max(rect.left(), pulse_x - 24), baseline - 2), QPointF(pulse_x, baseline - 2))
-
-        for x in (center - 170, center + 170):
-            accent = QRectF(x - 5, baseline - 5, 10, 10)
-            painter.fillRect(accent, QColor("#061a1d"))
-            painter.setPen(QPen(CYAN, 1))
-            painter.drawRect(accent)
-
-        painter.setPen(QPen(QColor("#1b0508"), 5))
-        painter.drawText(title_rect, Qt.AlignCenter, self.title)
-        painter.setPen(QPen(QColor("#c84956"), 1))
-        painter.drawText(title_rect.translated(1, 1), Qt.AlignCenter, self.title)
-        painter.setPen(QPen(TEXT_CYAN, 1))
+        painter.setPen(QPen(BORDER, 1))
+        painter.drawLine(QPointF(rect.left() + 96, baseline), QPointF(center - 180, baseline))
+        painter.drawLine(QPointF(center + 180, baseline), QPointF(rect.right() - 96, baseline))
+        painter.setPen(QPen(ACCENT, 2))
+        painter.drawLine(QPointF(center - 72, baseline), QPointF(center + 72, baseline))
+        painter.setPen(QPen(TEXT, 1))
         painter.drawText(title_rect, Qt.AlignCenter, self.title)
 
 
 class PageShell(QWidget):
     def __init__(self, title: str, subtitle: str) -> None:
         super().__init__()
-        self._scan_phase = 0
-        self._scan_timer = QTimer(self)
-        self._scan_timer.setInterval(90)
-        self._scan_timer.timeout.connect(self._advance_scan)
         self.setObjectName("page")
 
         self.layout = QVBoxLayout(self)
@@ -423,48 +297,16 @@ class PageShell(QWidget):
         self.layout.addWidget(header, 0, Qt.AlignHCenter)
         self.layout.addWidget(subheader)
 
-    def showEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        super().showEvent(event)
-        self._scan_timer.start()
-
-    def hideEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        self._scan_timer.stop()
-        super().hideEvent(event)
-
-    def _advance_scan(self) -> None:
-        old_rect = self._page_scan_rect()
-        self._scan_phase = (self._scan_phase + 1) % 240
-        self.update(old_rect.united(self._page_scan_rect()).adjusted(0, -2, 0, 2))
-
-    def _page_scan_rect(self) -> QRect:
-        scan_y = (self._scan_phase * 9) % max(1, self.height())
-        return QRect(0, scan_y, self.width(), 4)
-
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, False)
 
         gradient = QLinearGradient(0, self.height(), self.width(), 0)
-        gradient.setColorAt(0, QColor("#020303"))
-        gradient.setColorAt(0.52, QColor("#071313"))
-        gradient.setColorAt(1, QColor("#123f42"))
+        gradient.setColorAt(0, QColor("#0b1120"))
+        gradient.setColorAt(0.55, QColor("#0f172a"))
+        gradient.setColorAt(1, QColor("#111827"))
         painter.fillRect(self.rect(), gradient)
-
-        painter.setPen(QPen(QColor(20, 44, 44, 150), 3))
-        spacing = 12
-        for y in range(5, self.height(), spacing):
-            for x in range(5, self.width(), spacing):
-                painter.drawPoint(x, y)
-        painter.setPen(QPen(QColor(53, 244, 255, 42), 1))
-        scan_y = self._page_scan_rect().top()
-        painter.drawLine(QPointF(0, scan_y), QPointF(self.width(), scan_y))
-
-        painter.setPen(QPen(QColor(125, 26, 38, 115), 1))
-        painter.drawLine(QPointF(18, 38), QPointF(90, 38))
-        painter.drawLine(QPointF(self.width() - 220, 26), QPointF(self.width() - 96, 26))
-        painter.drawLine(QPointF(self.width() - 96, 26), QPointF(self.width() - 64, 2))
-        painter.drawLine(QPointF(30, self.height() - 32), QPointF(180, self.height() - 32))
 
 
 class CategoryPage(PageShell):
@@ -604,6 +446,11 @@ MONITOR_PREVIEWS: dict[str, list[str]] = {
         "Vacuum pressure timeline",
         "Beam intensity overlay",
         "Interlock status preview",
+    ],
+    "Database History": [
+        "Logged channel timelines",
+        "Run history and CSV export",
+        "SQLite readings review",
     ],
     "RF Power Monitoring": [
         "Forward/reflected RF power",
