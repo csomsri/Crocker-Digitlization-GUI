@@ -18,6 +18,8 @@ __pycache__/
 *.py[cod]
 CrockerGUI/data/
 CrockerGUI/logs/
+exports/*
+!exports/.gitkeep
 
 # Native build artifacts
 *.obj

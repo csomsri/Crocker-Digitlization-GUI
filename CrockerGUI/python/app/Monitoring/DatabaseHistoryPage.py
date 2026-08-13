@@ -1050,7 +1050,7 @@ class DatabaseHistoryPage(DetailPage):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export database history plots",
-            "database_history_plots.pdf",
+            str(self._exports_path("database_history_plots.pdf")),
             "PDF (*.pdf)",
         )
         if not path:
@@ -1103,6 +1103,14 @@ class DatabaseHistoryPage(DetailPage):
                 "image_data": image_data,
             }
         )
+
+    def _exports_dir(self) -> Path:
+        path = Path(__file__).resolve().parents[4] / "exports"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _exports_path(self, filename: str) -> Path:
+        return self._exports_dir() / filename
 
     def _plot_image_data(self, plot_widget: HistoryPlotWidget, index: int) -> str:
         image = self._plot_image(plot_widget)
@@ -1185,7 +1193,7 @@ class DatabaseHistoryPage(DetailPage):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Export database history",
-            "database_history.csv",
+            str(self._exports_path("database_history.csv")),
             "CSV (*.csv)",
         )
         if not path:
