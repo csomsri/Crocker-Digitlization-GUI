@@ -1,15 +1,39 @@
 from __future__ import annotations
 
 import csv
+import base64
+import json
 import sqlite3
+import subprocess
+import sys
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QPointF, QRectF, Qt, QDate, QDateTime, QMimeData, QTime
-from PySide6.QtGui import QColor, QDrag, QPainter, QPainterPath, QPen
+from PySide6.QtCore import (
+    QPointF,
+    QRectF,
+    Qt,
+    QDate,
+    QDateTime,
+    QBuffer,
+    QByteArray,
+    QIODevice,
+    QMimeData,
+    QTimer,
+    QTime,
+)
+from PySide6.QtGui import (
+    QColor,
+    QDrag,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QImage,
+)
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QButtonGroup,
     QDateEdit,
     QFileDialog,
@@ -100,17 +124,22 @@ class HistoryPlotWidget(QWidget):
         self,
         title: str,
         channels_changed: Callable[[], None],
+        hover_time_changed: Callable[[float | None], None],
+        marker_time_pinned: Callable[[float], None],
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.title = title
         self.channels_changed = channels_changed
+        self.hover_time_changed = hover_time_changed
+        self.marker_time_pinned = marker_time_pinned
         self.channels: list[str] = []
         self.series: dict[str, list[tuple[float, float]]] = {}
         self.units: dict[str, str] = {}
         self._hover_time: float | None = None
         self._hover_point: tuple[str, float, float] | None = None
         self._pinned_times: list[float] = []
+        self._show_time_tooltip = False
         self.setAcceptDrops(True)
         self.setMouseTracking(True)
         self.setObjectName("historyPlot")
@@ -132,12 +161,23 @@ class HistoryPlotWidget(QWidget):
             return
         self.channels.clear()
         self.series.clear()
-        self._pinned_times.clear()
         self.channels_changed()
         self.update()
 
     def clear_pinned_tooltips(self) -> None:
         self._pinned_times.clear()
+        self.update()
+
+    def set_shared_markers(
+        self,
+        hover_time: float | None,
+        pinned_times: list[float],
+        show_time_tooltip: bool,
+    ) -> None:
+        self._hover_time = hover_time
+        self._hover_point = None
+        self._pinned_times = list(pinned_times)
+        self._show_time_tooltip = show_time_tooltip
         self.update()
 
     def set_series(self, series: dict[str, list[tuple[float, float]]]) -> None:
@@ -170,23 +210,22 @@ class HistoryPlotWidget(QWidget):
         event.acceptProposedAction()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        self._update_hover_at(event.position())
-        self.update()
+        if self._update_hover_at(event.position()):
+            self.hover_time_changed(self._hover_time)
+        else:
+            self.hover_time_changed(None)
 
     def mousePressEvent(self, event) -> None:  # noqa: N802 - Qt API name
         if event.button() == Qt.MouseButton.LeftButton and self._update_hover_at(event.position()):
             if self._hover_time is not None:
-                self._pinned_times.append(self._hover_time)
-                self.update()
+                self.marker_time_pinned(self._hover_time)
                 event.accept()
                 return
         super().mousePressEvent(event)
 
     def leaveEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
-        self._hover_time = None
-        self._hover_point = None
-        self.update()
+        self.hover_time_changed(None)
 
     def _update_hover_at(self, position: QPointF) -> bool:
         plot = self._plot_rect()
@@ -306,7 +345,7 @@ class HistoryPlotWidget(QWidget):
                 painter, plot, footer, start, end, low, high, pinned_time, index
             )
 
-        if self._hover_point is not None and self._hover_time is not None:
+        if self._hover_time is not None:
             self._draw_marker_set(
                 painter, plot, footer, start, end, low, high, self._hover_time, len(self._pinned_times)
             )
@@ -340,7 +379,8 @@ class HistoryPlotWidget(QWidget):
             painter.drawLine(QPointF(point.x() - 6, point.y()), QPointF(point.x() + 6, point.y()))
             painter.drawLine(QPointF(point.x(), point.y() - 6), QPointF(point.x(), point.y() + 6))
         self._draw_value_label(painter, QPointF(x, plot.top()), samples, lane_index)
-        self._draw_time_label(painter, x, footer, marker_time)
+        if self._show_time_tooltip:
+            self._draw_time_label(painter, x, footer, marker_time)
 
     def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
         if not self.channels:
@@ -492,6 +532,16 @@ class DatabaseHistoryPage(DetailPage):
         )
         self.db_path = self._resolve_db_path(Path(db_path))
         self.last_rows: list[tuple[float, str, float, str]] = []
+        self._shared_hover_time: float | None = None
+        self._shared_pinned_times: list[float] = []
+        self._last_plotted_sample_count = 0
+        self._last_plot_time_range: tuple[float, float] | None = None
+        self._has_loaded_defaults = False
+        self._pdf_process: subprocess.Popen[str] | None = None
+        self._pdf_poll_timer = QTimer(self)
+        self._pdf_poll_timer.setInterval(250)
+        self._pdf_poll_timer.timeout.connect(self._poll_pdf_export)
+        self._pdf_output_path = ""
         self.header.hide()
 
         _, panel_layout = self.add_workspace()
@@ -509,9 +559,11 @@ class DatabaseHistoryPage(DetailPage):
         self.status_label.setObjectName("historyStatusValue")
         browse_button = QPushButton("Open DB")
         reload_button = QPushButton("Reload")
+        self.export_pdf_button = QPushButton("Export PDF")
         browse_button.clicked.connect(self._choose_db)
         reload_button.clicked.connect(self.reload)
-        for button in (browse_button, reload_button):
+        self.export_pdf_button.clicked.connect(self.export_pdf)
+        for button in (browse_button, reload_button, self.export_pdf_button):
             button.setCursor(Qt.PointingHandCursor)
         self.tab_group = QButtonGroup(self)
         self.tab_group.setExclusive(True)
@@ -602,6 +654,7 @@ class DatabaseHistoryPage(DetailPage):
         file_actions_layout = QHBoxLayout(file_actions)
         file_actions_layout.setContentsMargins(0, 0, 0, 0)
         file_actions_layout.setSpacing(7)
+        file_actions_layout.addWidget(self.export_pdf_button)
         file_actions_layout.addWidget(browse_button)
         file_actions_layout.addWidget(reload_button)
         top.addWidget(file_actions)
@@ -638,7 +691,12 @@ class DatabaseHistoryPage(DetailPage):
         self.plot_widgets: list[HistoryPlotWidget] = []
         for index in range(3):
             plot_row = QHBoxLayout()
-            plot_widget = HistoryPlotWidget(f"Plot {index + 1}", self.plot)
+            plot_widget = HistoryPlotWidget(
+                f"Plot {index + 1}",
+                self.plot,
+                self._set_shared_hover_time,
+                self._pin_shared_marker,
+            )
             self.plot_widgets.append(plot_widget)
             clear_plot = QPushButton("Clear Plot")
             clear_plot.setMaximumWidth(96)
@@ -650,7 +708,7 @@ class DatabaseHistoryPage(DetailPage):
             clear_tooltips.setMaximumWidth(96)
             clear_tooltips.setCursor(Qt.PointingHandCursor)
             clear_tooltips.clicked.connect(
-                lambda checked=False, plot=plot_widget: plot.clear_pinned_tooltips()
+                lambda checked=False: self._clear_shared_markers()
             )
             plot_actions = QVBoxLayout()
             plot_actions.setSpacing(8)
@@ -707,6 +765,26 @@ class DatabaseHistoryPage(DetailPage):
 
         self.reload()
 
+    def _set_shared_hover_time(self, hover_time: float | None) -> None:
+        self._shared_hover_time = hover_time
+        self._sync_shared_markers()
+
+    def _pin_shared_marker(self, marker_time: float) -> None:
+        self._shared_pinned_times.append(marker_time)
+        self._sync_shared_markers()
+
+    def _clear_shared_markers(self) -> None:
+        self._shared_pinned_times.clear()
+        self._sync_shared_markers()
+
+    def _sync_shared_markers(self) -> None:
+        for index, plot_widget in enumerate(getattr(self, "plot_widgets", [])):
+            plot_widget.set_shared_markers(
+                self._shared_hover_time,
+                self._shared_pinned_times,
+                index == len(self.plot_widgets) - 1,
+            )
+
     def _resolve_db_path(self, path: Path) -> Path:
         if path.exists() or path.is_absolute():
             return path
@@ -739,6 +817,17 @@ class DatabaseHistoryPage(DetailPage):
             self.status_label.setText("Database not found")
             self.channel_list.clear()
             return
+        selected_channels = {
+            item.data(Qt.UserRole)
+            for item in self.channel_list.selectedItems()
+            if item.data(Qt.UserRole)
+        }
+        existing_plot_channels = [
+            list(plot.channels)
+            for plot in getattr(self, "plot_widgets", [])
+        ]
+        had_plot_assignments = any(existing_plot_channels)
+        previous_date = self.date_edit.date()
         try:
             with self._connect() as connection:
                 channels = [
@@ -767,19 +856,34 @@ class DatabaseHistoryPage(DetailPage):
         for channel in ordered:
             item = QListWidgetItem(CHANNEL_LABELS.get(channel, channel))
             item.setData(Qt.UserRole, channel)
+            if channel in selected_channels:
+                item.setSelected(True)
             self.channel_list.addItem(item)
-        for row in range(min(4, self.channel_list.count())):
-            self.channel_list.item(row).setSelected(True)
-        for plot in getattr(self, "plot_widgets", []):
-            plot.clear_channels()
-        if getattr(self, "plot_widgets", None):
+
+        if not selected_channels:
+            for row in range(min(4, self.channel_list.count())):
+                self.channel_list.item(row).setSelected(True)
+
+        available_channels = set(ordered)
+        if had_plot_assignments:
+            for plot, plot_channels in zip(self.plot_widgets, existing_plot_channels):
+                plot.channels = [
+                    channel for channel in plot_channels if channel in available_channels
+                ]
+        elif not self._has_loaded_defaults and getattr(self, "plot_widgets", None):
             for row in range(min(3, self.channel_list.count())):
                 channel = self.channel_list.item(row).data(Qt.UserRole)
                 if channel:
                     self.plot_widgets[row % len(self.plot_widgets)].channels.append(channel)
+        self._has_loaded_defaults = True
 
         if start is not None and end is not None:
-            self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(end)).date())
+            data_start_date = QDateTime.fromSecsSinceEpoch(int(start)).date()
+            data_end_date = QDateTime.fromSecsSinceEpoch(int(end)).date()
+            if self._has_loaded_defaults and data_start_date <= previous_date <= data_end_date:
+                self.date_edit.setDate(previous_date)
+            else:
+                self.date_edit.setDate(data_end_date)
             start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
             end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
             self.status_label.setText(f"{count:,} readings · {start_text} to {end_text}")
@@ -820,6 +924,8 @@ class DatabaseHistoryPage(DetailPage):
             for plot_widget in self.plot_widgets:
                 plot_widget.set_series({})
             self._fill_summary({})
+            self._last_plotted_sample_count = 0
+            self._last_plot_time_range = None
             self.status_label.setText("No variables assigned")
             return
 
@@ -879,6 +985,15 @@ class DatabaseHistoryPage(DetailPage):
         self._fill_summary(all_series)
         day_text = selected_date.toString("yyyy-MM-dd")
         plotted_samples = sum(len(values) for values in all_series.values())
+        plotted_times = [
+            timestamp
+            for values in all_series.values()
+            for timestamp, _value in values
+        ]
+        self._last_plotted_sample_count = plotted_samples
+        self._last_plot_time_range = (
+            (min(plotted_times), max(plotted_times)) if plotted_times else None
+        )
         self.status_label.setText(f"{plotted_samples:,} plotted samples · {day_text}")
 
     def _limit_points(
@@ -921,6 +1036,147 @@ class DatabaseHistoryPage(DetailPage):
             ]
             for column, text in enumerate(cells):
                 self.summary_table.setItem(row, column, QTableWidgetItem(text))
+
+    def export_pdf(self) -> None:
+        if self._pdf_process is not None and self._pdf_process.poll() is None:
+            QMessageBox.information(self, "Export PDF", "A PDF export is already running.")
+            return
+        if not self.last_rows:
+            self.plot()
+        if not self.last_rows:
+            QMessageBox.information(self, "Export PDF", "Plot data before exporting.")
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export database history plots",
+            "database_history_plots.pdf",
+            "PDF (*.pdf)",
+        )
+        if not path:
+            return
+        if not path.lower().endswith(".pdf"):
+            path = f"{path}.pdf"
+
+        previous_tab = self.data_stack.currentIndex()
+        self.data_stack.setCurrentIndex(0)
+        QApplication.processEvents()
+        try:
+            manifest = self._prepare_pdf_manifest(path)
+        except Exception as exc:
+            QMessageBox.critical(self, "Export PDF", str(exc))
+            return
+        finally:
+            self.data_stack.setCurrentIndex(previous_tab)
+
+        self.export_pdf_button.setEnabled(False)
+        self.status_label.setText("Exporting PDF...")
+        self._pdf_output_path = path
+        script_path = Path(__file__).with_name("export_history_pdf.py")
+        try:
+            self._pdf_process = subprocess.Popen(
+                [sys.executable, str(script_path), "-"],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                cwd=str(Path(__file__).resolve().parents[3]),
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+            )
+            if self._pdf_process.stdin is not None:
+                self._pdf_process.stdin.write(manifest)
+                self._pdf_process.stdin.close()
+        except Exception as exc:
+            self._pdf_export_failed(str(exc))
+            return
+        self._pdf_poll_timer.start()
+
+    def _prepare_pdf_manifest(self, output_path: str) -> str:
+        image_data = [
+            self._plot_image_data(plot_widget, index)
+            for index, plot_widget in enumerate(self.plot_widgets)
+        ]
+        return json.dumps(
+            {
+                "output_path": output_path,
+                "header_text": self._pdf_header_text(),
+                "image_data": image_data,
+            }
+        )
+
+    def _plot_image_data(self, plot_widget: HistoryPlotWidget, index: int) -> str:
+        image = self._plot_image(plot_widget)
+        data = QByteArray()
+        buffer = QBuffer(data)
+        if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
+            raise RuntimeError(f"Could not prepare Plot {index + 1} for PDF export.")
+        if not image.save(buffer, "PNG"):
+            raise RuntimeError(f"Could not capture Plot {index + 1} for PDF export.")
+        return base64.b64encode(bytes(data)).decode("ascii")
+
+    def _plot_image(self, plot_widget: HistoryPlotWidget) -> QImage:
+        plot_widget.repaint()
+        snapshot = plot_widget.grab()
+        if snapshot.isNull():
+            image = QImage(max(1, plot_widget.width()), max(1, plot_widget.height()), QImage.Format.Format_RGB32)
+            image.fill(QColor("#0f172a"))
+            return image
+        return snapshot.toImage()
+
+    def _pdf_header_text(self) -> str:
+        selected_date = self.date_edit.date().toString("MM/dd/yyyy")
+        sample_count = self._last_plotted_sample_count or len(self.last_rows)
+        return (
+            f"Date: {selected_date}    "
+            f"Time: {self._pdf_time_text()}    "
+            f"Number of Samples: {sample_count:,}"
+        )
+
+    def _poll_pdf_export(self) -> None:
+        process = self._pdf_process
+        if process is None:
+            self._pdf_poll_timer.stop()
+            return
+        exit_code = process.poll()
+        if exit_code is None:
+            return
+        self._pdf_poll_timer.stop()
+        stderr = process.stderr.read() if process.stderr is not None else ""
+        if exit_code == 0:
+            self.status_label.setText("PDF export complete")
+            QMessageBox.information(self, "Export PDF", f"Saved PDF to:\n{self._pdf_output_path}")
+        else:
+            self._pdf_export_failed(stderr.strip() or f"PDF export failed with exit code {exit_code}.")
+            return
+        self._pdf_export_cleaned_up()
+
+    def _pdf_export_failed(self, message: str) -> None:
+        self.status_label.setText("PDF export failed")
+        QMessageBox.critical(self, "Export PDF", message)
+        self._pdf_export_cleaned_up()
+
+    def _pdf_export_cleaned_up(self) -> None:
+        self._pdf_poll_timer.stop()
+        self.export_pdf_button.setEnabled(True)
+        self._pdf_process = None
+        self._pdf_output_path = ""
+
+    def _pdf_time_text(self) -> str:
+        if self._last_plot_time_range is None:
+            return "--"
+        start, end = self._last_plot_time_range
+        start_text = self._format_standard_time(datetime.fromtimestamp(start))
+        end_text = self._format_standard_time(datetime.fromtimestamp(end))
+        if start_text == end_text:
+            return start_text
+        return f"{start_text} - {end_text}"
+
+    def _format_standard_time(self, value: datetime) -> str:
+        if value.minute == 0:
+            text = value.strftime("%I %p")
+        else:
+            text = value.strftime("%I:%M %p")
+        return text.lstrip("0")
 
     def export_csv(self) -> None:
         if not self.last_rows:

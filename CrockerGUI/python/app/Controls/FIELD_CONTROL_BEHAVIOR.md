@@ -10,8 +10,8 @@ expected startup behavior for the running-machine simulation.
 | Channel | The trim coil or related supply being viewed or commanded. |
 | Actual | The live machine readback. This should always follow what the machine reports. |
 | Target | The value the GUI is preparing to command when Apply is pressed. |
-| Output / On | The desired output power state for that channel once GUI control is enabled. |
-| En | Whether the GUI is allowed to control that channel. |
+| Output / On | The desired output power state for that channel. |
+| En | Whether the channel follows the GUI Target. |
 | Apply | Sends the selected channel's Target, Output, and En state to the backend. |
 | Hold | Copies the selected channel's current Actual value into Target. |
 | Zero | Sets the selected channel's Target to 0 A. It does not command the machine until Apply is pressed. |
@@ -32,7 +32,8 @@ Output / On: ON
 En: OFF
 ```
 
-That means the machine is on and being read, but the GUI has not taken control.
+That means the machine output is on and being read, but the channel is not
+following the GUI Target yet.
 
 ## Startup Behavior
 
@@ -84,14 +85,15 @@ Output / On is not the same as GUI enable.
 
 | Output / On | En | Intended Behavior |
 | --- | --- | --- |
-| ON | OFF | Machine remains running. GUI is watching only. |
+| ON | OFF | Channel output remains on, but it is not following the GUI Target. |
 | ON | ON | GUI commands the channel toward Target. |
 | OFF | ON | GUI commands the channel output off, so Actual should move toward 0 A. |
-| OFF | OFF | GUI is not controlling. In `smoke2`, this must not shut the machine off. |
+| OFF | OFF | Channel output is off, so Actual should move toward 0 A. |
 
-Because En is the GUI authority switch, `smoke2` ignores Output and Target
-commands while En is OFF. This prevents the GUI's default Target or Output state
-from accidentally changing a running machine during startup.
+This is why `smoke2` starts with Output / On set to ON. The machine is already
+running, so the GUI should reflect that live output state at startup. Operators
+can still turn trim coils off one by one, or use bulk controls, by changing
+Output / On and pressing Apply.
 
 ## Hold Behavior
 
@@ -124,5 +126,5 @@ python main.py -simulation -smoke2
 - En starts OFF.
 - Actual follows the simulated machine readback.
 - Target remains the GUI command value.
+- Output / On can turn a channel output on or off.
 - The machine follows Target only after En is ON and Apply is pressed.
-

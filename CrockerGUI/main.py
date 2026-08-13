@@ -6,6 +6,15 @@ from pathlib import Path
 
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
+
+def preload_zmq_for_qt(simulation_mode: str | None) -> None:
+    if simulation_mode not in {"smoke2", "cyclotron"}:
+        return
+    # PySide installs an import hook that can interfere with pyzmq's import
+    # chain on Python 3.13. Load pyzmq before Qt/PySide modules are imported.
+    import zmq  # noqa: F401
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the Crocker Digitalization GUI.")
     backend = parser.add_mutually_exclusive_group(required=True)
@@ -76,6 +85,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = parse_args()
+    preload_zmq_for_qt(args.simulation_mode)
     from python.app.MainWindow import run_app
 
     raise SystemExit(

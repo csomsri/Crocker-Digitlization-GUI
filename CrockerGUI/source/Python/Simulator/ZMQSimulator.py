@@ -59,11 +59,8 @@ class Smoke2Plant:
     """Running-machine smoke plant for GUI handoff tests.
 
     The plant starts with nonzero live currents and reports output-on telemetry,
-    but control-enable is false. Until the GUI enables control for a channel,
-    that channel keeps following its own small running drift. Once the GUI sends
-    Enable is treated as GUI authority. Until Enable is true for a channel,
-    server replies are telemetry handshakes only and do not change the running
-    output state. Once Enable is true, Output and Target become active commands.
+    but control-enable is false. Output / On is an output-state command, while
+    Enable indicates whether the channel should follow the GUI target.
     """
 
     def __init__(self) -> None:
@@ -88,6 +85,7 @@ class Smoke2Plant:
         self.targets = list(self.running_values)
         self.on_off = [True] * NUM_CHANNELS
         self.enabled = [False] * NUM_CHANNELS
+        self._received_operator_command = False
 
     def frame(self) -> SimulatorFrame:
         return SimulatorFrame(
@@ -106,20 +104,30 @@ class Smoke2Plant:
         requested_enabled = [
             bool(mask & (1 << (NUM_CHANNELS + index))) for index in range(NUM_CHANNELS)
         ]
+        is_default_server_reply = (
+            mask == 0
+            and all(abs(target - 100.0) < 1.0e-9 for target in requested_targets)
+        )
+        if not is_default_server_reply:
+            self._received_operator_command = True
+        if self._received_operator_command:
+            self.targets = requested_targets
+            self.on_off = requested_on
+            self.enabled = requested_enabled
 
         self.step += 1
         response_alpha = min(1.0, 2.8 * max(0.0, dt))
         drift_alpha = min(1.0, 1.2 * max(0.0, dt))
         for index in range(NUM_CHANNELS):
-            self.enabled[index] = requested_enabled[index]
-            if requested_enabled[index]:
-                self.on_off[index] = requested_on[index]
-                self.targets[index] = requested_targets[index]
+            if self.enabled[index]:
                 target = self.targets[index] if self.on_off[index] else 0.0
                 alpha = response_alpha
-            else:
+            elif self.on_off[index]:
                 target = self._running_value(index)
                 alpha = drift_alpha
+            else:
+                target = 0.0
+                alpha = response_alpha
             self.channels[index] += (target - self.channels[index]) * alpha
 
     def _running_value(self, index: int) -> float:

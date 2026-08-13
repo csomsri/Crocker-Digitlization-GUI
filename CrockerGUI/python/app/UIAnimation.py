@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPropertyAnimation
+from PySide6.QtCore import QEvent, QObject
 from PySide6.QtWidgets import (
-    QGraphicsOpacityEffect,
     QPushButton,
     QStackedWidget,
     QWidget,
@@ -15,8 +14,6 @@ class UIAnimationController(QObject):
     def __init__(self, stack: QStackedWidget, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self.stack = stack
-        self._fade_animation: QPropertyAnimation | None = None
-        self.stack.currentChanged.connect(self._fade_current_page)
 
     def attach_to(self, root: QWidget) -> None:
         root.installEventFilter(self)
@@ -49,26 +46,13 @@ class UIAnimationController(QObject):
         self._set_button_state(button, hover=False, pressed=False)
 
     def _set_button_state(self, button: QPushButton, *, hover: bool, pressed: bool) -> None:
+        if (
+            button.property("motionHover") == hover
+            and button.property("motionPressed") == pressed
+        ):
+            return
         button.setProperty("motionHover", hover)
         button.setProperty("motionPressed", pressed)
         button.style().unpolish(button)
         button.style().polish(button)
         button.update()
-
-    def _fade_current_page(self) -> None:
-        page = self.stack.currentWidget()
-        if page is None:
-            return
-
-        effect = QGraphicsOpacityEffect(page)
-        effect.setOpacity(0.0)
-        page.setGraphicsEffect(effect)
-
-        animation = QPropertyAnimation(effect, b"opacity", self)
-        animation.setDuration(220)
-        animation.setStartValue(0.0)
-        animation.setEndValue(1.0)
-        animation.setEasingCurve(QEasingCurve.OutCubic)
-        animation.finished.connect(lambda page=page: page.setGraphicsEffect(None))
-        self._fade_animation = animation
-        animation.start()
