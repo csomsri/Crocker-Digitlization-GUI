@@ -9,17 +9,27 @@ if TYPE_CHECKING:
     from python.app.MainWindow import MainWindow
 
 
+def screen_key(screen) -> str:
+    geometry = screen.geometry()
+    return (
+        f"{screen.name()}|"
+        f"{geometry.x()},{geometry.y()},"
+        f"{geometry.width()}x{geometry.height()}"
+    )
+
+
 class AssignedMonitorWindow(QMainWindow):
     """Hosts one assigned application page on an auxiliary monitor."""
 
-    def __init__(self, owner: MainWindow, screen_name: str) -> None:
+    def __init__(self, owner: MainWindow, screen_id: str, screen_name: str) -> None:
         super().__init__()
         self.owner = owner
+        self.screen_id = screen_id
         self.screen_name = screen_name
         self.page_name = ""
         self.setWindowTitle(f"Crocker Display - {screen_name}")
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
-        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
 
     def apply_display_mode(
         self,
@@ -29,7 +39,6 @@ class AssignedMonitorWindow(QMainWindow):
         flags = self.windowFlags()
         desired_flags = flags
         desired_flags &= ~Qt.WindowType.FramelessWindowHint
-        desired_flags |= Qt.WindowType.WindowDoesNotAcceptFocus
         if desired_flags != flags:
             self.setWindowFlags(desired_flags)
 
@@ -40,22 +49,37 @@ class AssignedMonitorWindow(QMainWindow):
                 handle.setScreen(screen)
         if mode == "Windowed":
             if screen is not None:
-                geometry = self._safe_screen_rect(screen, available=True)
-                margins = self._frame_margins()
-                requested_width, requested_height = window_resolution or (1280, 820)
-                width = min(requested_width, max(1, geometry.width() - margins.left() - margins.right()))
-                height = min(requested_height, max(1, geometry.height() - margins.top() - margins.bottom()))
-                self.resize(width, height)
-                self.move(
-                    geometry.x() + int((geometry.width() - width) / 2),
-                    geometry.y() + int((geometry.height() - height) / 2),
-                )
+                self._place_windowed(screen, window_resolution)
             if self.isFullScreen() or self.isMaximized() or not self.isVisible():
                 self.setWindowState(Qt.WindowState.WindowNoState)
                 self.showNormal()
         else:
-            if not self.isFullScreen():
+            if screen is not None:
+                self._place_fullscreen(screen)
+            elif not self.isFullScreen():
                 self.showFullScreen()
+
+    def _place_windowed(self, screen, window_resolution: tuple[int, int] | None) -> None:
+        geometry = self._safe_screen_rect(screen, available=True)
+        margins = self._frame_margins()
+        requested_width, requested_height = window_resolution or (1280, 820)
+        width = min(requested_width, max(1, geometry.width() - margins.left() - margins.right()))
+        height = min(requested_height, max(1, geometry.height() - margins.top() - margins.bottom()))
+        self.resize(width, height)
+        self.move(
+            geometry.x() + int((geometry.width() - width) / 2),
+            geometry.y() + int((geometry.height() - height) / 2),
+        )
+
+    def _place_fullscreen(self, screen) -> None:
+        was_visible = self.isVisible()
+        if was_visible and (self.isFullScreen() or self.isMaximized()):
+            self.setWindowState(Qt.WindowState.WindowNoState)
+            self.showNormal()
+        geometry = self._safe_screen_rect(screen, available=False)
+        self.setGeometry(geometry)
+        self.move(geometry.topLeft())
+        self.showFullScreen()
 
     def _frame_margins(self) -> QMargins:
         handle = self.windowHandle()
@@ -76,7 +100,7 @@ class AssignedMonitorWindow(QMainWindow):
 
     def _assigned_screen(self):
         for screen in QApplication.screens():
-            if screen.name() == self.screen_name:
+            if screen_key(screen) == self.screen_id:
                 return screen
         return self.screen()
 

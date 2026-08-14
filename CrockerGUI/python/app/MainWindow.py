@@ -26,7 +26,7 @@ from python.app.Configuration.DatabaseMonitoringPage import (
 from python.app.Configuration.RecallPage import RecallPage
 from python.app.Configuration.ScalingPage import ScalingPage
 from python.app.Configuration.SettingsPage import SettingsPage
-from python.app.Display.AssignedMonitorWindow import AssignedMonitorWindow
+from python.app.Display.AssignedMonitorWindow import AssignedMonitorWindow, screen_key
 from python.app.Monitoring.BeamSourceExtractionPage import (
     BeamSourceExtractionPage,
 )
@@ -214,7 +214,6 @@ class MainWindow(QMainWindow):
             0,
             lambda: self.set_display_mode(self._display_mode, save=False, force=True),
         )
-        QTimer.singleShot(100, self._restore_monitor_assignments)
 
     def _assignable_page_names(self) -> list[str]:
         detail_names = (
@@ -224,19 +223,24 @@ class MainWindow(QMainWindow):
 
     def _monitor_entries(self) -> list[dict[str, object]]:
         main_screen = self.screen()
+        main_screen_id = screen_key(main_screen) if main_screen is not None else ""
         current_page = self._current_page_name()
         entries: list[dict[str, object]] = []
         for screen in QApplication.screens()[:4]:
+            screen_id = screen_key(screen)
             name = screen.name()
-            occupied = screen is main_screen
-            assigned_window = self._monitor_windows.get(name)
+            geometry = screen.geometry()
+            occupied = screen_id == main_screen_id
+            assigned_window = self._monitor_windows.get(screen_id)
             assignment = (
                 assigned_window.page_name
                 if assigned_window is not None
-                else self._settings.value(f"monitors/{name}/page", "", type=str)
+                else ""
             )
             entries.append({
+                "id": screen_id,
                 "name": name,
+                "label": f"{name} ({geometry.x()}, {geometry.y()}) {geometry.width()}x{geometry.height()}",
                 "occupied": occupied,
                 "assignment": current_page if occupied else assignment,
             })
@@ -255,33 +259,26 @@ class MainWindow(QMainWindow):
             settings_page.set_monitor_entries(self._monitor_entries())
 
     def _screens_changed(self) -> None:
-        available = {screen.name() for screen in QApplication.screens()}
-        for name, window in list(self._monitor_windows.items()):
-            if name not in available:
+        available = {screen_key(screen) for screen in QApplication.screens()}
+        for screen_id, window in list(self._monitor_windows.items()):
+            if screen_id not in available:
                 window.close()
-                del self._monitor_windows[name]
+                del self._monitor_windows[screen_id]
         settings_page = self.pages.get("Settings")
         if isinstance(settings_page, SettingsPage):
             settings_page.set_monitor_entries(self._monitor_entries())
 
-    def _restore_monitor_assignments(self) -> None:
-        assignments = {
-            str(entry["name"]): str(entry["assignment"])
-            for entry in self._monitor_entries()
-        }
-        self.apply_monitor_assignments(assignments)
-
     def apply_monitor_assignments(self, assignments: dict[str, str]) -> None:
         screens = {
-            screen.name(): screen for screen in QApplication.screens()[:4]
+            screen_key(screen): screen for screen in QApplication.screens()[:4]
         }
         main_screen = self.screen()
-        for name, screen in screens.items():
-            page_name = assignments.get(name, "")
-            self._settings.setValue(f"monitors/{name}/page", page_name)
+        main_screen_id = screen_key(main_screen) if main_screen is not None else ""
+        for screen_id, screen in screens.items():
+            page_name = assignments.get(screen_id, "")
 
-            if screen is main_screen:
-                window = self._monitor_windows.pop(name, None)
+            if screen_id == main_screen_id:
+                window = self._monitor_windows.pop(screen_id, None)
                 if window is not None:
                     window.close()
                 if page_name in self.pages:
@@ -289,15 +286,15 @@ class MainWindow(QMainWindow):
                 continue
 
             if not page_name:
-                window = self._monitor_windows.pop(name, None)
+                window = self._monitor_windows.pop(screen_id, None)
                 if window is not None:
                     window.close()
                 continue
 
-            window = self._monitor_windows.get(name)
+            window = self._monitor_windows.get(screen_id)
             if window is None:
-                window = AssignedMonitorWindow(self, name)
-                self._monitor_windows[name] = window
+                window = AssignedMonitorWindow(self, screen_id, screen.name())
+                self._monitor_windows[screen_id] = window
             window.winId()
             handle = window.windowHandle()
             if handle is not None:
@@ -307,7 +304,6 @@ class MainWindow(QMainWindow):
                 self._window_resolution_size(),
             )
             window.set_page(page_name)
-        self._settings.sync()
 
     def create_assigned_page(
         self,
@@ -656,6 +652,12 @@ class MainWindow(QMainWindow):
                 padding-bottom: 6px;
             }
 
+            QScrollArea#settingsScrollArea,
+            QWidget#settingsScrollContent {
+                background: transparent;
+                border: none;
+            }
+
             QFrame#displayModePanel {
                 background-color: rgba(15, 23, 42, 0.88);
                 border: 1px solid rgba(51, 65, 85, 0.90);
@@ -708,6 +710,54 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 font-weight: 700;
                 min-width: 180px;
+            }
+
+            QFrame#monitorPagePicker {
+                background-color: rgba(15, 23, 42, 0.90);
+                border: 1px solid rgba(51, 65, 85, 0.86);
+                border-radius: 8px;
+            }
+
+            QFrame#monitorPageGrid {
+                background-color: transparent;
+                border: none;
+            }
+
+            QLineEdit#monitorPageSearch {
+                background-color: rgba(15, 23, 42, 0.96);
+                border: 1px solid rgba(71, 85, 105, 0.88);
+                border-radius: 5px;
+                color: #e5e7eb;
+                min-height: 32px;
+                padding: 3px 10px;
+            }
+
+            QLineEdit#monitorPageSearch:focus {
+                border-color: rgba(96, 165, 250, 0.88);
+            }
+
+            QPushButton#monitorPageTile {
+                background-color: rgba(30, 41, 59, 0.76);
+                border: 1px solid rgba(71, 85, 105, 0.84);
+                border-radius: 6px;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 34px;
+                padding: 4px 8px;
+                text-align: center;
+            }
+
+            QPushButton#monitorPageTile:hover {
+                background-color: rgba(51, 65, 85, 0.92);
+                border-color: rgba(96, 165, 250, 0.72);
+                color: #ffffff;
+            }
+
+            QPushButton#monitorPageTile:checked {
+                background-color: rgba(37, 99, 235, 0.70);
+                border: 2px solid rgba(147, 197, 253, 0.86);
+                color: #eff6ff;
             }
 
             QComboBox#monitorPageSelect {
@@ -1131,6 +1181,25 @@ class MainWindow(QMainWindow):
                 min-height: 26px;
                 padding: 3px 8px;
                 text-align: center;
+            }
+
+            QPushButton#fieldLockButton {
+                background-color: rgba(96, 20, 31, 0.84);
+                border: 1px solid rgba(255, 122, 145, 0.46);
+                border-radius: 6px;
+                color: #ffe4e4;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 30px;
+                min-width: 124px;
+                padding: 4px 10px;
+                text-align: center;
+            }
+
+            QPushButton#fieldLockButton:checked {
+                background-color: rgba(6, 78, 59, 0.72);
+                border-color: rgba(45, 212, 191, 0.52);
+                color: #a7f3d0;
             }
 
             QFrame#fieldBackendStatus {

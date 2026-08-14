@@ -8,8 +8,13 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
+    QLayout,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QVBoxLayout,
+    QWidget,
 )
 
 from python.app.PageShell import DetailPage
@@ -45,14 +50,34 @@ class SettingsPage(DetailPage):
             go_back,
         )
 
-        _, panel_layout = self.add_workspace()
+        _, workspace_layout = self.add_workspace()
+        workspace_layout.setContentsMargins(10, 8, 10, 10)
+        workspace_layout.setSpacing(0)
+
+        scroll_area = QScrollArea()
+        scroll_area.setObjectName("settingsScrollArea")
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        scroll_content = QWidget()
+        scroll_content.setObjectName("settingsScrollContent")
+        panel_layout = QVBoxLayout(scroll_content)
+        panel_layout.setContentsMargins(16, 12, 16, 16)
+        panel_layout.setSpacing(12)
         panel_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        panel_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
+        scroll_area.setWidget(scroll_content)
+        workspace_layout.addWidget(scroll_area, 1)
         self._set_display_mode = set_display_mode
         self._set_window_resolution = set_window_resolution
         self._apply_monitor_assignments = apply_monitor_assignments
         self._page_names = page_names or []
         self._monitor_assignments: dict[str, str] = {}
         self._selected_monitor = ""
+        self.page_buttons: list[QPushButton] = []
 
         heading = QLabel("DISPLAY MODE")
         heading.setObjectName("settingsHeading")
@@ -130,17 +155,31 @@ class SettingsPage(DetailPage):
         self.monitor_layout.setSpacing(10)
         panel_layout.addWidget(self.monitor_panel)
 
+        assignment_panel = QFrame()
+        assignment_panel.setObjectName("monitorPagePicker")
+        assignment_panel_layout = QVBoxLayout(assignment_panel)
+        assignment_panel_layout.setContentsMargins(12, 10, 12, 12)
+        assignment_panel_layout.setSpacing(8)
+
         assignment_row = QHBoxLayout()
         self.assignment_label = QLabel("PAGE ASSIGNMENT")
         self.assignment_label.setObjectName("monitorAssignmentLabel")
-        self.monitor_page_select = QComboBox()
-        self.monitor_page_select.setObjectName("monitorPageSelect")
-        self.monitor_page_select.currentIndexChanged.connect(
-            self._page_assignment_changed
-        )
+        self.page_search = QLineEdit()
+        self.page_search.setObjectName("monitorPageSearch")
+        self.page_search.setPlaceholderText("Search pages")
+        self.page_search.textChanged.connect(self._refresh_page_picker)
         assignment_row.addWidget(self.assignment_label)
-        assignment_row.addWidget(self.monitor_page_select, 1)
-        panel_layout.addLayout(assignment_row)
+        assignment_row.addWidget(self.page_search, 1)
+        assignment_panel_layout.addLayout(assignment_row)
+
+        self.page_picker_grid_frame = QFrame()
+        self.page_picker_grid_frame.setObjectName("monitorPageGrid")
+        self.page_picker_grid = QGridLayout(self.page_picker_grid_frame)
+        self.page_picker_grid.setContentsMargins(0, 0, 0, 0)
+        self.page_picker_grid.setHorizontalSpacing(8)
+        self.page_picker_grid.setVerticalSpacing(8)
+        assignment_panel_layout.addWidget(self.page_picker_grid_frame)
+        panel_layout.addWidget(assignment_panel)
         self.set_monitor_entries(monitor_entries or [])
 
         hint = QLabel(
@@ -174,7 +213,7 @@ class SettingsPage(DetailPage):
             if widget is not None:
                 widget.deleteLater()
         self._monitor_assignments = {
-            str(entry["name"]): str(entry.get("assignment", ""))
+            str(entry.get("id", entry["name"])): str(entry.get("assignment", ""))
             for entry in entries
         }
 
@@ -194,19 +233,22 @@ class SettingsPage(DetailPage):
         self.monitor_group.setExclusive(True)
 
         for number, entry in enumerate(entries, start=1):
+            screen_id = str(entry.get("id", entry["name"]))
             name = str(entry["name"])
+            label = str(entry.get("label", name))
             occupied = bool(entry.get("occupied", False))
             suffix = "\n* PRIMARY" if occupied else ""
-            tile = QPushButton(f"{number}\n{name}{suffix}")
+            tile = QPushButton(f"{number}\n{label}{suffix}")
             tile.setObjectName("monitorTile")
             tile.setCheckable(True)
             tile.setMinimumSize(210, 112)
             tile.setCursor(Qt.CursorShape.PointingHandCursor)
             tile.setProperty("primary", occupied)
-            tile.setProperty("screenName", name)
+            tile.setProperty("screenId", screen_id)
+            tile.setProperty("screenName", label)
             tile.clicked.connect(
-                lambda checked=False, screen_name=name: self._select_monitor(
-                    screen_name
+                lambda checked=False, selected_id=screen_id: self._select_monitor(
+                    selected_id
                 )
             )
             self.monitor_group.addButton(tile)
@@ -219,36 +261,72 @@ class SettingsPage(DetailPage):
             empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.monitor_layout.addWidget(empty)
             self.assignment_label.hide()
-            self.monitor_page_select.hide()
+            self.page_search.hide()
+            self.page_picker_grid_frame.hide()
             return
 
-        names = [str(entry["name"]) for entry in entries]
-        if self._selected_monitor not in names:
-            self._selected_monitor = names[0]
+        screen_ids = [str(entry.get("id", entry["name"])) for entry in entries]
+        if self._selected_monitor not in screen_ids:
+            self._selected_monitor = screen_ids[0]
         for button in self.monitor_group.buttons():
-            if button.property("screenName") == self._selected_monitor:
+            if button.property("screenId") == self._selected_monitor:
                 button.setChecked(True)
                 break
         self.assignment_label.show()
-        self.monitor_page_select.show()
+        self.page_search.show()
+        self.page_picker_grid_frame.show()
         self._select_monitor(self._selected_monitor)
 
-    def _select_monitor(self, name: str) -> None:
-        self._selected_monitor = name
-        self.assignment_label.setText(f"PAGE FOR {name.upper()}")
-        self.monitor_page_select.blockSignals(True)
-        self.monitor_page_select.clear()
-        self.monitor_page_select.addItem("Unassigned", "")
-        for page_name in self._page_names:
-            self.monitor_page_select.addItem(page_name, page_name)
-        assignment = self._monitor_assignments.get(name, "")
-        if assignment and self.monitor_page_select.findData(assignment) < 0:
-            self.monitor_page_select.addItem(assignment, assignment)
-        index = self.monitor_page_select.findData(assignment)
-        self.monitor_page_select.setCurrentIndex(max(0, index))
-        self.monitor_page_select.blockSignals(False)
+    def _select_monitor(self, screen_id: str) -> None:
+        self._selected_monitor = screen_id
+        label = screen_id
+        for button in self.monitor_group.buttons():
+            if button.property("screenId") == screen_id:
+                label = str(button.property("screenName"))
+                break
+        assignment = self._monitor_assignments.get(screen_id, "")
+        suffix = assignment or "Unassigned"
+        self.assignment_label.setText(f"PAGE FOR {label.upper()}  -  {suffix.upper()}")
+        self._refresh_page_picker()
 
-    def _page_assignment_changed(self) -> None:
-        if self._selected_monitor:
-            selected_page = self.monitor_page_select.currentData() or ""
-            self._monitor_assignments[self._selected_monitor] = selected_page
+    def _refresh_page_picker(self, *_ignored) -> None:
+        while self.page_picker_grid.count():
+            item = self.page_picker_grid.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self.page_buttons = []
+
+        query = self.page_search.text().strip().lower()
+        selected_page = self._monitor_assignments.get(self._selected_monitor, "")
+        choices = [("Unassigned", ""), *[(page_name, page_name) for page_name in self._page_names]]
+        visible_choices = [
+            (label, page_name)
+            for label, page_name in choices
+            if not query or query in label.lower()
+        ]
+        if not visible_choices:
+            empty = QLabel("No matching pages")
+            empty.setObjectName("settingsDescription")
+            empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.page_picker_grid.addWidget(empty, 0, 0)
+            return
+
+        columns = 4
+        for index, (label, page_name) in enumerate(visible_choices):
+            button = QPushButton(label)
+            button.setObjectName("monitorPageTile")
+            button.setCheckable(True)
+            button.setChecked(page_name == selected_page)
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(
+                lambda checked=False, value=page_name: self._assign_page_to_selected_monitor(value)
+            )
+            self.page_buttons.append(button)
+            self.page_picker_grid.addWidget(button, index // columns, index % columns)
+
+    def _assign_page_to_selected_monitor(self, page_name: str) -> None:
+        if not self._selected_monitor:
+            return
+        self._monitor_assignments[self._selected_monitor] = page_name
+        self._select_monitor(self._selected_monitor)

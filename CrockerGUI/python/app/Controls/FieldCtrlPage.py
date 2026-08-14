@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from collections import deque
 from collections.abc import Callable
 
 from PySide6.QtCore import Qt, QTimer
@@ -27,6 +26,7 @@ from python.app.widgets.MagneticFieldWidgets import (
     MAX_GAUGE_VALUE,
     SimulatedActual,
     clamp,
+    magnetic_field_plot_state,
     make_speedometer,
     make_time_domain_plot,
 )
@@ -38,7 +38,6 @@ except Exception:
 
 
 CONVERGENCE_TOLERANCE = 0.5
-PLOT_SAMPLE_LIMIT = 240
 
 
 class FieldCtrlPage(DetailPage):
@@ -57,11 +56,15 @@ class FieldCtrlPage(DetailPage):
 
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
+        self.plot_state = magnetic_field_plot_state()
         self.selected_index = 0
-        self.target_values = [0.0 for _ in CHANNEL_NAMES]
+        self.target_values = self.plot_state.target_values
         self.actual_models = [SimulatedActual() for _ in CHANNEL_NAMES]
-        self.actual_values = [0.0 for _ in CHANNEL_NAMES]
-        self.history = [deque(maxlen=PLOT_SAMPLE_LIMIT) for _ in CHANNEL_NAMES]
+        self.actual_values = self.plot_state.actual_values
+        self.history = self.plot_state.history
+        self.applied_targets = [0.0 for _ in CHANNEL_NAMES]
+        self.applied_on = [False for _ in CHANNEL_NAMES]
+        self.applied_enabled = [False for _ in CHANNEL_NAMES]
         self.convergence_started_at: list[float | None] = [None for _ in CHANNEL_NAMES]
         self.convergence_elapsed = [0.0 for _ in CHANNEL_NAMES]
         self.converged = [True for _ in CHANNEL_NAMES]
@@ -71,6 +74,9 @@ class FieldCtrlPage(DetailPage):
         self.on_buttons: list[BubbleToggle] = []
         self.enable_buttons: list[BubbleToggle] = []
         self.plot_buttons: list[BubbleToggle] = []
+        self.toggle_bulk_buttons: list[QPushButton] = []
+        self.toggle_lock_button: QPushButton | None = None
+        self.toggles_locked = True
         self.digit_labels: list[QLabel] = []
         self.digit_steps = (1000.0, 100.0, 10.0, 1.0, 0.1, 0.01)
         self.selected_digit_index = 3
@@ -176,6 +182,8 @@ class FieldCtrlPage(DetailPage):
             button.setObjectName("fieldBulk")
             button.clicked.connect(handler)
             bulk_controls.addWidget(button)
+            if label != "Apply All":
+                self.toggle_bulk_buttons.append(button)
         layout.addLayout(bulk_controls, 0, 0, 1, 6)
 
         headers = ["Channel", "Actual", "Target", "Output", "En", "Plot"]
@@ -226,10 +234,12 @@ class FieldCtrlPage(DetailPage):
             plot_toggle = BubbleToggle(f"{channel} plotted", "#ffb52d")
             on_toggle.setChecked(True)
             enable_toggle.setChecked(False)
-            plot_toggle.setChecked(True)
+            plot_toggle.setChecked(self.plot_state.plot_enabled[row - 2])
             on_toggle.toggled.connect(lambda checked=False: self._mark_operator_toggle_edit())
             enable_toggle.toggled.connect(lambda checked=False: self._mark_operator_toggle_edit())
-            plot_toggle.toggled.connect(lambda checked=False: self._refresh_plot())
+            plot_toggle.toggled.connect(
+                lambda checked=False, idx=row - 2: self._set_plot_enabled(idx, checked)
+            )
             layout.addWidget(on_toggle, row, 3, Qt.AlignVCenter)
             layout.addWidget(enable_toggle, row, 4, Qt.AlignVCenter)
             layout.addWidget(plot_toggle, row, 5, Qt.AlignVCenter)
@@ -267,11 +277,18 @@ class FieldCtrlPage(DetailPage):
         self.destination_label.setObjectName("fieldStatusText")
         self.packets_label = QLabel("Packets\n0")
         self.packets_label.setObjectName("fieldStatusText")
+        self.toggle_lock_button = QPushButton()
+        self.toggle_lock_button.setObjectName("fieldLockButton")
+        self.toggle_lock_button.setCheckable(True)
+        self.toggle_lock_button.setCursor(Qt.PointingHandCursor)
+        self.toggle_lock_button.clicked.connect(self._set_toggle_lock_from_button)
 
         layout.addWidget(self.connection_dot)
         layout.addWidget(self.connection_label, 1)
         layout.addWidget(self.destination_label, 2)
         layout.addWidget(self.packets_label, 1)
+        layout.addWidget(self.toggle_lock_button)
+        self._refresh_toggle_lock()
         self._refresh_backend_status_panel()
         return panel
 
@@ -464,6 +481,10 @@ class FieldCtrlPage(DetailPage):
                     channel = channels[index]
                     if has_real_telemetry:
                         self.actual_values[index] = float(channel["actual"])
+                        if not self._operator_toggle_edited and not self._telemetry_state_synced:
+                            self.applied_targets[index] = self.actual_values[index]
+                            self.applied_on[index] = bool(channel["on"])
+                            self.applied_enabled[index] = bool(channel["enabled"])
                     if has_real_telemetry and not self._operator_toggle_edited and not self._telemetry_state_synced:
                         self._set_toggle_from_telemetry(self.on_buttons[index], bool(channel["on"]))
                         self._set_toggle_from_telemetry(self.enable_buttons[index], bool(channel["enabled"]))
@@ -492,6 +513,10 @@ class FieldCtrlPage(DetailPage):
         else:
             target = self.target_values[self.selected_index]
             self.actual_values[self.selected_index] = self.actual_models[self.selected_index].step(target)
+        for index in range(len(CHANNEL_NAMES)):
+            target = self.target_values[index]
+            actual = self.actual_values[index]
+            self._append_plot_sample(index, target, actual, target - actual)
         self._refresh_actual_display()
         self._update_speedometer()
 
@@ -505,7 +530,6 @@ class FieldCtrlPage(DetailPage):
 
         self.speedometer.set_values(target, actual, CHANNEL_NAMES[self.selected_index])
         self.speedometer.set_status(converged, error, CONVERGENCE_TOLERANCE, seconds, self.convergence_started_at[self.selected_index] is not None)
-        self._append_plot_sample(self.selected_index, target, actual, error)
         self._refresh_plot()
 
     def _start_backend(self) -> None:
@@ -549,11 +573,13 @@ class FieldCtrlPage(DetailPage):
         enabled = self.enable_buttons[index].isChecked()
         if self.backend_available and self.backend is not None:
             try:
-                self.backend.SetChannelCommand(index, target, on, enabled)
+                self._stage_selected_channel_command(index, target, on, enabled)
                 applied = bool(self.backend.ApplyCommand())
                 mode = self.backend_mode.upper()
                 self.backend_status = f"{mode} command applied" if applied else f"{mode} command rejected"
                 self.backend_label.setText(self.backend_status)
+                if applied:
+                    self._remember_applied_channel(index, target, on, enabled)
                 return applied
             except Exception as exc:
                 self.backend_status = f"Simulator command failed: {exc}"
@@ -561,21 +587,87 @@ class FieldCtrlPage(DetailPage):
                 return False
 
         self.actual_models[index].value = self.actual_values[index]
+        self._remember_applied_channel(index, target, on, enabled)
         self.backend_label.setText("Local UI fallback command applied")
         return True
 
+    def _stage_selected_channel_command(self, selected_index: int, target: float, on: bool, enabled: bool) -> None:
+        for index in range(len(CHANNEL_NAMES)):
+            if index == selected_index:
+                self.backend.SetChannelCommand(index, target, on, enabled)
+            else:
+                self.backend.SetChannelCommand(
+                    index,
+                    self.applied_targets[index],
+                    self.applied_on[index],
+                    self.applied_enabled[index],
+                )
+
+    def _remember_applied_channel(self, index: int, target: float, on: bool, enabled: bool) -> None:
+        self.applied_targets[index] = target
+        self.applied_on[index] = on
+        self.applied_enabled[index] = enabled
+
     def _apply_all_commands(self) -> None:
-        applied = [self._apply_channel_command(index) for index in range(len(CHANNEL_NAMES))]
-        for index, ok in enumerate(applied):
-            if ok:
+        applied = self._apply_all_channel_commands()
+        if applied:
+            for index in range(len(CHANNEL_NAMES)):
+                self._remember_applied_channel(
+                    index,
+                    self.target_values[index],
+                    self.on_buttons[index].isChecked(),
+                    self.enable_buttons[index].isChecked(),
+                )
                 self._begin_convergence_timer(index)
-        ok_count = sum(1 for ok in applied if ok)
+        ok_count = len(CHANNEL_NAMES) if applied else 0
         self.backend_label.setText(f"{ok_count}/{len(CHANNEL_NAMES)} channel commands applied")
 
+    def _apply_all_channel_commands(self) -> bool:
+        if self.backend_available and self.backend is not None:
+            try:
+                for index in range(len(CHANNEL_NAMES)):
+                    self.backend.SetChannelCommand(
+                        index,
+                        self.target_values[index],
+                        self.on_buttons[index].isChecked(),
+                        self.enable_buttons[index].isChecked(),
+                    )
+                return bool(self.backend.ApplyCommand())
+            except Exception as exc:
+                self.backend_status = f"Simulator command failed: {exc}"
+                self.backend_label.setText(self.backend_status)
+                return False
+        return True
+
     def _set_all_toggles(self, buttons: list[BubbleToggle], checked: bool) -> None:
+        if self.toggles_locked:
+            return
         self._operator_toggle_edited = True
         for button in buttons:
             button.setChecked(checked)
+
+    def _set_toggle_lock_from_button(self, unlocked: bool) -> None:
+        self.toggles_locked = not unlocked
+        self._refresh_toggle_lock()
+
+    def _refresh_toggle_lock(self) -> None:
+        unlocked = not self.toggles_locked
+        for button in [*self.on_buttons, *self.enable_buttons, *self.plot_buttons, *self.toggle_bulk_buttons]:
+            button.setEnabled(unlocked)
+        if self.toggle_lock_button is not None:
+            self.toggle_lock_button.blockSignals(True)
+            self.toggle_lock_button.setChecked(unlocked)
+            self.toggle_lock_button.setText("Lock Toggles" if unlocked else "Unlock Toggles")
+            self.toggle_lock_button.setToolTip(
+                "Lock the ON, Enable, and Plot controls"
+                if unlocked else
+                "Unlock the ON, Enable, and Plot controls"
+            )
+            self.toggle_lock_button.blockSignals(False)
+
+    def _set_plot_enabled(self, index: int, checked: bool) -> None:
+        self.plot_state.set_plot_enabled(index, checked)
+        self._refresh_plot()
 
     def _hold_selected_actual(self) -> None:
         self._set_selected_target(self.actual_values[self.selected_index])
@@ -617,7 +709,7 @@ class FieldCtrlPage(DetailPage):
         return self.convergence_elapsed[index]
 
     def _append_plot_sample(self, index: int, target: float, actual: float, error: float) -> None:
-        self.history[index].append((time.perf_counter(), actual, target, error))
+        self.plot_state.append_sample(index, time.perf_counter(), actual, target, error)
 
     def _refresh_plot(self) -> None:
         if not self.plot_buttons[self.selected_index].isChecked():

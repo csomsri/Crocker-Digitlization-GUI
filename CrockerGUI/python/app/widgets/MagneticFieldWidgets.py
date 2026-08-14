@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import math
+import time
+from collections import deque
 
 from PySide6.QtCore import QElapsedTimer, QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPen, QSurfaceFormat
@@ -10,6 +12,48 @@ from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QWidget
 
 MAX_GAUGE_VALUE = 1000.0
 CHANNEL_NAMES = [f"TC{i}" for i in range(1, 13)] + ["Main Magnet", "Centering Beam"]
+FIELD_PLOT_SAMPLE_LIMIT = 240
+FIELD_MONITOR_GROUPS = (
+    ("Trim Coils 1-4", tuple(range(0, 4))),
+    ("Trim Coils 5-8", tuple(range(4, 8))),
+    ("Trim Coils 9-12", tuple(range(8, 12))),
+)
+FIELD_AUXILIARY_GROUP = ("Auxiliary Magnets", (12, 13))
+
+
+class MagneticFieldPlotState:
+    def __init__(self) -> None:
+        self.target_values = [0.0 for _ in CHANNEL_NAMES]
+        self.actual_values = [0.0 for _ in CHANNEL_NAMES]
+        self.plot_enabled = [True for _ in CHANNEL_NAMES]
+        self.history = [deque(maxlen=FIELD_PLOT_SAMPLE_LIMIT) for _ in CHANNEL_NAMES]
+        self.last_updated = 0.0
+
+    def set_plot_enabled(self, index: int, enabled: bool) -> None:
+        if 0 <= index < len(self.plot_enabled):
+            self.plot_enabled[index] = bool(enabled)
+            self.last_updated = time.perf_counter()
+
+    def set_values(self, index: int, actual: float, target: float) -> None:
+        if 0 <= index < len(CHANNEL_NAMES):
+            self.actual_values[index] = clamp(actual)
+            self.target_values[index] = clamp(target)
+            self.last_updated = time.perf_counter()
+
+    def append_sample(self, index: int, timestamp: float, actual: float, target: float, error: float) -> None:
+        if 0 <= index < len(self.history):
+            self.set_values(index, actual, target)
+            self.history[index].append((timestamp, actual, target, error))
+
+    def enabled_indices(self, indices: tuple[int, ...]) -> list[int]:
+        return [index for index in indices if index < len(self.plot_enabled) and self.plot_enabled[index]]
+
+
+_MAGNETIC_FIELD_PLOT_STATE = MagneticFieldPlotState()
+
+
+def magnetic_field_plot_state() -> MagneticFieldPlotState:
+    return _MAGNETIC_FIELD_PLOT_STATE
 
 
 def clamp(value: float, lower: float = 0.0, upper: float = MAX_GAUGE_VALUE) -> float:
