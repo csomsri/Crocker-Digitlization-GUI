@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QListWidget,
     QListWidgetItem,
     QMessageBox,
@@ -97,6 +98,12 @@ PLOT_COLORS = [
     QColor("#a78bfa"),
     QColor("#e5e7eb"),
 ]
+LIMITED_EXPORT_COLORS = [
+    QColor("#0f172a"),
+    QColor("#2563eb"),
+    QColor("#b45309"),
+    QColor("#047857"),
+]
 
 
 class ChannelListWidget(QListWidget):
@@ -140,6 +147,7 @@ class HistoryPlotWidget(QWidget):
         self._hover_point: tuple[str, float, float] | None = None
         self._pinned_times: list[float] = []
         self._show_time_tooltip = False
+        self._export_color_mode = "normal"
         self.setAcceptDrops(True)
         self.setMouseTracking(True)
         self.setObjectName("historyPlot")
@@ -187,6 +195,40 @@ class HistoryPlotWidget(QWidget):
     def set_units(self, units: dict[str, str]) -> None:
         self.units = units
         self.update()
+
+    def set_export_color_mode(self, mode: str) -> None:
+        self._export_color_mode = mode if mode in {"normal", "bw", "limited"} else "normal"
+        self.update()
+
+    def marker_x_ratios(self) -> list[float]:
+        all_points = [point for values in self.series.values() for point in values]
+        if not all_points:
+            return []
+        plot = self._plot_rect()
+        start, end, _low, _high = self._bounds(all_points)
+        marker_times = [*self._pinned_times]
+        if self._hover_time is not None:
+            marker_times.append(self._hover_time)
+        ratios = []
+        for marker_time in marker_times:
+            x_ratio = (marker_time - start) / max(0.001, end - start)
+            x = plot.left() + plot.width() * max(0.0, min(1.0, x_ratio))
+            ratios.append(x / max(1.0, float(self.width())))
+        return ratios
+
+    def _plot_color(self, index: int) -> QColor:
+        if self._export_color_mode == "bw":
+            return QColor("#111827")
+        if self._export_color_mode == "limited":
+            return LIMITED_EXPORT_COLORS[index % len(LIMITED_EXPORT_COLORS)]
+        return PLOT_COLORS[index % len(PLOT_COLORS)]
+
+    def _color(self, normal: str, bw: str, limited: str | None = None) -> QColor:
+        if self._export_color_mode == "bw":
+            return QColor(bw)
+        if self._export_color_mode == "limited":
+            return QColor(limited or bw)
+        return QColor(normal)
 
     def dragEnterEvent(self, event) -> None:  # noqa: N802 - Qt API name
         if event.mimeData().hasText():
@@ -273,13 +315,13 @@ class HistoryPlotWidget(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#0f172a"))
+        painter.fillRect(self.rect(), self._color("#0f172a", "#ffffff"))
 
         plot = self._plot_rect()
         if plot.width() <= 8 or plot.height() <= 8:
             return
 
-        painter.setPen(QColor("#e5e7eb"))
+        painter.setPen(self._color("#e5e7eb", "#111827"))
         painter.drawText(
             QRectF(18, 8, self.width() - 36, 18),
             Qt.AlignLeft | Qt.AlignVCenter,
@@ -287,21 +329,21 @@ class HistoryPlotWidget(QWidget):
         )
         self._draw_legend(painter, plot)
 
-        painter.setPen(QPen(QColor(51, 65, 85, 150), 1))
+        painter.setPen(QPen(self._color("#334155", "#d1d5db"), 1))
         for step in range(5):
             y = plot.top() + plot.height() * step / 4
             x = plot.left() + plot.width() * step / 4
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-        painter.setPen(QPen(QColor("#475569"), 1))
+        painter.setPen(QPen(self._color("#475569", "#4b5563"), 1))
         painter.drawRect(plot)
         footer = self._footer_rect(plot)
-        painter.setPen(QPen(QColor(51, 65, 85, 120), 1))
+        painter.setPen(QPen(self._color("#334155", "#d1d5db"), 1))
         painter.drawLine(QPointF(plot.left(), footer.top()), QPointF(plot.right(), footer.top()))
 
         all_points = [point for values in self.series.values() for point in values]
         if not all_points:
-            painter.setPen(QColor("#94a3b8"))
+            painter.setPen(self._color("#94a3b8", "#374151"))
             if self.channels:
                 text = "No samples in the selected date range"
             else:
@@ -311,7 +353,7 @@ class HistoryPlotWidget(QWidget):
 
         start, end, low, high = self._bounds(all_points)
 
-        painter.setPen(QColor("#94a3b8"))
+        painter.setPen(self._color("#94a3b8", "#374151"))
         painter.drawText(
             QRectF(plot.left() - 58, plot.top() - 8, 48, 18),
             Qt.AlignRight | Qt.AlignVCenter,
@@ -333,7 +375,7 @@ class HistoryPlotWidget(QWidget):
             points = self.series.get(channel, [])
             if len(points) < 2:
                 continue
-            color = PLOT_COLORS[index % len(PLOT_COLORS)]
+            color = self._plot_color(index)
             path = QPainterPath(self._plot_point(plot, points[0], start, end, low, high))
             for point in points[1:]:
                 path.lineTo(self._plot_point(plot, point, start, end, low, high))
@@ -370,12 +412,12 @@ class HistoryPlotWidget(QWidget):
             return
         x_ratio = (marker_time - start) / (end - start)
         x = plot.left() + plot.width() * max(0.0, min(1.0, x_ratio))
-        painter.setPen(QPen(QColor("#cbd5e1"), 1, Qt.DashLine))
-        painter.drawLine(QPointF(x, plot.top()), QPointF(x, footer.bottom()))
+        painter.setPen(QPen(self._color("#cbd5e1", "#111827"), 1, Qt.DashLine))
+        painter.drawLine(QPointF(x, 0.0), QPointF(x, float(self.height())))
         for channel, timestamp, value in samples:
             point = self._plot_point(plot, (timestamp, value), start, end, low, high)
             color_index = self.channels.index(channel) if channel in self.channels else 0
-            painter.setPen(QPen(PLOT_COLORS[color_index % len(PLOT_COLORS)], 2))
+            painter.setPen(QPen(self._plot_color(color_index), 2))
             painter.drawLine(QPointF(point.x() - 6, point.y()), QPointF(point.x() + 6, point.y()))
             painter.drawLine(QPointF(point.x(), point.y() - 6), QPointF(point.x(), point.y() + 6))
         self._draw_value_label(painter, QPointF(x, plot.top()), samples, lane_index)
@@ -394,10 +436,10 @@ class HistoryPlotWidget(QWidget):
             if x + item_width > max_x:
                 x = plot.left()
                 y += 20.0
-            color = PLOT_COLORS[index % len(PLOT_COLORS)]
+            color = self._plot_color(index)
             painter.setPen(QPen(color, 2))
             painter.drawLine(QPointF(x, y + 9), QPointF(x + 26, y + 9))
-            painter.setPen(QColor("#cbd5e1"))
+            painter.setPen(self._color("#cbd5e1", "#111827"))
             painter.drawText(QRectF(x + 34, y, item_width - 34, 18), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += item_width
 
@@ -429,16 +471,16 @@ class HistoryPlotWidget(QWidget):
             box_width,
             box_height,
         )
-        painter.setPen(QPen(QColor(96, 165, 250, 170), 1))
-        painter.setBrush(QColor(15, 23, 42, 236))
+        painter.setPen(QPen(self._color("#60a5fa", "#111827"), 1))
+        painter.setBrush(self._color("#0f172a", "#ffffff"))
         painter.drawRoundedRect(box, 7, 7)
         for index, line in enumerate(lines):
             channel = samples[index][0]
             color_index = self.channels.index(channel) if channel in self.channels else 0
             y_line = box.top() + 10 + index * 19
-            painter.setPen(QPen(PLOT_COLORS[color_index % len(PLOT_COLORS)], 2))
+            painter.setPen(QPen(self._plot_color(color_index), 2))
             painter.drawLine(QPointF(box.left() + 10, y_line + 8), QPointF(box.left() + 26, y_line + 8))
-            painter.setPen(QColor("#e5e7eb"))
+            painter.setPen(self._color("#e5e7eb", "#111827"))
             painter.drawText(QRectF(box.left() + 34, y_line, box.width() - 44, 17), Qt.AlignLeft | Qt.AlignVCenter, line)
 
     def _draw_time_label(
@@ -457,10 +499,10 @@ class HistoryPlotWidget(QWidget):
             box_width,
             box_height,
         )
-        painter.setPen(QPen(QColor(71, 85, 105, 190), 1))
-        painter.setBrush(QColor(15, 23, 42, 236))
+        painter.setPen(QPen(self._color("#475569", "#111827"), 1))
+        painter.setBrush(self._color("#0f172a", "#ffffff"))
         painter.drawRoundedRect(box, 7, 7)
-        painter.setPen(QColor("#bfdbfe"))
+        painter.setPen(self._color("#bfdbfe", "#111827"))
         painter.drawText(box, Qt.AlignCenter, time_text)
 
     def _nearest_samples(
@@ -550,9 +592,15 @@ class DatabaseHistoryPage(DetailPage):
 
         toolbar = QFrame()
         toolbar.setObjectName("historyToolbar")
-        top = QHBoxLayout(toolbar)
-        top.setContentsMargins(8, 8, 8, 8)
+        toolbar_layout = QVBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(8, 8, 8, 8)
+        toolbar_layout.setSpacing(7)
+        top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(8)
+        controls = QHBoxLayout()
+        controls.setContentsMargins(0, 0, 0, 0)
+        controls.setSpacing(8)
         self.path_label = QLabel(str(self.db_path))
         self.path_label.setObjectName("historyPathPill")
         self.status_label = QLabel("")
@@ -560,10 +608,12 @@ class DatabaseHistoryPage(DetailPage):
         browse_button = QPushButton("Open DB")
         reload_button = QPushButton("Reload")
         self.export_pdf_button = QPushButton("Export PDF")
+        self.export_csv_button = QPushButton("Export CSV")
         browse_button.clicked.connect(self._choose_db)
         reload_button.clicked.connect(self.reload)
         self.export_pdf_button.clicked.connect(self.export_pdf)
-        for button in (browse_button, reload_button, self.export_pdf_button):
+        self.export_csv_button.clicked.connect(self.export_csv)
+        for button in (browse_button, reload_button, self.export_pdf_button, self.export_csv_button):
             button.setCursor(Qt.PointingHandCursor)
         self.tab_group = QButtonGroup(self)
         self.tab_group.setExclusive(True)
@@ -602,6 +652,32 @@ class DatabaseHistoryPage(DetailPage):
         self.sample_limit.setSingleStep(25)
         self.sample_limit.setValue(500)
         self.sample_limit.setSuffix(" samples")
+        self.export_name = QLineEdit("database_history")
+        self.export_name.setObjectName("historyExportName")
+        self.export_name.setMinimumWidth(180)
+        self.pdf_color_group = QButtonGroup(self)
+        self.pdf_color_group.setExclusive(True)
+        pdf_color_segment = QFrame()
+        pdf_color_segment.setObjectName("historySegment")
+        pdf_color_layout = QHBoxLayout(pdf_color_segment)
+        pdf_color_layout.setContentsMargins(3, 3, 3, 3)
+        pdf_color_layout.setSpacing(3)
+        for index, (label, mode) in enumerate(
+            (
+                ("Color", "normal"),
+                ("B/W", "bw"),
+                ("Limited", "limited"),
+            )
+        ):
+            button = QPushButton(label)
+            button.setObjectName("historyTabButton")
+            button.setCheckable(True)
+            button.setProperty("pdfColorMode", mode)
+            button.setCursor(Qt.PointingHandCursor)
+            button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            button.setChecked(index == 0)
+            self.pdf_color_group.addButton(button, index)
+            pdf_color_layout.addWidget(button)
         self.date_edit.dateChanged.connect(lambda date: self.plot())
         self.sample_limit.valueChanged.connect(lambda value: self.plot())
         for editor in (self.date_edit,):
@@ -620,7 +696,12 @@ class DatabaseHistoryPage(DetailPage):
         samples_label.setObjectName("historyToolbarLabel")
         filters_layout.addWidget(samples_label)
         filters_layout.addWidget(self.sample_limit)
-        top.addWidget(filters_group)
+        filename_label = QLabel("File")
+        filename_label.setObjectName("historyToolbarLabel")
+        filters_layout.addWidget(filename_label)
+        filters_layout.addWidget(self.export_name)
+        filters_layout.addWidget(pdf_color_segment)
+        controls.addWidget(filters_group, 1)
 
         first_date = QPushButton("First Date")
         latest = QPushButton("Latest Date")
@@ -636,7 +717,7 @@ class DatabaseHistoryPage(DetailPage):
         for button in (first_date, latest, plot_button):
             button.setCursor(Qt.PointingHandCursor)
             actions_layout.addWidget(button)
-        top.addWidget(actions_group)
+        controls.addWidget(actions_group)
 
         status_group = QFrame()
         status_group.setObjectName("historyStatusCard")
@@ -654,10 +735,13 @@ class DatabaseHistoryPage(DetailPage):
         file_actions_layout = QHBoxLayout(file_actions)
         file_actions_layout.setContentsMargins(0, 0, 0, 0)
         file_actions_layout.setSpacing(7)
+        file_actions_layout.addWidget(self.export_csv_button)
         file_actions_layout.addWidget(self.export_pdf_button)
         file_actions_layout.addWidget(browse_button)
         file_actions_layout.addWidget(reload_button)
         top.addWidget(file_actions)
+        toolbar_layout.addLayout(top)
+        toolbar_layout.addLayout(controls)
         panel_layout.addWidget(toolbar)
 
         plots_tab = QWidget()
@@ -686,11 +770,13 @@ class DatabaseHistoryPage(DetailPage):
         body.addWidget(left, 1)
 
         right = QVBoxLayout()
-        right.setSpacing(8)
+        right.setSpacing(0)
 
         self.plot_widgets: list[HistoryPlotWidget] = []
         for index in range(3):
             plot_row = QHBoxLayout()
+            plot_row.setContentsMargins(0, 0, 0, 0)
+            plot_row.setSpacing(8)
             plot_widget = HistoryPlotWidget(
                 f"Plot {index + 1}",
                 self.plot,
@@ -698,14 +784,14 @@ class DatabaseHistoryPage(DetailPage):
                 self._pin_shared_marker,
             )
             self.plot_widgets.append(plot_widget)
-            clear_plot = QPushButton("Clear Plot")
-            clear_plot.setMaximumWidth(96)
+            clear_plot = QPushButton("Clear")
+            clear_plot.setMaximumWidth(72)
             clear_plot.setCursor(Qt.PointingHandCursor)
             clear_plot.clicked.connect(
                 lambda checked=False, plot=plot_widget: plot.clear_channels()
             )
-            clear_tooltips = QPushButton("Clear Marks")
-            clear_tooltips.setMaximumWidth(96)
+            clear_tooltips = QPushButton("Marks")
+            clear_tooltips.setMaximumWidth(72)
             clear_tooltips.setCursor(Qt.PointingHandCursor)
             clear_tooltips.clicked.connect(
                 lambda checked=False: self._clear_shared_markers()
@@ -1038,36 +1124,31 @@ class DatabaseHistoryPage(DetailPage):
                 self.summary_table.setItem(row, column, QTableWidgetItem(text))
 
     def export_pdf(self) -> None:
+        self.export_pdf_button.setFocus(Qt.FocusReason.OtherFocusReason)
         if self._pdf_process is not None and self._pdf_process.poll() is None:
-            QMessageBox.information(self, "Export PDF", "A PDF export is already running.")
+            self.status_label.setText("PDF export already running")
             return
         if not self.last_rows:
             self.plot()
         if not self.last_rows:
-            QMessageBox.information(self, "Export PDF", "Plot data before exporting.")
+            self.status_label.setText("Plot data before exporting")
             return
 
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export database history plots",
-            str(self._exports_path("database_history_plots.pdf")),
-            "PDF (*.pdf)",
-        )
-        if not path:
-            return
-        if not path.lower().endswith(".pdf"):
-            path = f"{path}.pdf"
+        path = str(self._export_file_path(".pdf"))
 
         previous_tab = self.data_stack.currentIndex()
-        self.data_stack.setCurrentIndex(0)
-        QApplication.processEvents()
+        changed_tab_for_capture = previous_tab != 0
+        if changed_tab_for_capture:
+            self.data_stack.setCurrentIndex(0)
+            QApplication.processEvents()
         try:
             manifest = self._prepare_pdf_manifest(path)
         except Exception as exc:
-            QMessageBox.critical(self, "Export PDF", str(exc))
+            self.status_label.setText(f"PDF export failed: {exc}")
             return
         finally:
-            self.data_stack.setCurrentIndex(previous_tab)
+            if changed_tab_for_capture:
+                self.data_stack.setCurrentIndex(previous_tab)
 
         self.export_pdf_button.setEnabled(False)
         self.status_label.setText("Exporting PDF...")
@@ -1092,8 +1173,9 @@ class DatabaseHistoryPage(DetailPage):
         self._pdf_poll_timer.start()
 
     def _prepare_pdf_manifest(self, output_path: str) -> str:
+        color_mode = self._pdf_color_mode()
         image_data = [
-            self._plot_image_data(plot_widget, index)
+            self._plot_image_data(plot_widget, index, color_mode)
             for index, plot_widget in enumerate(self.plot_widgets)
         ]
         return json.dumps(
@@ -1101,19 +1183,46 @@ class DatabaseHistoryPage(DetailPage):
                 "output_path": output_path,
                 "header_text": self._pdf_header_text(),
                 "image_data": image_data,
+                "color_mode": color_mode,
+                "marker_x_ratios": self._pdf_marker_x_ratios(),
             }
         )
 
     def _exports_dir(self) -> Path:
-        path = Path(__file__).resolve().parents[4] / "exports"
+        path = Path(__file__).resolve().parents[3] / "Exports"
         path.mkdir(parents=True, exist_ok=True)
         return path
 
     def _exports_path(self, filename: str) -> Path:
         return self._exports_dir() / filename
 
-    def _plot_image_data(self, plot_widget: HistoryPlotWidget, index: int) -> str:
-        image = self._plot_image(plot_widget)
+    def _export_file_path(self, suffix: str) -> Path:
+        stem = self._export_stem()
+        path = self._exports_path(f"{stem}{suffix}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def _export_stem(self) -> str:
+        raw = self.export_name.text().strip() or "database_history"
+        if raw.lower().endswith((".pdf", ".csv")):
+            raw = Path(raw).stem
+        safe = "".join(
+            char if char.isalnum() or char in ("-", "_") else "_"
+            for char in raw
+        ).strip("_")
+        safe = safe or "database_history"
+        if safe != raw:
+            self.export_name.setText(safe)
+        return safe
+
+    def _pdf_color_mode(self) -> str:
+        selected = self.pdf_color_group.checkedButton()
+        if selected is None:
+            return "normal"
+        return str(selected.property("pdfColorMode") or "normal")
+
+    def _plot_image_data(self, plot_widget: HistoryPlotWidget, index: int, color_mode: str) -> str:
+        image = self._plot_image(plot_widget, color_mode)
         data = QByteArray()
         buffer = QBuffer(data)
         if not buffer.open(QIODevice.OpenModeFlag.WriteOnly):
@@ -1122,14 +1231,31 @@ class DatabaseHistoryPage(DetailPage):
             raise RuntimeError(f"Could not capture Plot {index + 1} for PDF export.")
         return base64.b64encode(bytes(data)).decode("ascii")
 
-    def _plot_image(self, plot_widget: HistoryPlotWidget) -> QImage:
-        plot_widget.repaint()
-        snapshot = plot_widget.grab()
-        if snapshot.isNull():
-            image = QImage(max(1, plot_widget.width()), max(1, plot_widget.height()), QImage.Format.Format_RGB32)
-            image.fill(QColor("#0f172a"))
-            return image
-        return snapshot.toImage()
+    def _plot_image(self, plot_widget: HistoryPlotWidget, color_mode: str) -> QImage:
+        previous_mode = plot_widget._export_color_mode
+        plot_widget.set_export_color_mode(color_mode)
+        QApplication.processEvents()
+        try:
+            plot_widget.repaint()
+            snapshot = plot_widget.grab()
+            if snapshot.isNull():
+                image = QImage(max(1, plot_widget.width()), max(1, plot_widget.height()), QImage.Format.Format_RGB32)
+                image.fill(QColor("#ffffff" if color_mode in {"bw", "limited"} else "#0f172a"))
+                return image
+            return snapshot.toImage()
+        finally:
+            plot_widget.set_export_color_mode(previous_mode)
+
+    def _pdf_marker_x_ratios(self) -> list[float]:
+        for plot_widget in self.plot_widgets:
+            ratios = plot_widget.marker_x_ratios()
+            if ratios:
+                unique = []
+                for ratio in ratios:
+                    if not any(abs(ratio - existing) < 0.001 for existing in unique):
+                        unique.append(ratio)
+                return unique
+        return []
 
     def _pdf_header_text(self) -> str:
         selected_date = self.date_edit.date().toString("MM/dd/yyyy")
@@ -1152,7 +1278,6 @@ class DatabaseHistoryPage(DetailPage):
         stderr = process.stderr.read() if process.stderr is not None else ""
         if exit_code == 0:
             self.status_label.setText("PDF export complete")
-            QMessageBox.information(self, "Export PDF", f"Saved PDF to:\n{self._pdf_output_path}")
         else:
             self._pdf_export_failed(stderr.strip() or f"PDF export failed with exit code {exit_code}.")
             return
@@ -1160,7 +1285,8 @@ class DatabaseHistoryPage(DetailPage):
 
     def _pdf_export_failed(self, message: str) -> None:
         self.status_label.setText("PDF export failed")
-        QMessageBox.critical(self, "Export PDF", message)
+        if message:
+            self.status_label.setToolTip(message)
         self._pdf_export_cleaned_up()
 
     def _pdf_export_cleaned_up(self) -> None:
@@ -1188,16 +1314,9 @@ class DatabaseHistoryPage(DetailPage):
 
     def export_csv(self) -> None:
         if not self.last_rows:
-            QMessageBox.information(self, "Export CSV", "Plot data before exporting.")
+            self.status_label.setText("Plot data before exporting")
             return
-        path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export database history",
-            str(self._exports_path("database_history.csv")),
-            "CSV (*.csv)",
-        )
-        if not path:
-            return
+        path = self._export_file_path(".csv")
         with open(path, "w", newline="", encoding="utf-8") as handle:
             writer = csv.writer(handle)
             writer.writerow(["timestamp", "datetime", "channel", "engineering_value", "units"])
@@ -1209,3 +1328,4 @@ class DatabaseHistoryPage(DetailPage):
                     value,
                     units,
                 ])
+        self.status_label.setText(f"CSV exported: {path.name}")

@@ -25,9 +25,15 @@ def draw_pdf(manifest_source: str) -> None:
     else:
         manifest = json.loads(Path(manifest_source).read_text(encoding="utf-8"))
     output_path = str(manifest["output_path"])
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     header_text = str(manifest["header_text"])
     image_data = [str(data) for data in manifest.get("image_data", [])]
     image_paths = [str(path) for path in manifest.get("image_paths", [])]
+    color_mode = str(manifest.get("color_mode", "normal"))
+    marker_x_ratios = [
+        float(ratio)
+        for ratio in manifest.get("marker_x_ratios", [])
+    ]
 
     writer = QPdfWriter(output_path)
     writer.setResolution(144)
@@ -45,7 +51,15 @@ def draw_pdf(manifest_source: str) -> None:
         raise RuntimeError("Could not create the PDF file.")
     try:
         page = QRectF(0.0, 0.0, float(writer.width()), float(writer.height()))
-        draw_page(painter, page, header_text, image_data, image_paths)
+        draw_page(
+            painter,
+            page,
+            header_text,
+            image_data,
+            image_paths,
+            color_mode,
+            marker_x_ratios,
+        )
     finally:
         painter.end()
 
@@ -56,6 +70,8 @@ def draw_page(
     header_text: str,
     image_data: list[str],
     image_paths: list[str],
+    color_mode: str,
+    marker_x_ratios: list[float],
 ) -> None:
     painter.fillRect(page, QColor("#ffffff"))
     side_margin = page.width() * 0.045
@@ -89,7 +105,7 @@ def draw_page(
     painter.setPen(QPen(QColor("#111827"), 1.4))
     painter.drawLine(QPointF(content.left(), header.bottom()), QPointF(content.right(), header.bottom()))
 
-    gap = max(2.0, page.height() * 0.006)
+    gap = 0.0
     plot_top = header.bottom() + gap * 2
     plot_area = QRectF(
         content.left(),
@@ -97,7 +113,7 @@ def draw_page(
         content.width(),
         page.bottom() - plot_top,
     )
-    painter.fillRect(plot_area, QColor("#0f172a"))
+    painter.fillRect(plot_area, QColor("#ffffff" if color_mode in {"bw", "limited"} else "#0f172a"))
 
     plot_count = max(1, len(image_data) or len(image_paths))
     plot_height = (plot_area.height() - gap * (plot_count - 1)) / plot_count
@@ -111,6 +127,32 @@ def draw_page(
             plot_height,
         )
         painter.drawImage(target, image, QRectF(image.rect()))
+    draw_marker_connectors(painter, plot_area, marker_x_ratios, color_mode)
+    draw_plot_area_border(painter, plot_area, color_mode)
+
+
+def draw_marker_connectors(
+    painter: QPainter,
+    plot_area: QRectF,
+    marker_x_ratios: list[float],
+    color_mode: str,
+) -> None:
+    if not marker_x_ratios:
+        return
+    color = QColor("#111827" if color_mode in {"bw", "limited"} else "#cbd5e1")
+    painter.setPen(QPen(color, 1.2, Qt.DashLine))
+    for ratio in marker_x_ratios:
+        x = plot_area.left() + plot_area.width() * max(0.0, min(1.0, ratio))
+        painter.drawLine(QPointF(x, plot_area.top()), QPointF(x, plot_area.bottom()))
+
+
+def draw_plot_area_border(painter: QPainter, plot_area: QRectF, color_mode: str) -> None:
+    color = QColor("#111827" if color_mode in {"bw", "limited"} else "#94a3b8")
+    painter.setPen(QPen(color, 1.2, Qt.SolidLine))
+    painter.drawLine(plot_area.topLeft(), plot_area.topRight())
+    painter.drawLine(plot_area.bottomLeft(), plot_area.bottomRight())
+    painter.drawLine(plot_area.topLeft(), plot_area.bottomLeft())
+    painter.drawLine(plot_area.topRight(), plot_area.bottomRight())
 
 
 def load_images(image_data: list[str], image_paths: list[str]) -> list[QImage]:

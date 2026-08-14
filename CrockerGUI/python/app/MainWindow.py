@@ -891,6 +891,21 @@ class MainWindow(QMainWindow):
                 color: #ffffff;
             }
 
+            QComboBox QAbstractItemView {
+                background-color: #0f172a;
+                border: 1px solid rgba(96, 165, 250, 0.72);
+                color: #e5e7eb;
+                outline: 0;
+                padding: 3px;
+                selection-background-color: rgba(37, 99, 235, 0.62);
+                selection-color: #ffffff;
+            }
+
+            QComboBox QAbstractItemView::item {
+                min-height: 24px;
+                padding: 4px 8px;
+            }
+
             QListWidget {
                 alternate-background-color: rgba(30, 41, 59, 0.42);
             }
@@ -941,8 +956,12 @@ class MainWindow(QMainWindow):
                 color: #dbeafe;
                 font-size: 13px;
                 min-height: 26px;
-                min-width: 210px;
+                min-width: 140px;
                 padding: 0;
+            }
+
+            QLineEdit#historyExportName {
+                min-width: 160px;
             }
 
             QLabel#historyStatusCaption {
@@ -956,7 +975,7 @@ class MainWindow(QMainWindow):
                 color: #dbeafe;
                 font-size: 13px;
                 font-weight: 600;
-                min-width: 190px;
+                min-width: 150px;
                 padding: 0;
             }
 
