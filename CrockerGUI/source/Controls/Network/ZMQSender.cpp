@@ -15,6 +15,8 @@ ZMQSender::ZMQSender(std::string endpoint)
 
 std::string ZMQSender::Bind()
 {
+    std::lock_guard<std::mutex> lock(socketMutex_);
+
     socket_.bind(endpoint_);
     std::cout << "Field Controller ZMQ sender started at " << endpoint_ << '\n';
     return endpoint_;
@@ -22,8 +24,12 @@ std::string ZMQSender::Bind()
 
 std::string ZMQSender::Bind(const std::string& endpoint)
 {
+    std::lock_guard<std::mutex> lock(socketMutex_);
+
     endpoint_ = endpoint;
-    return Bind();
+    socket_.bind(endpoint_);
+    std::cout << "Field Controller ZMQ sender started at " << endpoint_ << '\n';
+    return endpoint_;
 }
 
 void ZMQSender::SendControlPacket(
@@ -37,6 +43,7 @@ void ZMQSender::SendControlPacket(
 void ZMQSender::SendControlPacket(const TargetValues& targets, std::uint64_t bitmask)
 {
     auto message = Protocol::BuildControlMessage(Protocol::BuildControlPacket(targets, bitmask));
+    std::lock_guard<std::mutex> lock(socketMutex_);
     socket_.send(message, zmq::send_flags::none);
 }
 

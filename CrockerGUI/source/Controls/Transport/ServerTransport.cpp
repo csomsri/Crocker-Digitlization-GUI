@@ -117,6 +117,10 @@ bool ServerTransport::IsRunning() const noexcept
 
 bool ServerTransport::SendCommand(const ControlCommand& command)
 {
+    if (!running_.load()) {
+        return false;
+    }
+
     server_.SetTargets(BuildTargets(command));
     server_.SetBitmask(BuildBitmask(command));
 

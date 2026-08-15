@@ -42,6 +42,7 @@ private:
     std::uint64_t ReplyBitmask() const;
 
     ZMQReceiver receiver_;
+    mutable std::mutex lifecycleMutex_;
     std::thread worker_;
     std::atomic_bool running_{false};
 

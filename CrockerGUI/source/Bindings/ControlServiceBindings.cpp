@@ -219,7 +219,7 @@ void BindControlService(py::module_& module)
 {
     py::class_<Controls::ControlService>(module, "ControlService")
         .def(py::init<>())
-        .def("StartSimulator", &Controls::ControlService::StartSimulator, py::arg("update_rate_hz") = 20.0)
+        .def("StartSimulator", &Controls::ControlService::StartSimulator, py::arg("update_rate_hz") = 60.0)
         .def(
             "StartServer",
             &Controls::ControlService::StartServer,

@@ -10,7 +10,7 @@ namespace crocker::controls {
 
 class SimulatorTransport final : public ControlTransportBase {
 public:
-    explicit SimulatorTransport(double updateRateHz = 20.0);
+    explicit SimulatorTransport(double updateRateHz = 60.0);
     ~SimulatorTransport() override;
 
     void Start() override;
@@ -26,7 +26,7 @@ private:
     void Run();
     void Step(double deltaSeconds);
 
-    double updateRateHz_ = 20.0;
+    double updateRateHz_ = 60.0;
     double responseRatePerSecond_ = 4.0;
 
     std::atomic_bool running_{false};

@@ -3,6 +3,7 @@
 #include "Controls/Network/ZMQProtocol.hpp"
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 
 #include <zmq.hpp>
@@ -25,6 +26,7 @@ private:
     void ConfigureSocket();
 
     std::string endpoint_;
+    mutable std::mutex socketMutex_;
     zmq::context_t context_;
     zmq::socket_t socket_;
 };

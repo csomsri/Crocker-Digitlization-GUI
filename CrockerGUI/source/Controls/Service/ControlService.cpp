@@ -24,7 +24,7 @@ void ControlService::StartSimulator(double updateRateHz)
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
 
-    auto transport = std::make_unique<SimulatorTransport>(updateRateHz);
+    auto transport = std::make_shared<SimulatorTransport>(updateRateHz);
     transport->Start();
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -37,7 +37,7 @@ void ControlService::StartServer(const std::string& endpoint)
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
 
-    auto transport = std::make_unique<ServerTransport>(endpoint);
+    auto transport = std::make_shared<ServerTransport>(endpoint);
     transport->Start();
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -53,7 +53,7 @@ void ControlService::Stop() noexcept
 
 void ControlService::StopUnlocked() noexcept
 {
-    std::unique_ptr<ControlTransportBase> transport;
+    std::shared_ptr<ControlTransportBase> transport;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         transport = std::move(transport_);
@@ -66,8 +66,13 @@ void ControlService::StopUnlocked() noexcept
 
 bool ControlService::IsRunning() const noexcept
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return transport_ != nullptr && transport_->IsRunning();
+    std::shared_ptr<ControlTransportBase> transport;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        transport = transport_;
+    }
+
+    return transport != nullptr && transport->IsRunning();
 }
 
 void ControlService::SetChannelTarget(ChannelId channel, double target)
@@ -116,47 +121,71 @@ ControlCommand ControlService::PendingCommand() const
 
 bool ControlService::ApplyCommand()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!transport_) {
-        return false;
+    std::shared_ptr<ControlTransportBase> transport;
+    ControlCommand command;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (!transport_) {
+            return false;
+        }
+
+        transport = transport_;
+        command = pendingCommand_;
     }
 
-    return transport_->SendCommand(pendingCommand_);
+    return transport->SendCommand(command);
 }
 
 bool ControlService::DisableAll()
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (ChannelCommand& command : pendingCommand_) {
-        command.on = false;
-        command.enabled = false;
+    std::shared_ptr<ControlTransportBase> transport;
+    ControlCommand command;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (ChannelCommand& channel : pendingCommand_) {
+            channel.on = false;
+            channel.enabled = false;
+        }
+
+        if (!transport_) {
+            return false;
+        }
+
+        transport = transport_;
+        command = pendingCommand_;
     }
 
-    if (!transport_) {
-        return false;
-    }
-
-    return transport_->SendCommand(pendingCommand_);
+    return transport->SendCommand(command);
 }
 
 TelemetrySnapshot ControlService::LatestSnapshot() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!transport_) {
+    std::shared_ptr<ControlTransportBase> transport;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        transport = transport_;
+    }
+
+    if (!transport) {
         return DisconnectedSnapshot();
     }
 
-    return transport_->LatestSnapshot();
+    return transport->LatestSnapshot();
 }
 
 HealthStatus ControlService::Health() const
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!transport_) {
+    std::shared_ptr<ControlTransportBase> transport;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        transport = transport_;
+    }
+
+    if (!transport) {
         return DisconnectedHealth();
     }
 
-    return transport_->Health();
+    return transport->Health();
 }
 
 void ControlService::StartPidTrial(const PidTrialConfig& config)

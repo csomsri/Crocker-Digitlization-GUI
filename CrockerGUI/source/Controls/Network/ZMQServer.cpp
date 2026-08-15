@@ -20,6 +20,8 @@ ZMQServer::~ZMQServer()
 
 void ZMQServer::Start()
 {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
+
     bool expected = false;
     if (!running_.compare_exchange_strong(expected, true)) {
         return;
@@ -30,6 +32,8 @@ void ZMQServer::Start()
 
 void ZMQServer::Stop()
 {
+    std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
+
     const bool wasRunning = running_.exchange(false);
     if (wasRunning && worker_.joinable()) {
         worker_.join();

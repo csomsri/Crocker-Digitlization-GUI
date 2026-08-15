@@ -21,7 +21,7 @@ public:
     ControlService(ControlService&&) = delete;
     ControlService& operator=(ControlService&&) = delete;
 
-    void StartSimulator(double updateRateHz = 20.0);
+    void StartSimulator(double updateRateHz = 60.0);
     void StartServer(const std::string& endpoint = "tcp://0.0.0.0:5555");
     void Stop() noexcept;
     [[nodiscard]] bool IsRunning() const noexcept;
@@ -56,7 +56,7 @@ private:
     // Serializes transport startup, replacement, and shutdown.
     std::mutex lifecycleMutex_;
     mutable std::mutex mutex_;
-    std::unique_ptr<ControlTransportBase> transport_;
+    std::shared_ptr<ControlTransportBase> transport_;
     ControlCommand pendingCommand_{};
 
     mutable std::mutex pidTrialMutex_;

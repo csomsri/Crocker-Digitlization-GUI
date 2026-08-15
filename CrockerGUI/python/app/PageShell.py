@@ -102,6 +102,95 @@ class CnlPanelButton(QPushButton):
         painter.drawText(rect, Qt.AlignCenter, self.text())
 
 
+class CnlTransitionButton(QPushButton):
+    def __init__(self, title: str, description: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.title = title
+        self.description = description
+        self.setCursor(Qt.PointingHandCursor)
+        self.setMinimumHeight(150)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setFlat(True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setObjectName("transitionCardButton")
+        self.setStyleSheet("background: transparent; border: 0; color: transparent;")
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        rect = QRectF(self.rect()).adjusted(3, 3, -3, -3)
+        path = QPainterPath()
+        path.addRoundedRect(rect, 8, 8)
+        highlighted = self.underMouse()
+        gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        gradient.setColorAt(0, QColor(30, 41, 59, 248 if highlighted else 232))
+        gradient.setColorAt(1, QColor(15, 23, 42, 248 if highlighted else 236))
+        painter.fillPath(path, gradient)
+        painter.setPen(QPen(QColor("#93c5fd") if highlighted else BORDER, 1.2))
+        painter.drawPath(path)
+
+        accent_rect = QRectF(rect.left(), rect.top() + 18, 4, rect.height() - 36)
+        painter.fillRect(accent_rect, ACCENT if highlighted else QColor("#475569"))
+
+        app = QApplication.instance()
+        app_family = app.property("appFontFamily") if app is not None else None
+        family = app_family or "Segoe UI"
+        title_rect = rect.adjusted(28, 22, -28, -70)
+        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=22, min_size=12))
+        painter.setPen(QPen(TEXT if highlighted else QColor("#e2e8f0"), 1))
+        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
+
+        desc_rect = rect.adjusted(28, 78, -28, -22)
+        painter.setFont(_fitted_font(family, self.description, desc_rect, max_size=13, min_size=9, weight=QFont.Normal))
+        painter.setPen(QPen(QColor("#cbd5e1") if highlighted else MUTED_TEXT, 1))
+        painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap, self.description)
+
+
+class CnlBackButton(QPushButton):
+    def __init__(self, text: str, parent: QWidget | None = None) -> None:
+        super().__init__(text, parent)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setFlat(True)
+        self.setFocusPolicy(Qt.NoFocus)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setObjectName("navBackButton")
+        self.setFixedSize(max(154, min(238, len(text) * 8 + 62)), 40)
+        self.setStyleSheet("background: transparent; border: 0; color: transparent;")
+
+    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        del event
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        rect = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
+        hovered = self.underMouse()
+        pressed = self.isDown()
+        fill = QColor(30, 41, 59, 232 if hovered else 180)
+        if pressed:
+            fill = QColor(37, 99, 235, 150)
+        border = QColor("#93c5fd") if hovered else QColor(71, 85, 105, 190)
+        painter.setBrush(fill)
+        painter.setPen(QPen(border, 1.1))
+        painter.drawRoundedRect(rect, 7, 7)
+
+        arrow = QColor("#bfdbfe") if hovered else QColor("#94a3b8")
+        painter.setPen(QPen(arrow, 2.0))
+        center_y = rect.center().y()
+        painter.drawLine(QPointF(24, center_y), QPointF(33, center_y - 8))
+        painter.drawLine(QPointF(24, center_y), QPointF(33, center_y + 8))
+        painter.drawLine(QPointF(25, center_y), QPointF(46, center_y))
+
+        app = QApplication.instance()
+        app_family = app.property("appFontFamily") if app is not None else None
+        family = app_family or "Segoe UI"
+        text_rect = rect.adjusted(56, 0, -14, 0)
+        painter.setFont(_fitted_font(family, self.text().upper(), text_rect, max_size=12, min_size=8))
+        painter.setPen(QPen(TEXT if hovered else QColor("#cbd5e1"), 1))
+        painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self.text().upper())
+
+
 class CnlViewportPlaceholder(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -134,7 +223,8 @@ class CnlCircleDisplay(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.setMinimumSize(360, 360)
+        self.setMinimumSize(420, 420)
+        self.setMaximumSize(660, 660)
         self.title = "Monitoring"
         self.preview_lines: list[str] = []
 
@@ -156,7 +246,7 @@ class CnlCircleDisplay(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        size = min(self.width(), self.height()) - 8
+        size = min(self.width(), self.height(), 640) - 22
         rect = QRectF(
             (self.width() - size) / 2,
             (self.height() - size) / 2,
@@ -183,21 +273,21 @@ class CnlCircleDisplay(QWidget):
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
-        title_rect = QRectF(rect.left() + 70, rect.top() + 72, rect.width() - 140, 58)
-        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=20, min_size=9))
+        title_rect = QRectF(rect.left() + 58, rect.top() + 68, rect.width() - 116, 68)
+        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=26, min_size=12))
         painter.setPen(QPen(TEXT, 1))
         painter.drawText(title_rect, Qt.AlignCenter, self.title.upper())
 
-        painter.setFont(_fitted_font(family, "DATA VISUALIZATION PREVIEW", rect, max_size=10, min_size=7, weight=QFont.Normal))
+        painter.setFont(_fitted_font(family, "LIVE MONITORING PREVIEW", rect, max_size=13, min_size=9, weight=QFont.Normal))
         painter.setPen(MUTED_TEXT)
         text_y = center.y() + 20
         for line in self.preview_lines[:4]:
             painter.drawText(
-                QRectF(rect.left() + 96, text_y, rect.width() - 192, 28),
+                QRectF(rect.left() + 76, text_y, rect.width() - 152, 32),
                 Qt.AlignCenter,
                 line.upper(),
             )
-            text_y += 34
+            text_y += 38
 
 
 class CnlMonitorSelectionButton(QPushButton):
@@ -206,20 +296,25 @@ class CnlMonitorSelectionButton(QPushButton):
         self.title = title
         self.description = description
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(86)
+        self.setMinimumHeight(112)
+        self.setFixedHeight(112)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFlat(True)
         self.setFocusPolicy(Qt.NoFocus)
-        self.setStyleSheet("background: transparent; border: 0; color: transparent;")
+        self.setObjectName("monitorSelectionButton")
+        self.setStyleSheet(
+            "background: transparent; border: 0; color: transparent; "
+            "min-height: 112px; max-height: 112px;"
+        )
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         selected = bool(self.property("selected"))
-        circle_size = min(62, self.height() - 10)
+        circle_size = min(78, self.height() - 12)
         circle = QRectF(4, (self.height() - circle_size) / 2, circle_size, circle_size)
-        box = QRectF(circle.right() + 28, (self.height() - 52) / 2, self.width() - circle.right() - 34, 52)
+        box = QRectF(circle.right() + 24, 8, max(260.0, self.width() - circle.right() - 30), 96)
 
         fill = QColor(17, 24, 39, 238)
         if selected:
@@ -238,15 +333,15 @@ class CnlMonitorSelectionButton(QPushButton):
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
-        title_rect = box.adjusted(18, 4, -16, -24)
-        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=13, min_size=7))
+        title_rect = QRectF(box.left() + 20, box.top() + 12, box.width() - 38, 32)
+        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=18, min_size=10))
         painter.setPen(QPen(TEXT if selected else QColor("#cbd5e1"), 1))
         painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
 
-        desc_rect = box.adjusted(18, 34, -16, -5)
-        painter.setFont(_fitted_font(family, self.description.upper(), desc_rect, max_size=8, min_size=6, weight=QFont.Normal))
+        desc_rect = QRectF(box.left() + 20, box.top() + 52, box.width() - 38, 34)
+        painter.setFont(_fitted_font(family, self.description.upper(), desc_rect, max_size=11, min_size=8, weight=QFont.Normal))
         painter.setPen(MUTED_TEXT)
-        painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter, self.description.upper())
+        painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap, self.description.upper())
 
 
 class CnlTitleBar(QWidget):
@@ -323,31 +418,32 @@ class CategoryPage(PageShell):
         super().__init__(title, "Select a UI page")
 
         nav = QHBoxLayout()
-        back_button = QPushButton("Back Home")
-        back_button.setObjectName("backButton")
-        back_button.setCursor(Qt.PointingHandCursor)
+        back_button = CnlBackButton("Back Home")
         back_button.clicked.connect(lambda checked=False: show_home())
         nav.addWidget(back_button)
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        nav.setContentsMargins(36, 6, 36, 0)
+        nav.setContentsMargins(52, 10, 52, 10)
+        nav.setSpacing(14)
         self.layout.addLayout(nav)
 
         panel = QFrame()
         panel.setObjectName("workspace")
         grid = QGridLayout(panel)
-        grid.setContentsMargins(24, 14, 24, 24)
-        grid.setSpacing(14)
+        grid.setContentsMargins(54, 34, 54, 46)
+        grid.setHorizontalSpacing(22)
+        grid.setVerticalSpacing(22)
+        for column in range(columns):
+            grid.setColumnStretch(column, 1)
 
         for index, (page_title, purpose) in enumerate(pages):
-            button = QPushButton(f"{page_title}\n{purpose}")
-            button.setObjectName("pageButton")
-            button.setCursor(Qt.PointingHandCursor)
+            button = CnlTransitionButton(page_title, purpose)
             button.clicked.connect(
                 lambda checked=False, title=page_title, text=purpose: open_page(
                     title, text
                 )
             )
             grid.addWidget(button, index // columns, index % columns)
+            grid.setRowStretch(index // columns, 1)
 
         self.layout.addWidget(panel, 1)
 
@@ -363,12 +459,12 @@ class DetailPage(PageShell):
         super().__init__(title, subtitle)
 
         nav = QHBoxLayout()
-        back_button = QPushButton(back_label)
-        back_button.setObjectName("backButton")
-        back_button.setCursor(Qt.PointingHandCursor)
+        back_button = CnlBackButton(back_label)
         back_button.clicked.connect(lambda checked=False: go_back())
         nav.addWidget(back_button)
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        nav.setContentsMargins(52, 8, 52, 8)
+        nav.setSpacing(14)
         self.layout.addLayout(nav)
 
     def add_workspace(self) -> tuple[QFrame, QVBoxLayout]:
@@ -502,32 +598,30 @@ class MonitorMockupPage(PageShell):
         self.setFocusPolicy(Qt.StrongFocus)
 
         nav = QHBoxLayout()
-        nav.setContentsMargins(36, 4, 36, 0)
-        back_button = QPushButton("Back Home")
-        back_button.setObjectName("backButton")
-        back_button.setCursor(Qt.PointingHandCursor)
+        nav.setContentsMargins(52, 10, 52, 10)
+        nav.setSpacing(14)
+        back_button = CnlBackButton("Back Home")
         back_button.clicked.connect(lambda checked=False: show_home())
         nav.addWidget(back_button)
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
         self.layout.addLayout(nav)
 
         body = QHBoxLayout()
-        body.setContentsMargins(78, 10, 150, 34)
-        body.setSpacing(58)
+        body.setContentsMargins(76, 20, 76, 44)
+        body.setSpacing(44)
 
         self.preview = CnlCircleDisplay()
-        body.addWidget(self.preview, 4)
+        body.addWidget(self.preview, 3)
 
         status_column = QVBoxLayout()
-        status_column.setSpacing(24)
-        status_column.addStretch(1)
+        status_column.setSpacing(16)
         for index, (title, purpose) in enumerate(self.pages):
             button = CnlMonitorSelectionButton(title, purpose)
             button.clicked.connect(lambda checked=False, idx=index: self._activate_selection(idx))
             self.selection_buttons.append(button)
             status_column.addWidget(button)
         status_column.addStretch(1)
-        body.addLayout(status_column, 3)
+        body.addLayout(status_column, 5)
         self.layout.addLayout(body, 1)
         self._set_selected(0)
 

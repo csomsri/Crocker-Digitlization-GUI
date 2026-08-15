@@ -39,6 +39,7 @@ from python.app.Monitoring.RfPowerMonitoringPage import RfPowerMonitoringPage
 from python.app.Monitoring.VacuumBeamMonitoringPage import (
     VacuumBeamMonitoringPage,
 )
+from python.app.widgets.MagneticFieldWidgets import FIELD_PLOT_SAMPLE_RATE_HZ
 from source.Python.Data.pipeline_manager import DataPipelineManager
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
@@ -495,7 +496,7 @@ class MainWindow(QMainWindow):
         def run_plant() -> None:
             simulator = ZMQSimulator(endpoint)
             simulator.stream(
-                rate_hz=20.0,
+                rate_hz=float(FIELD_PLOT_SAMPLE_RATE_HZ),
                 stop_event=self._simulation_plant_stop,
                 plant=plant,
             )
@@ -516,7 +517,7 @@ class MainWindow(QMainWindow):
             crocker_root=crocker_root,
             db_path=db_path,
             source="smoke",
-            rate_hz=20.0,
+            rate_hz=float(FIELD_PLOT_SAMPLE_RATE_HZ),
         )
         self._data_pipeline.start()
 
@@ -597,8 +598,19 @@ class MainWindow(QMainWindow):
             }
 
             QPushButton#backButton {
-                max-width: 150px;
+                max-width: 238px;
+                min-height: 40px;
                 text-align: center;
+            }
+
+            QPushButton#navBackButton,
+            QPushButton#transitionCardButton,
+            QPushButton#monitorSelectionButton {
+                background: transparent;
+                border: none;
+                color: transparent;
+                padding: 0;
+                text-align: left;
             }
 
             QPushButton#pidBackButton {
@@ -1277,6 +1289,16 @@ class MainWindow(QMainWindow):
                 color: #e5e7eb;
                 font-size: 12px;
                 font-weight: 700;
+            }
+
+            QFrame#magneticPlotFrame {
+                background-color: #111b2e;
+                border: 1px solid rgba(96, 125, 166, 0.58);
+                border-radius: 6px;
+            }
+
+            QFrame#magneticPlotFrame:hover {
+                border-color: rgba(147, 197, 253, 0.74);
             }
 
             QLabel#pidStatusCard {

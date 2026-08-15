@@ -12,7 +12,11 @@ from PySide6.QtWidgets import QLabel, QPushButton, QSizePolicy, QWidget
 
 MAX_GAUGE_VALUE = 1000.0
 CHANNEL_NAMES = [f"TC{i}" for i in range(1, 13)] + ["Main Magnet", "Centering Beam"]
-FIELD_PLOT_SAMPLE_LIMIT = 240
+FIELD_PLOT_SAMPLE_RATE_HZ = 60
+FIELD_PLOT_SAMPLE_LIMIT = 2160
+FIELD_PLOT_VISIBLE_SAMPLES = 1800
+FIELD_PLOT_RENDER_SAMPLES = 360
+FIELD_PLOT_VISIBLE_SECONDS = 30.0
 FIELD_MONITOR_GROUPS = (
     ("Trim Coils 1-4", tuple(range(0, 4))),
     ("Trim Coils 5-8", tuple(range(4, 8))),
@@ -360,7 +364,10 @@ class QtTimeDomainPlot(QWidget):
         font.setPointSize(max(8, font.pointSize()))
         painter.setFont(font)
 
-        samples = self._samples[-240:]
+        samples = self._samples[-FIELD_PLOT_VISIBLE_SAMPLES:]
+        if samples:
+            cutoff = samples[-1][0] - FIELD_PLOT_VISIBLE_SECONDS
+            samples = [sample for sample in samples if sample[0] >= cutoff]
         if samples:
             start = samples[0][0]
             end = max(samples[-1][0], start + 1.0)

@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
 from python.app.PageShell import DetailPage
@@ -12,6 +13,9 @@ from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
     FIELD_AUXILIARY_GROUP,
     FIELD_MONITOR_GROUPS,
+    FIELD_PLOT_RENDER_SAMPLES,
+    FIELD_PLOT_VISIBLE_SECONDS,
+    FIELD_PLOT_VISIBLE_SAMPLES,
     MAX_GAUGE_VALUE,
     magnetic_field_plot_state,
 )
@@ -23,9 +27,16 @@ PLOT_COLORS = (
     QColor("#f59e0b"),
     QColor("#f472b6"),
 )
+MAGNETIC_PAGE_REFRESH_FPS = 30
+MAGNETIC_PAGE_REFRESH_MS = round(1000 / MAGNETIC_PAGE_REFRESH_FPS)
+
+try:
+    import CycloViz
+except Exception:
+    CycloViz = None
 
 
-class MagneticBarPlot(QWidget):
+class QtMagneticBarPlot(QWidget):
     def __init__(
         self,
         title: str,
@@ -125,7 +136,7 @@ class MagneticBarPlot(QWidget):
         painter.drawText(plot, Qt.AlignCenter, "Plot toggles are off")
 
 
-class MagneticLinePlot(QWidget):
+class QtMagneticLinePlot(QWidget):
     def __init__(
         self,
         title: str,
@@ -154,7 +165,14 @@ class MagneticLinePlot(QWidget):
             return
 
         enabled = self.state.enabled_indices(self.indices)
-        series = [(index, list(self.state.history[index])[-240:]) for index in enabled]
+        histories = [list(self.state.history[index])[-FIELD_PLOT_VISIBLE_SAMPLES:] for index in enabled]
+        latest = max((history[-1][0] for history in histories if history), default=0.0)
+        cutoff = latest - FIELD_PLOT_VISIBLE_SECONDS
+        series = [
+            (index, [sample for sample in history if sample[0] >= cutoff])
+            for index, history in zip(enabled, histories)
+        ]
+        series = [(index, self._bucket_history(row, FIELD_PLOT_RENDER_SAMPLES)) for index, row in series]
         samples = [sample for _, row in series for sample in row]
         if samples:
             start = min(sample[0] for sample in samples)
@@ -246,6 +264,193 @@ class MagneticLinePlot(QWidget):
             plot.bottom() - plot.height() * y_ratio,
         )
 
+    def _bucket_history(
+        self,
+        samples: list[tuple[float, float, float, float]],
+        maximum_rows: int,
+    ) -> list[tuple[float, float, float, float]]:
+        if len(samples) <= maximum_rows or maximum_rows <= 0:
+            return samples
+        bucketed: list[tuple[float, float, float, float]] = []
+        for bucket in range(maximum_rows):
+            start = bucket * len(samples) // maximum_rows
+            end = max(start + 1, (bucket + 1) * len(samples) // maximum_rows)
+            count = float(end - start)
+            sums = [0.0, 0.0, 0.0, 0.0]
+            for sample in samples[start:end]:
+                for column, value in enumerate(sample):
+                    sums[column] += float(value)
+            bucketed.append(tuple(value / count for value in sums))  # type: ignore[arg-type]
+        return bucketed
+
+
+class NativeMagneticBarPlot(QOpenGLWidget):
+    def __init__(
+        self,
+        title: str,
+        indices: tuple[int, ...],
+        parent: QWidget | None = None,
+        minimum_height: int = 185,
+    ) -> None:
+        super().__init__(parent)
+        surface_format = self.format()
+        surface_format.setSamples(8)
+        self.setFormat(surface_format)
+        self.title = title
+        self.indices = indices
+        self.state = magnetic_field_plot_state()
+        self.setMinimumWidth(320)
+        self.setMinimumHeight(minimum_height)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setObjectName("magneticChart")
+        self._native = None
+        self._ready = False
+
+    def initializeGL(self) -> None:
+        try:
+            import CycloViz
+            from PySide6.QtGui import QOpenGLContext
+
+            context = QOpenGLContext.currentContext()
+
+            def get_proc(name: str) -> int:
+                address = context.getProcAddress(name.encode("ascii"))
+                return int(address) if address else 0
+
+            CycloViz.load_opengl(get_proc)
+            self._native = CycloViz.MagneticFieldBarPlot()
+            self._ready = True
+        except Exception as exc:
+            self._ready = False
+            self._native = None
+            print(f"[MagneticFieldMonitoring] Native OpenGL bar plot unavailable: {exc}")
+
+    def paintGL(self) -> None:
+        if not self._ready or self._native is None:
+            return
+        enabled = self.state.enabled_indices(self.indices)
+        labels = [CHANNEL_NAMES[index] for index in enabled]
+        values = [float(self.state.actual_values[index]) for index in enabled]
+        self._native.set_data(self.title, labels, values)
+        pixel_ratio = self.devicePixelRatio()
+        self._native.render(
+            max(1, int(round(self.width() * pixel_ratio))),
+            max(1, int(round(self.height() * pixel_ratio))),
+        )
+
+
+class NativeMagneticLinePlot(QOpenGLWidget):
+    def __init__(
+        self,
+        title: str,
+        indices: tuple[int, ...],
+        parent: QWidget | None = None,
+        minimum_height: int = 185,
+    ) -> None:
+        super().__init__(parent)
+        surface_format = self.format()
+        surface_format.setSamples(8)
+        self.setFormat(surface_format)
+        self.title = title
+        self.indices = indices
+        self.state = magnetic_field_plot_state()
+        self.setMinimumHeight(minimum_height)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setObjectName("magneticChart")
+        self._native = None
+        self._ready = False
+
+    def initializeGL(self) -> None:
+        try:
+            import CycloViz
+            from PySide6.QtGui import QOpenGLContext
+
+            context = QOpenGLContext.currentContext()
+
+            def get_proc(name: str) -> int:
+                address = context.getProcAddress(name.encode("ascii"))
+                return int(address) if address else 0
+
+            CycloViz.load_opengl(get_proc)
+            self._native = CycloViz.MagneticFieldLinePlot()
+            self._ready = True
+        except Exception as exc:
+            self._ready = False
+            self._native = None
+            print(f"[MagneticFieldMonitoring] Native OpenGL line plot unavailable: {exc}")
+
+    def paintGL(self) -> None:
+        if not self._ready or self._native is None:
+            return
+        enabled = self.state.enabled_indices(self.indices)
+        labels = [CHANNEL_NAMES[index] for index in enabled]
+        samples = self._line_samples(enabled)
+        self._native.set_data(self.title, labels, samples)
+        pixel_ratio = self.devicePixelRatio()
+        self._native.render(
+            max(1, int(round(self.width() * pixel_ratio))),
+            max(1, int(round(self.height() * pixel_ratio))),
+        )
+
+    def _line_samples(self, enabled: list[int]) -> list[list[float]]:
+        if not enabled:
+            return []
+        histories = [list(self.state.history[index])[-FIELD_PLOT_VISIBLE_SAMPLES:] for index in enabled]
+        latest = max((history[-1][0] for history in histories if history), default=0.0)
+        cutoff = latest - FIELD_PLOT_VISIBLE_SECONDS
+        histories = [[sample for sample in history if sample[0] >= cutoff] for history in histories]
+        sample_count = min((len(history) for history in histories), default=0)
+        if sample_count <= 0:
+            return []
+        rows = self._aligned_rows(histories, sample_count)
+        return self._bucket_rows(rows, FIELD_PLOT_RENDER_SAMPLES)
+
+    def _aligned_rows(self, histories: list[list[tuple[float, float, float, float]]], sample_count: int) -> list[list[float]]:
+        rows: list[list[float]] = []
+        for offset in range(sample_count):
+            row = [float(histories[0][offset][0])]
+            for history in histories:
+                row.append(float(history[offset][1]))
+            rows.append(row)
+        return rows
+
+    def _bucket_rows(self, rows: list[list[float]], maximum_rows: int) -> list[list[float]]:
+        if len(rows) <= maximum_rows or maximum_rows <= 0:
+            return rows
+        bucketed: list[list[float]] = []
+        column_count = len(rows[0])
+        for bucket in range(maximum_rows):
+            start = bucket * len(rows) // maximum_rows
+            end = max(start + 1, (bucket + 1) * len(rows) // maximum_rows)
+            count = float(end - start)
+            output = [0.0 for _ in range(column_count)]
+            for row in rows[start:end]:
+                for column, value in enumerate(row):
+                    output[column] += value
+            bucketed.append([value / count for value in output])
+        return bucketed
+
+
+def _native_magnetic_charts_available() -> bool:
+    return (
+        CycloViz is not None
+        and hasattr(CycloViz, "load_opengl")
+        and hasattr(CycloViz, "MagneticFieldBarPlot")
+        and hasattr(CycloViz, "MagneticFieldLinePlot")
+    )
+
+
+def make_magnetic_bar_plot(title: str, indices: tuple[int, ...], minimum_height: int = 185) -> QWidget:
+    if _native_magnetic_charts_available():
+        return NativeMagneticBarPlot(title, indices, minimum_height=minimum_height)
+    return QtMagneticBarPlot(title, indices, minimum_height=minimum_height)
+
+
+def make_magnetic_line_plot(title: str, indices: tuple[int, ...], minimum_height: int = 185) -> QWidget:
+    if _native_magnetic_charts_available():
+        return NativeMagneticLinePlot(title, indices, minimum_height=minimum_height)
+    return QtMagneticLinePlot(title, indices, minimum_height=minimum_height)
+
 
 class MagneticFieldMonitoringPage(DetailPage):
     def __init__(self, go_back: Callable[[], None]) -> None:
@@ -272,8 +477,8 @@ class MagneticFieldMonitoringPage(DetailPage):
         grid.setColumnStretch(1, 7)
 
         for row, (title, indices) in enumerate(FIELD_MONITOR_GROUPS):
-            bar = MagneticBarPlot(f"{title} Current", indices)
-            line = MagneticLinePlot(f"{title} Live Trend", indices)
+            bar = make_magnetic_bar_plot(f"{title} Current", indices)
+            line = make_magnetic_line_plot(f"{title} Live Trend", indices)
             self.plot_widgets.extend([bar, line])
             grid.addWidget(self._wrap_plot(bar), row, 0)
             grid.addWidget(self._wrap_plot(line), row, 1)
@@ -281,8 +486,8 @@ class MagneticFieldMonitoringPage(DetailPage):
 
         aux_row = len(FIELD_MONITOR_GROUPS)
         aux_title, aux_indices = FIELD_AUXILIARY_GROUP
-        aux_bar = MagneticBarPlot(f"{aux_title} Current", aux_indices)
-        aux_line = MagneticLinePlot(f"{aux_title} Live Trend", aux_indices)
+        aux_bar = make_magnetic_bar_plot(f"{aux_title} Current", aux_indices)
+        aux_line = make_magnetic_line_plot(f"{aux_title} Live Trend", aux_indices)
         self.plot_widgets.extend([aux_bar, aux_line])
         grid.addWidget(self._wrap_plot(aux_bar), aux_row, 0)
         grid.addWidget(self._wrap_plot(aux_line), aux_row, 1)
@@ -295,8 +500,9 @@ class MagneticFieldMonitoringPage(DetailPage):
         workspace.addWidget(self.status_label)
 
         self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self._refresh)
-        self.timer.start(125)
+        self.timer.start(MAGNETIC_PAGE_REFRESH_MS)
         self._refresh()
 
     def _compact_page_chrome(self) -> None:
@@ -317,7 +523,7 @@ class MagneticFieldMonitoringPage(DetailPage):
         frame = QFrame()
         frame.setObjectName("magneticPlotFrame")
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setContentsMargins(1, 1, 1, 1)
         layout.setSpacing(0)
         layout.addWidget(plot, 1)
         return frame
@@ -325,8 +531,9 @@ class MagneticFieldMonitoringPage(DetailPage):
     def _refresh(self) -> None:
         groups = (*FIELD_MONITOR_GROUPS, FIELD_AUXILIARY_GROUP)
         enabled_count = sum(1 for _, indices in groups for index in indices if self.state.plot_enabled[index])
-        sample_count = sum(len(self.state.history[index]) for _, indices in groups for index in indices)
         total_count = sum(len(indices) for _, indices in groups)
-        self.status_label.setText(f"Plotting {enabled_count}/{total_count} channels | live samples {sample_count}")
+        self.status_label.setText(
+            f"Plotting {enabled_count}/{total_count} channels | rolling window {FIELD_PLOT_VISIBLE_SECONDS:.0f}s"
+        )
         for widget in self.plot_widgets:
             widget.update()

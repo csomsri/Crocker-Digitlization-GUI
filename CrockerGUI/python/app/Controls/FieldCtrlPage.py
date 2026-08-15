@@ -25,6 +25,7 @@ from python.app.PageShell import DetailPage
 from python.app.widgets.MagneticFieldWidgets import (
     BubbleToggle,
     CHANNEL_NAMES,
+    FIELD_PLOT_SAMPLE_RATE_HZ,
     MAX_GAUGE_VALUE,
     SimulatedActual,
     clamp,
@@ -45,6 +46,8 @@ except Exception:
 
 
 CONVERGENCE_TOLERANCE = 0.5
+FIELD_FEEDBACK_REFRESH_FPS = FIELD_PLOT_SAMPLE_RATE_HZ
+FIELD_FEEDBACK_REFRESH_MS = round(1000 / FIELD_FEEDBACK_REFRESH_FPS)
 
 
 class FieldCtrlPage(DetailPage):
@@ -132,8 +135,9 @@ class FieldCtrlPage(DetailPage):
         self._install_shortcuts()
 
         self.timer = QTimer(self)
+        self.timer.setTimerType(Qt.PreciseTimer)
         self.timer.timeout.connect(self._tick_feedback)
-        self.timer.start(125)
+        self.timer.start(FIELD_FEEDBACK_REFRESH_MS)
 
     def _build_control_tabs(self) -> QWidget:
         tab_bar = QFrame()
@@ -645,7 +649,7 @@ class FieldCtrlPage(DetailPage):
             self.backend = CycloViz.ControlService()
             self.owns_backend = True
             if self.backend_mode == "simulation":
-                self.backend.StartSimulator(20.0)
+                self.backend.StartSimulator(float(FIELD_PLOT_SAMPLE_RATE_HZ))
                 self.backend_connection = "Connected"
                 self.backend_destination = "Simulation"
                 self.backend_status = "SIMULATION Connected | simulator://local"

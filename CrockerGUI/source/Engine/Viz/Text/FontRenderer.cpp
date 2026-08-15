@@ -30,7 +30,7 @@ namespace font_renderer {
 namespace {
 constexpr int kFirstCharacter = 32;
 constexpr int kCharacterCount = 95;
-constexpr float kBakeHeight = 64.0f;
+constexpr float kBakeHeight = 128.0f;
 #ifdef _WIN32
 constexpr const char* kDefaultFont = "C:/Windows/Fonts/segoeui.ttf";
 #else
@@ -259,15 +259,6 @@ void DrawText(const std::string& text, float centerX, float centerY, float pixel
         add(q.right, q.top, q.u1, q.v1); add(q.left, q.top, q.u0, q.v1);
     }
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glNamedBufferData(atlas.vertexBuffer, static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
-                      vertices.data(), GL_DYNAMIC_DRAW);
-    glUseProgram(atlas.shader);
-    glProgramUniform4f(atlas.shader, glGetUniformLocation(atlas.shader, "textColor"),
-                       color.r, color.g, color.b, std::clamp(alpha, 0.0f, 1.0f));
-    glBindTextureUnit(0, atlas.texture);
-    glProgramUniform1i(atlas.shader, glGetUniformLocation(atlas.shader, "fontAtlas"), 0);
     // VAOs are not shared between the separate QOpenGLWidget contexts used by
     // the speedometer and line chart. Configure a context-local VAO per draw;
     // the atlas texture, shader, and buffer remain shared by Qt's share group.
@@ -281,7 +272,32 @@ void DrawText(const std::string& text, float centerX, float centerY, float pixel
     glVertexArrayAttribBinding(vertexArray, 0, 0);
     glVertexArrayAttribBinding(vertexArray, 1, 0);
     glBindVertexArray(vertexArray);
-    glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(vertices.size() / 4));
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glUseProgram(atlas.shader);
+    glBindTextureUnit(0, atlas.texture);
+    glProgramUniform1i(atlas.shader, glGetUniformLocation(atlas.shader, "fontAtlas"), 0);
+
+    const auto drawVertices = [&](const std::vector<float>& textVertices,
+                                  float r, float g, float b, float a) {
+        glNamedBufferData(atlas.vertexBuffer,
+                          static_cast<GLsizeiptr>(textVertices.size() * sizeof(float)),
+                          textVertices.data(), GL_DYNAMIC_DRAW);
+        glProgramUniform4f(atlas.shader, glGetUniformLocation(atlas.shader, "textColor"),
+                           r, g, b, std::clamp(a, 0.0f, 1.0f));
+        glDrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(textVertices.size() / 4));
+    };
+
+    std::vector<float> shadowVertices = vertices;
+    const float shadowX = 2.0f * 1.35f / std::max(viewport[2], 1);
+    const float shadowY = -2.0f * 1.35f / std::max(viewport[3], 1);
+    for (std::size_t index = 0; index + 1 < shadowVertices.size(); index += 4) {
+        shadowVertices[index] += shadowX;
+        shadowVertices[index + 1] += shadowY;
+    }
+    drawVertices(shadowVertices, 2.0f / 255.0f, 6.0f / 255.0f, 23.0f / 255.0f, 0.72f * alpha);
+    drawVertices(vertices, color.r, color.g, color.b, alpha);
     glDeleteVertexArrays(1, &vertexArray);
 }
 
