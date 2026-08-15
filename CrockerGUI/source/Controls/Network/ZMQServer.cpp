@@ -105,7 +105,10 @@ void ZMQServer::Run()
 
         while (running_.load()) {
             try {
-                Packet packet = receiver_.ReceivePacket();
+                Packet packet;
+                if (!receiver_.TryReceivePacket(packet)) {
+                    continue;
+                }
 
                 if (!packet.channels.empty()) {
                     PushPacket(std::move(packet));

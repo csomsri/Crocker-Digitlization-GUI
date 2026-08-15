@@ -38,12 +38,26 @@ zmq::message_t ZMQReceiver::ReceiveMessage()
 
 Protocol::Packet ZMQReceiver::ReceivePacket()
 {
-    const zmq::message_t message = ReceiveMessage();
-    if (!Protocol::IsValidFrameSize(message.size())) {
-        return {};
+    Protocol::Packet packet;
+    TryReceivePacket(packet);
+    return packet;
+}
+
+bool ZMQReceiver::TryReceivePacket(Protocol::Packet& packet)
+{
+    packet = {};
+    zmq::message_t message;
+    const auto result = socket_.recv(message, zmq::recv_flags::none);
+    if (!result.has_value()) {
+        return false;
     }
 
-    return Protocol::SliceBestEffort(Protocol::UnpackDoubles(message));
+    if (!Protocol::IsValidFrameSize(message.size())) {
+        return true;
+    }
+
+    packet = Protocol::SliceBestEffort(Protocol::UnpackDoubles(message));
+    return true;
 }
 
 void ZMQReceiver::SendReply(const std::array<double, Protocol::N_TRIM>& targetValues, std::uint64_t bitmask)
