@@ -1,6 +1,6 @@
 from collections.abc import Callable
 
-from PySide6.QtCore import QPointF, QRect, QRectF, Qt
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -10,6 +10,8 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
 )
+
+from python.app.widgets.MonitoringPlotState import monitoring_plot_state
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -389,6 +391,10 @@ class MonitoringDetailPage(DetailPage):
         go_back: Callable[[], None],
     ) -> None:
         super().__init__(title, subtitle, back_label, go_back)
+        self.monitor_title = title
+        self.channels = channels
+        self.monitor_plot_state = monitoring_plot_state()
+        self.metric_cards: list[QLabel] = []
         panel, panel_layout = self.add_workspace()
 
         controls = QHBoxLayout()
@@ -408,13 +414,14 @@ class MonitoringDetailPage(DetailPage):
             metric.setObjectName("metricCard")
             metric.setAlignment(Qt.AlignCenter)
             metric_grid.addWidget(metric, index // 3, index % 3)
+            self.metric_cards.append(metric)
         panel_layout.addLayout(metric_grid)
 
-        chart = QLabel("Live chart area")
-        chart.setObjectName("chartPlaceholder")
-        chart.setAlignment(Qt.AlignCenter)
-        chart.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        panel_layout.addWidget(chart, 1)
+        self.chart = QLabel("Live chart area")
+        self.chart.setObjectName("chartPlaceholder")
+        self.chart.setAlignment(Qt.AlignCenter)
+        self.chart.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        panel_layout.addWidget(self.chart, 1)
 
         self.table = QTableWidget(len(channels), 3)
         self.table.setHorizontalHeaderLabels(["Channel", "Value", "Status"])
@@ -424,6 +431,26 @@ class MonitoringDetailPage(DetailPage):
             self.table.setItem(row, 2, QTableWidgetItem("Idle"))
         panel_layout.addWidget(self.table)
         panel.setLayout(panel_layout)
+
+        self.visibility_timer = QTimer(self)
+        self.visibility_timer.timeout.connect(self._refresh_plot_visibility)
+        self.visibility_timer.start(250)
+        self._refresh_plot_visibility()
+
+    def _refresh_plot_visibility(self) -> None:
+        enabled = self.monitor_plot_state.enabled_channels(self.monitor_title, self.channels)
+        enabled_set = set(enabled)
+        for index, card in enumerate(self.metric_cards):
+            if index < len(self.channels):
+                card.setVisible(self.channels[index] in enabled_set)
+        for row, channel in enumerate(self.channels):
+            self.table.setRowHidden(row, channel not in enabled_set)
+        if enabled:
+            self.chart.setText(
+                f"Live chart area\nPlotting {len(enabled)}/{len(self.channels)} variables"
+            )
+        else:
+            self.chart.setText("Live chart area\nPlot toggles are off")
 
 
 MONITOR_PREVIEWS: dict[str, list[str]] = {

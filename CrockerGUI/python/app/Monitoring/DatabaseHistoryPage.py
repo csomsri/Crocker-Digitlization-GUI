@@ -565,11 +565,12 @@ class DatabaseHistoryPage(DetailPage):
         self,
         go_back: Callable[[], None],
         db_path: str | Path = DEFAULT_DB_PATH,
+        back_label: str = "Back to Monitoring",
     ) -> None:
         super().__init__(
             "Database History",
             "SQLite readings history",
-            "Back to Monitoring",
+            back_label,
             go_back,
         )
         self.db_path = self._resolve_db_path(Path(db_path))

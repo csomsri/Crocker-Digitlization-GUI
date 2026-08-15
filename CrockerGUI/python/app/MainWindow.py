@@ -20,9 +20,6 @@ from python.app.Controls.ManualControlsPage import ManualControlsPage
 from python.app.HomePage import HomePage
 from python.app.Controls.SnapshotPage import SnapshotPage
 from python.app.Configuration.ConfigurationPage import ConfigurationPage
-from python.app.Configuration.DatabaseMonitoringPage import (
-    DatabaseMonitoringPage,
-)
 from python.app.Configuration.RecallPage import RecallPage
 from python.app.Configuration.ScalingPage import ScalingPage
 from python.app.Configuration.SettingsPage import SettingsPage
@@ -66,13 +63,12 @@ DETAIL_BUILDERS = {
     "Beam Transport Monitoring": ("Monitoring", BeamTransportMonitoringPage),
     "Beam Source & Extraction": ("Monitoring", BeamSourceExtractionPage),
     "Vacuum / Beam Monitoring": ("Monitoring", VacuumBeamMonitoringPage),
-    "Database History": ("Monitoring", DatabaseHistoryPage),
     "RF Power Monitoring": ("Monitoring", RfPowerMonitoringPage),
     "Field Ctrl": ("Manual Controls", FieldCtrlPage),
     "Beam Range": ("Manual Controls", BeamRangePage),
     "Alarm": ("Manual Controls", AlarmPage),
     "Snapshot": ("Manual Controls", SnapshotPage),
-    "Database Monitoring": ("Configuration", DatabaseMonitoringPage),
+    "Database History": ("Configuration", DatabaseHistoryPage),
     "Recall": ("Configuration", RecallPage),
     "Settings": ("Configuration", SettingsPage),
     "Scaling": ("Configuration", ScalingPage),
@@ -184,6 +180,7 @@ class MainWindow(QMainWindow):
                     lambda checked=False, category=parent_category:
                         self.show_category(category),
                     db_path=self.db_path,
+                    back_label="Back to Settings",
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -333,7 +330,11 @@ class MainWindow(QMainWindow):
                     zmq_endpoint=self.zmq_endpoint,
                 )
             if page_name == "Database History":
-                return builder(go_back, db_path=self.db_path)
+                return builder(
+                    go_back,
+                    db_path=self.db_path,
+                    back_label="Back to Settings",
+                )
             if page_name == "Settings":
                 return builder(
                     go_back,
@@ -1153,6 +1154,59 @@ class MainWindow(QMainWindow):
 
             QWidget#fieldController {
                 background: transparent;
+            }
+
+            QFrame#fieldControlTabs {
+                background-color: transparent;
+                border: none;
+                border-bottom: 1px solid rgba(71, 85, 105, 0.78);
+            }
+
+            QPushButton#fieldControlTab {
+                background-color: rgba(15, 23, 42, 0.64);
+                border: 1px solid rgba(71, 85, 105, 0.70);
+                border-bottom-color: rgba(71, 85, 105, 0.78);
+                border-top-left-radius: 7px;
+                border-top-right-radius: 7px;
+                border-bottom-left-radius: 0;
+                border-bottom-right-radius: 0;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 700;
+                margin-bottom: 0;
+                margin-top: 6px;
+                min-height: 28px;
+                min-width: 126px;
+                padding: 3px 10px;
+                text-align: center;
+            }
+
+            QPushButton#fieldControlTab:hover {
+                background-color: rgba(30, 41, 59, 0.92);
+                border-color: rgba(96, 165, 250, 0.70);
+                color: #ffffff;
+            }
+
+            QPushButton#fieldControlTab:checked {
+                background-color: rgba(17, 24, 39, 0.96);
+                border-color: rgba(147, 197, 253, 0.86);
+                border-bottom-color: rgba(17, 24, 39, 0.96);
+                color: #eff6ff;
+                margin-top: 2px;
+                min-height: 32px;
+            }
+
+            QWidget#fieldControlStack,
+            QWidget#fieldMonitorControl {
+                background: transparent;
+            }
+
+            QLabel#fieldMonitorTitle {
+                color: #e5e7eb;
+                font-family: "__APP_FONT__", Segoe UI, Arial, sans-serif;
+                font-size: 18px;
+                font-weight: 700;
+                padding: 4px 2px 2px 2px;
             }
 
             QLabel#fieldInstruction {

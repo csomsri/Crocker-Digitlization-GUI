@@ -6,6 +6,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QButtonGroup,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -29,6 +31,11 @@ from python.app.widgets.MagneticFieldWidgets import (
     magnetic_field_plot_state,
     make_speedometer,
     make_time_domain_plot,
+)
+from python.app.widgets.MonitoringPlotState import (
+    MONITOR_CONTROL_TABS,
+    MONITOR_VARIABLES,
+    monitoring_plot_state,
 )
 
 try:
@@ -57,6 +64,7 @@ class FieldCtrlPage(DetailPage):
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
         self.plot_state = magnetic_field_plot_state()
+        self.monitor_plot_state = monitoring_plot_state()
         self.selected_index = 0
         self.target_values = self.plot_state.target_values
         self.actual_models = [SimulatedActual() for _ in CHANNEL_NAMES]
@@ -74,7 +82,10 @@ class FieldCtrlPage(DetailPage):
         self.on_buttons: list[BubbleToggle] = []
         self.enable_buttons: list[BubbleToggle] = []
         self.plot_buttons: list[BubbleToggle] = []
+        self.monitor_plot_buttons: list[BubbleToggle] = []
         self.toggle_bulk_buttons: list[QPushButton] = []
+        self.monitor_bulk_buttons: list[QPushButton] = []
+        self.control_tab_buttons: list[QPushButton] = []
         self.toggle_lock_button: QPushButton | None = None
         self.toggles_locked = True
         self.digit_labels: list[QLabel] = []
@@ -99,14 +110,23 @@ class FieldCtrlPage(DetailPage):
         workspace_frame.setObjectName("fieldControlWorkspace")
         workspace.setContentsMargins(12, 12, 12, 12)
 
+        self.control_stack = QStackedWidget()
+        self.control_stack.setObjectName("fieldControlStack")
+
         splitter = QSplitter(Qt.Horizontal)
         splitter.setChildrenCollapsible(False)
         splitter.addWidget(self._build_channel_matrix())
         splitter.addWidget(self._build_controller_panel())
         splitter.setStretchFactor(0, 6)
         splitter.setStretchFactor(1, 5)
-        workspace.addWidget(splitter, 1)
+        self.control_stack.addWidget(splitter)
 
+        for page_title, _tab_title in MONITOR_CONTROL_TABS[1:]:
+            self.control_stack.addWidget(self._build_monitor_plot_panel(page_title))
+
+        workspace.addWidget(self.control_stack, 1)
+
+        self._refresh_toggle_lock()
         self._refresh_selection()
         self._refresh_target_display()
         self._install_shortcuts()
@@ -114,6 +134,91 @@ class FieldCtrlPage(DetailPage):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick_feedback)
         self.timer.start(125)
+
+    def _build_control_tabs(self) -> QWidget:
+        tab_bar = QFrame()
+        tab_bar.setObjectName("fieldControlTabs")
+        layout = QHBoxLayout(tab_bar)
+        layout.setContentsMargins(12, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.control_tab_group = QButtonGroup(self)
+        self.control_tab_group.setExclusive(True)
+        for index, (_page_title, tab_title) in enumerate(MONITOR_CONTROL_TABS):
+            button = QPushButton(tab_title)
+            button.setObjectName("fieldControlTab")
+            button.setCheckable(True)
+            button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(lambda checked=False, tab_index=index: self._set_control_tab(tab_index))
+            self.control_tab_group.addButton(button, index)
+            self.control_tab_buttons.append(button)
+            layout.addWidget(button)
+        layout.addStretch(1)
+        self.control_tab_buttons[0].setChecked(True)
+        return tab_bar
+
+    def _set_control_tab(self, index: int) -> None:
+        if hasattr(self, "control_stack"):
+            self.control_stack.setCurrentIndex(index)
+        if 0 <= index < len(self.control_tab_buttons):
+            self.control_tab_buttons[index].setChecked(True)
+
+    def _build_monitor_plot_panel(self, page_title: str) -> QWidget:
+        body = QWidget()
+        body.setObjectName("fieldMonitorControl")
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        heading = QLabel(page_title)
+        heading.setObjectName("fieldMonitorTitle")
+        layout.addWidget(heading)
+
+        button_row = QHBoxLayout()
+        for label, enabled in (("All Plot", True), ("Clear Plot", False)):
+            button = QPushButton(label)
+            button.setObjectName("fieldBulk")
+            button.clicked.connect(
+                lambda checked=False, title=page_title, state=enabled: self._set_all_monitor_plots(title, state)
+            )
+            button_row.addWidget(button)
+            self.monitor_bulk_buttons.append(button)
+        button_row.addStretch(1)
+        layout.addLayout(button_row)
+
+        grid = QGridLayout()
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(8)
+
+        channels = MONITOR_VARIABLES.get(page_title, [])
+        for index, channel in enumerate(channels):
+            row = index // 2
+            column = index % 2
+            card = QFrame()
+            card.setObjectName("fieldRow")
+            card_layout = QHBoxLayout(card)
+            card_layout.setContentsMargins(10, 8, 10, 8)
+            card_layout.setSpacing(10)
+
+            name = QLabel(channel)
+            name.setObjectName("fieldName")
+            toggle = BubbleToggle(f"{channel} plotted", "#ffb52d")
+            toggle.setChecked(self.monitor_plot_state.is_enabled(page_title, channel))
+            toggle.toggled.connect(
+                lambda checked=False, title=page_title, variable=channel:
+                    self._set_monitor_plot_enabled(title, variable, checked)
+            )
+
+            card_layout.addWidget(name, 1)
+            card_layout.addWidget(toggle)
+            grid.addWidget(card, row, column)
+            self.monitor_plot_buttons.append(toggle)
+        grid.setColumnStretch(0, 1)
+        grid.setColumnStretch(1, 1)
+        layout.addLayout(grid)
+        layout.addStretch(1)
+        return body
 
     def _install_shortcuts(self) -> None:
         for key, direction in (("Shift+Left", -1), ("Shift+Right", 1)):
@@ -149,6 +254,7 @@ class FieldCtrlPage(DetailPage):
             nav_layout.takeAt(0)
         if back_button is not None:
             nav_layout.addWidget(back_button)
+        nav_layout.addWidget(self._build_control_tabs(), 1)
         nav_layout.addStretch(1)
 
     def _build_channel_matrix(self) -> QWidget:
@@ -652,7 +758,14 @@ class FieldCtrlPage(DetailPage):
 
     def _refresh_toggle_lock(self) -> None:
         unlocked = not self.toggles_locked
-        for button in [*self.on_buttons, *self.enable_buttons, *self.plot_buttons, *self.toggle_bulk_buttons]:
+        for button in [
+            *self.on_buttons,
+            *self.enable_buttons,
+            *self.plot_buttons,
+            *self.monitor_plot_buttons,
+            *self.toggle_bulk_buttons,
+            *self.monitor_bulk_buttons,
+        ]:
             button.setEnabled(unlocked)
         if self.toggle_lock_button is not None:
             self.toggle_lock_button.blockSignals(True)
@@ -668,6 +781,19 @@ class FieldCtrlPage(DetailPage):
     def _set_plot_enabled(self, index: int, checked: bool) -> None:
         self.plot_state.set_plot_enabled(index, checked)
         self._refresh_plot()
+
+    def _set_monitor_plot_enabled(self, page_title: str, channel: str, checked: bool) -> None:
+        self.monitor_plot_state.set_enabled(page_title, channel, checked)
+
+    def _set_all_monitor_plots(self, page_title: str, checked: bool) -> None:
+        if self.toggles_locked:
+            return
+        self.monitor_plot_state.set_all_enabled(page_title, checked)
+        for button in self.monitor_plot_buttons:
+            if button.toolTip().endswith(" plotted"):
+                channel = button.toolTip()[: -len(" plotted")]
+                if channel in MONITOR_VARIABLES.get(page_title, []):
+                    button.setChecked(checked)
 
     def _hold_selected_actual(self) -> None:
         self._set_selected_target(self.actual_values[self.selected_index])
