@@ -148,6 +148,8 @@ class MainWindow(QMainWindow):
                     field_backend_mode = "zmq"
                 elif title == "PID Control" and self.simulation_mode == "cyclotron":
                     field_backend_mode = "zmq"
+                elif title == "PID Control" and self.backend_mode == "zmq":
+                    field_backend_mode = "offline"
                 detail_page = page_builder(
                     lambda checked=False, category=parent_category:
                         self.show_category(category),
@@ -325,6 +327,8 @@ class MainWindow(QMainWindow):
                     if self.simulation_mode == "cyclotron"
                     else self.backend_mode
                 )
+                if page_name == "PID Control" and self.backend_mode == "zmq" and self.simulation_mode is None:
+                    field_backend_mode = "offline"
                 return builder(
                     go_back,
                     backend_mode=field_backend_mode,

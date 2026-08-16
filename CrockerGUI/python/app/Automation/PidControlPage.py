@@ -1130,6 +1130,11 @@ class PidControlPage(DetailPage):
         )
 
     def _start_backend(self) -> None:
+        if self.backend_mode == "offline":
+            self.backend_available = False
+            self.backend_connection = "Not Connected"
+            self.backend_destination = "PID backend disabled for manual ZMQ control"
+            return
         if CycloViz is None or not hasattr(CycloViz, "ControlService"):
             return
         try:
