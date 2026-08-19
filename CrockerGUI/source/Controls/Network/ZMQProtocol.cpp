@@ -83,7 +83,48 @@ void TryTransportVacuumLayout(
 
 bool IsValidFrameSize(std::size_t byteCount)
 {
-    return byteCount % sizeof(double) == 0 && byteCount >= MIN_REQUEST_DOUBLES * sizeof(double);
+    if (byteCount % sizeof(double) != 0) {
+        return false;
+    }
+
+    return InferChannelCount(byteCount / sizeof(double)) > 0;
+}
+
+std::size_t InferChannelCount(std::size_t doubleCount)
+{
+    if (doubleCount < MIN_FIELD_REQUEST_DOUBLES) {
+        return 0;
+    }
+
+    const std::size_t middleAfter12 = doubleCount - MIN_FIELD_REQUEST_DOUBLES;
+    const std::size_t middleAfter14 = doubleCount >= MIN_REQUEST_DOUBLES ? doubleCount - MIN_REQUEST_DOUBLES : 0;
+
+    auto isKnownExtensionSize = [](std::size_t count) {
+        return count == 0 ||
+            count == N_SRC_EX_12 ||
+            count == N_SRC_EX_18 ||
+            count == N_TRANS ||
+            count == N_VAC_BM_7 ||
+            count == N_VAC_BM_7 + 1 ||
+            count == N_SRC_EX_12 + N_TRANS ||
+            count == N_SRC_EX_12 + N_TRANS + N_VAC_BM_7 ||
+            count == N_SRC_EX_12 + N_VAC_BM_7 + 1 + N_TRANS ||
+            count == N_SRC_EX_18 + N_TRANS ||
+            count == N_SRC_EX_18 + N_TRANS + N_VAC_BM_7 ||
+            count == N_SRC_EX_18 + N_VAC_BM_7 + 1 + N_TRANS;
+    };
+
+    if (doubleCount >= MIN_REQUEST_DOUBLES && isKnownExtensionSize(middleAfter14)) {
+        return N_TRIM;
+    }
+    if (isKnownExtensionSize(middleAfter12)) {
+        return N_FIELD_TRIM;
+    }
+    if (doubleCount >= MIN_REQUEST_DOUBLES) {
+        return N_TRIM;
+    }
+
+    return N_FIELD_TRIM;
 }
 
 std::vector<double> UnpackDoubles(const zmq::message_t& message)
@@ -100,14 +141,15 @@ std::vector<double> UnpackDoubles(const zmq::message_t& message)
 Packet SliceBestEffort(const std::vector<double>& doubles)
 {
     Packet packet;
-    if (doubles.size() < MIN_REQUEST_DOUBLES) {
+    const std::size_t channelCount = InferChannelCount(doubles.size());
+    if (channelCount == 0) {
         return packet;
     }
 
     std::size_t offset = 0;
     packet.timestamp = doubles[offset++];
-    packet.channels = Slice(doubles, offset, offset + N_TRIM);
-    offset += N_TRIM;
+    packet.channels = Slice(doubles, offset, offset + channelCount);
+    offset += channelCount;
 
     const auto middleEnd = doubles.size() - 1;
     const std::vector<double> middle = Slice(doubles, offset, middleEnd);

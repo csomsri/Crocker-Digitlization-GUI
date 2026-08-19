@@ -55,6 +55,25 @@ struct ChannelCommand {
 
 using ControlCommand = std::array<ChannelCommand, ChannelCount>;
 
+struct ScalingPoint {
+    double input = 0.0;
+    double output = 0.0;
+};
+
+struct LinearChannelScaling {
+    double rawToEngineeringGain = 1.0;
+    double rawToEngineeringOffset = 0.0;
+    double engineeringToRawGain = 1.0;
+    double engineeringToRawOffset = 0.0;
+    std::vector<ScalingPoint> rawToEngineeringCurve;
+    std::vector<ScalingPoint> engineeringToRawCurve;
+    bool rawToEngineeringUsesCurve = false;
+    bool engineeringToRawUsesCurve = false;
+    bool enabled = false;
+};
+
+using ControlScaling = std::array<LinearChannelScaling, ChannelCount>;
+
 // Configuration for a bounded PID field trial. Allocation coefficients map the
 // scalar PID output onto hardware channels; zero leaves a channel untouched.
 struct PidTrialConfig {

@@ -12,6 +12,7 @@ namespace Crocker::Controls::Network::ZMQProtocol {
 
 // Protocol Sizes
 inline constexpr std::size_t N_TRIM = 14;
+inline constexpr std::size_t N_FIELD_TRIM = 12;
 inline constexpr std::size_t N_SRC_EX_12 = 12;
 inline constexpr std::size_t N_SRC_EX_18 = 18;
 inline constexpr std::size_t N_TRANS = 10;
@@ -19,6 +20,7 @@ inline constexpr std::size_t N_VAC_BM_7 = 7;
 inline constexpr std::size_t REPLY_DOUBLES = N_TRIM + 1;
 inline constexpr std::size_t CONTROL_DOUBLES = 1 + N_TRIM + 1;
 inline constexpr std::size_t MIN_REQUEST_DOUBLES = 1 + N_TRIM + 1;
+inline constexpr std::size_t MIN_FIELD_REQUEST_DOUBLES = 1 + N_FIELD_TRIM + 1;
 inline constexpr double EPOCH_OFFSET = 2082844800.0;
 
 // Get Time Stamp
@@ -50,6 +52,7 @@ using TargetValues = std::array<double, N_TRIM>;
 using ChannelFlags = std::array<bool, N_TRIM>;
 
 bool IsValidFrameSize(std::size_t byteCount);
+std::size_t InferChannelCount(std::size_t doubleCount);
 std::vector<double> UnpackDoubles(const zmq::message_t& message);
 Packet SliceBestEffort(const std::vector<double>& doubles);
 Timestamp NormalizeTimestamp(double rawTimestamp);

@@ -1,5 +1,7 @@
 #include "Controls/Network/ZMQReceiver.hpp"
 
+#include <algorithm>
+#include <cstring>
 #include <iostream>
 #include <utility>
 
@@ -62,7 +64,21 @@ bool ZMQReceiver::TryReceivePacket(Protocol::Packet& packet)
 
 void ZMQReceiver::SendReply(const std::array<double, Protocol::N_TRIM>& targetValues, std::uint64_t bitmask)
 {
-    auto reply = Protocol::BuildReplyMessage(Protocol::BuildReplyTargets(targetValues, bitmask));
+    SendReply(targetValues, Protocol::N_TRIM, bitmask);
+}
+
+void ZMQReceiver::SendReply(
+    const std::array<double, Protocol::N_TRIM>& targetValues,
+    std::size_t channelCount,
+    std::uint64_t bitmask)
+{
+    const std::size_t safeCount = std::clamp(channelCount, Protocol::N_FIELD_TRIM, Protocol::N_TRIM);
+    std::vector<double> replyValues(safeCount + 1);
+    std::copy_n(targetValues.begin(), safeCount, replyValues.begin());
+    replyValues.back() = static_cast<double>(bitmask);
+
+    zmq::message_t reply(replyValues.size() * sizeof(double));
+    std::memcpy(reply.data(), replyValues.data(), reply.size());
     socket_.send(reply, zmq::send_flags::none);
 }
 

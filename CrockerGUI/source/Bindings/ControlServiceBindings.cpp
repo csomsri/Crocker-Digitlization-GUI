@@ -92,6 +92,152 @@ void ReadDoubleArray(const py::dict& source, const char* key, Array& destination
     }
 }
 
+void ReadOptionalDoubleArray(const py::dict& source, const char* key, auto setter)
+{
+    if (!source.contains(key)) {
+        return;
+    }
+    const py::sequence values = source[key].cast<py::sequence>();
+    if (values.size() != static_cast<py::ssize_t>(Controls::ChannelCount)) {
+        throw py::value_error(std::string(key) + " must contain one value per control channel");
+    }
+    for (std::size_t index = 0; index < Controls::ChannelCount; ++index) {
+        setter(index, py::cast<double>(values[index]));
+    }
+}
+
+std::vector<Controls::ScalingPoint> PointsFromObject(const py::object& source, bool rawToEngineering)
+{
+    std::vector<Controls::ScalingPoint> points;
+    if (source.is_none()) {
+        return points;
+    }
+    const py::sequence values = source.cast<py::sequence>();
+    for (const py::handle item : values) {
+        if (py::isinstance<py::dict>(item)) {
+            const py::dict point = py::reinterpret_borrow<py::dict>(item);
+            py::object input = py::none();
+            py::object output = py::none();
+            if (point.contains("input")) {
+                input = point["input"];
+            } else if (point.contains("x")) {
+                input = point["x"];
+            }
+            if (point.contains("output")) {
+                output = point["output"];
+            } else if (point.contains("y")) {
+                output = point["y"];
+            }
+            if (input.is_none() && output.is_none() && point.contains("raw") && point.contains("eng")) {
+                input = rawToEngineering ? point["raw"] : point["eng"];
+                output = rawToEngineering ? point["eng"] : point["raw"];
+            }
+            if (!input.is_none() && !output.is_none()) {
+                points.push_back({py::cast<double>(input), py::cast<double>(output)});
+            }
+            continue;
+        }
+
+        const py::sequence pair = py::reinterpret_borrow<py::object>(item).cast<py::sequence>();
+        if (pair.size() >= 2) {
+            points.push_back({py::cast<double>(pair[0]), py::cast<double>(pair[1])});
+        }
+    }
+    return points;
+}
+
+void ApplyTransformDict(
+    const py::dict& source,
+    double& gain,
+    double& offset,
+    bool& usesCurve,
+    std::vector<Controls::ScalingPoint>& curve,
+    bool rawToEngineering)
+{
+    if (source.contains("gain")) {
+        gain = py::cast<double>(source["gain"]);
+    }
+    if (source.contains("offset")) {
+        offset = py::cast<double>(source["offset"]);
+    }
+    const std::string type = source.contains("type") ? py::cast<std::string>(source["type"]) : "linear";
+    py::object points = py::none();
+    if (source.contains("points")) {
+        points = source["points"];
+    } else if (source.contains("curve")) {
+        points = source["curve"];
+    }
+    if (type == "curve" || !points.is_none()) {
+        curve = PointsFromObject(points, rawToEngineering);
+        usesCurve = curve.size() >= 2;
+    }
+}
+
+void ApplyLegacyChannelScaling(Controls::LinearChannelScaling& scaling, const py::dict& entry)
+{
+    scaling.enabled = entry.contains("enabled") ? py::cast<bool>(entry["enabled"]) : true;
+
+    if (entry.contains("raw_to_eng") && py::isinstance<py::dict>(entry["raw_to_eng"])) {
+        ApplyTransformDict(
+            py::reinterpret_borrow<py::dict>(entry["raw_to_eng"]),
+            scaling.rawToEngineeringGain,
+            scaling.rawToEngineeringOffset,
+            scaling.rawToEngineeringUsesCurve,
+            scaling.rawToEngineeringCurve,
+            true);
+    }
+
+    if (entry.contains("eng_to_raw") && py::isinstance<py::dict>(entry["eng_to_raw"])) {
+        ApplyTransformDict(
+            py::reinterpret_borrow<py::dict>(entry["eng_to_raw"]),
+            scaling.engineeringToRawGain,
+            scaling.engineeringToRawOffset,
+            scaling.engineeringToRawUsesCurve,
+            scaling.engineeringToRawCurve,
+            false);
+    }
+}
+
+Controls::ControlScaling ScalingFromDict(const py::dict& source)
+{
+    Controls::ControlScaling scaling{};
+    ReadOptionalDoubleArray(source, "raw_to_eng_gain", [&](std::size_t index, double value) {
+        scaling[index].rawToEngineeringGain = value;
+    });
+    ReadOptionalDoubleArray(source, "raw_to_eng_offset", [&](std::size_t index, double value) {
+        scaling[index].rawToEngineeringOffset = value;
+    });
+    ReadOptionalDoubleArray(source, "eng_to_raw_gain", [&](std::size_t index, double value) {
+        scaling[index].engineeringToRawGain = value;
+    });
+    ReadOptionalDoubleArray(source, "eng_to_raw_offset", [&](std::size_t index, double value) {
+        scaling[index].engineeringToRawOffset = value;
+    });
+
+    if (source.contains("enabled")) {
+        const py::sequence values = source["enabled"].cast<py::sequence>();
+        if (values.size() != static_cast<py::ssize_t>(Controls::ChannelCount)) {
+            throw py::value_error("enabled must contain one value per control channel");
+        }
+        for (std::size_t index = 0; index < Controls::ChannelCount; ++index) {
+            scaling[index].enabled = py::cast<bool>(values[index]);
+        }
+    }
+
+    const std::array<std::string, Controls::ChannelCount> channelKeys = {
+        "ch1", "ch2", "ch3", "ch4", "ch5", "ch6", "ch7",
+        "ch8", "ch9", "ch10", "ch11", "ch12", "main_magnet", "centering_beam",
+    };
+    for (std::size_t index = 0; index < channelKeys.size(); ++index) {
+        const std::string& key = channelKeys[index];
+        if (source.contains(key.c_str()) && py::isinstance<py::dict>(source[key.c_str()])) {
+            ApplyLegacyChannelScaling(scaling[index], py::reinterpret_borrow<py::dict>(source[key.c_str()]));
+        }
+    }
+
+    return scaling;
+}
+
 Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
 {
     Controls::PidTrialConfig config;
@@ -222,8 +368,15 @@ void BindControlService(py::module_& module)
         .def("StartSimulator", &Controls::ControlService::StartSimulator, py::arg("update_rate_hz") = 60.0)
         .def(
             "StartServer",
-            &Controls::ControlService::StartServer,
-            py::arg("endpoint") = "tcp://0.0.0.0:5555")
+            [](Controls::ControlService& service, const std::string& endpoint, py::object scaling) {
+                if (scaling.is_none()) {
+                    service.StartServer(endpoint);
+                    return;
+                }
+                service.StartServer(endpoint, ScalingFromDict(scaling.cast<py::dict>()));
+            },
+            py::arg("endpoint") = "tcp://0.0.0.0:5555",
+            py::arg("scaling") = py::none())
         .def("Stop", &Controls::ControlService::Stop)
         .def("IsRunning", &Controls::ControlService::IsRunning)
         .def("SetChannelTarget", &Controls::ControlService::SetChannelTarget, py::arg("channel"), py::arg("target"))
@@ -242,6 +395,9 @@ void BindControlService(py::module_& module)
             py::arg("target"),
             py::arg("on"),
             py::arg("enabled"))
+        .def("SetScaling", [](Controls::ControlService& service, const py::dict& scaling) {
+            service.SetScaling(ScalingFromDict(scaling));
+        }, py::arg("scaling"))
         .def("ApplyCommand", &Controls::ControlService::ApplyCommand)
         .def("DisableAll", &Controls::ControlService::DisableAll)
         .def("PendingCommand", [](const Controls::ControlService& service) {

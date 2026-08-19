@@ -30,6 +30,7 @@ public:
 
     void SetTargets(const TargetValues& targetValues);
     void SetBitmask(std::uint64_t bitmask);
+    void SetReply(const TargetValues& targetValues, std::uint64_t bitmask);
     void SetBeamRangeIndex(std::optional<int> beamRangeIndex);
 
     bool TryPopPacket(Packet& packet);
@@ -53,6 +54,7 @@ private:
     mutable std::mutex replyMutex_;
     TargetValues latestTargets_{};
     std::uint64_t latestBitmask_ = 0;
+    bool hasOperatorReply_ = false;
     std::optional<int> pendingBeamRangeIndex_;
 
     mutable std::mutex endpointMutex_;

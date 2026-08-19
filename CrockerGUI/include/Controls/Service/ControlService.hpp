@@ -23,6 +23,7 @@ public:
 
     void StartSimulator(double updateRateHz = 60.0);
     void StartServer(const std::string& endpoint = "tcp://0.0.0.0:5555");
+    void StartServer(const std::string& endpoint, const ControlScaling& scaling);
     void Stop() noexcept;
     [[nodiscard]] bool IsRunning() const noexcept;
 
@@ -31,6 +32,7 @@ public:
     void SetChannelEnabled(ChannelId channel, bool enabled);
     void SetChannelCommand(ChannelId channel, const ChannelCommand& command);
     void SetCommand(const ControlCommand& command);
+    void SetScaling(const ControlScaling& scaling);
     [[nodiscard]] ControlCommand PendingCommand() const;
 
     bool ApplyCommand();

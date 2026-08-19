@@ -22,6 +22,7 @@ def process_latest_window(
             run_id,
             channel,
             AVG(engineering_value) AS average_value,
+            MIN(units) AS units,
             MIN(timestamp) AS min_timestamp,
             MAX(timestamp) AS max_timestamp,
             MAX(id) AS source_reading_id
@@ -40,7 +41,7 @@ def process_latest_window(
             now,
             f"{row['channel']}.rolling_average",
             float(row["average_value"]),
-            "raw",
+            str(row["units"] or "engineering"),
             float(row["min_timestamp"]),
             float(row["max_timestamp"]),
             processor_name,

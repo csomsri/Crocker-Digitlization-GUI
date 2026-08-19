@@ -19,6 +19,9 @@ public:
     bool TryReceivePacket(Crocker::Controls::Network::ZMQProtocol::Packet& packet);
     void SendReply(const std::array<double, Crocker::Controls::Network::ZMQProtocol::N_TRIM>& targetValues,
                    std::uint64_t bitmask);
+    void SendReply(const std::array<double, Crocker::Controls::Network::ZMQProtocol::N_TRIM>& targetValues,
+                   std::size_t channelCount,
+                   std::uint64_t bitmask);
 
 private:
     std::string BindWithFallBack(const std::string& preferredEndpoint);

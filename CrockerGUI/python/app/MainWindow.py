@@ -190,6 +190,17 @@ class MainWindow(QMainWindow):
                 self.detail_parent[title] = parent_category
                 continue
 
+            if title == "Scaling":
+                detail_page = page_builder(
+                    lambda checked=False, category=parent_category:
+                        self.show_category(category),
+                    apply_live_scaling=self.apply_live_scaling,
+                )
+                self.stack.addWidget(detail_page)
+                self.pages[title] = detail_page
+                self.detail_parent[title] = parent_category
+                continue
+
             detail_page = page_builder(
                 lambda checked=False, category=parent_category:
                     self.show_category(category)
@@ -340,6 +351,11 @@ class MainWindow(QMainWindow):
                     db_path=self.db_path,
                     back_label="Back to Settings",
                 )
+            if page_name == "Scaling":
+                return builder(
+                    go_back,
+                    apply_live_scaling=self.apply_live_scaling,
+                )
             if page_name == "Settings":
                 return builder(
                     go_back,
@@ -354,6 +370,12 @@ class MainWindow(QMainWindow):
             return builder(go_back)
         fallback = QWidget()
         return fallback
+
+    def apply_live_scaling(self, scaling: dict[str, list[float] | list[bool]]) -> bool:
+        field_page = self.pages.get("Field Ctrl")
+        if isinstance(field_page, FieldCtrlPage):
+            return field_page.apply_scaling(scaling)
+        return False
 
     def set_display_mode(
         self,
@@ -520,8 +542,9 @@ class MainWindow(QMainWindow):
         self._data_pipeline = DataPipelineManager(
             crocker_root=crocker_root,
             db_path=db_path,
-            source="smoke",
+            source=self.simulation_mode or self.backend_mode,
             rate_hz=float(FIELD_PLOT_SAMPLE_RATE_HZ),
+            snapshot_source=self._transport_snapshot,
         )
         self._data_pipeline.start()
 
@@ -535,6 +558,12 @@ class MainWindow(QMainWindow):
         if stop is not None:
             stop.set()
         super().closeEvent(event)
+
+    def _transport_snapshot(self) -> dict | None:
+        field_page = self.pages.get("Field Ctrl")
+        if isinstance(field_page, FieldCtrlPage):
+            return field_page.transport_snapshot()
+        return None
 
     def show_home(self) -> None:
         self.stack.setCurrentWidget(self.pages["Home"])

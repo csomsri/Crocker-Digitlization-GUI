@@ -18,6 +18,7 @@ public:
     [[nodiscard]] virtual bool IsRunning() const noexcept = 0;
 
     virtual bool SendCommand(const ControlCommand& command) = 0;
+    virtual void SetScaling(const ControlScaling& scaling) { (void)scaling; }
 
     [[nodiscard]] virtual TelemetrySnapshot LatestSnapshot() const = 0;
     [[nodiscard]] virtual HealthStatus Health() const = 0;

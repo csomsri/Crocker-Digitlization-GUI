@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
 #include <thread>
 #include <utility>
@@ -47,11 +48,127 @@ std::uint64_t BuildBitmask(const ControlCommand& command)
     return bitmask;
 }
 
-ZMQServer::TargetValues BuildTargets(const ControlCommand& command)
+double RawToEngineering(double raw, const LinearChannelScaling& scaling)
+{
+    if (!scaling.enabled) {
+        return raw;
+    }
+
+    if (scaling.rawToEngineeringUsesCurve) {
+        const auto& curve = scaling.rawToEngineeringCurve;
+        const auto upper = std::upper_bound(
+            curve.begin(),
+            curve.end(),
+            raw,
+            [](double value, const ScalingPoint& point) {
+                return value < point.input;
+            });
+        if (upper == curve.begin()) {
+            return curve.front().output;
+        }
+        if (upper == curve.end()) {
+            return curve.back().output;
+        }
+        const ScalingPoint& high = *upper;
+        const ScalingPoint& low = *(upper - 1);
+        const double span = high.input - low.input;
+        if (std::abs(span) <= 0.0) {
+            return low.output;
+        }
+        const double fraction = (raw - low.input) / span;
+        return low.output + fraction * (high.output - low.output);
+    }
+
+    return raw * scaling.rawToEngineeringGain + scaling.rawToEngineeringOffset;
+}
+
+double EngineeringToRaw(double engineering, const LinearChannelScaling& scaling)
+{
+    if (!scaling.enabled) {
+        return engineering;
+    }
+
+    if (scaling.engineeringToRawUsesCurve) {
+        const auto& curve = scaling.engineeringToRawCurve;
+        const auto upper = std::upper_bound(
+            curve.begin(),
+            curve.end(),
+            engineering,
+            [](double value, const ScalingPoint& point) {
+                return value < point.input;
+            });
+        if (upper == curve.begin()) {
+            return curve.front().output;
+        }
+        if (upper == curve.end()) {
+            return curve.back().output;
+        }
+        const ScalingPoint& high = *upper;
+        const ScalingPoint& low = *(upper - 1);
+        const double span = high.input - low.input;
+        if (std::abs(span) <= 0.0) {
+            return low.output;
+        }
+        const double fraction = (engineering - low.input) / span;
+        return low.output + fraction * (high.output - low.output);
+    }
+
+    return engineering * scaling.engineeringToRawGain + scaling.engineeringToRawOffset;
+}
+
+bool SanitizeCurve(std::vector<ScalingPoint>& curve)
+{
+    curve.erase(
+        std::remove_if(
+            curve.begin(),
+            curve.end(),
+            [](const ScalingPoint& point) {
+                return !std::isfinite(point.input) || !std::isfinite(point.output);
+            }),
+        curve.end());
+    std::sort(
+        curve.begin(),
+        curve.end(),
+        [](const ScalingPoint& left, const ScalingPoint& right) {
+            return left.input < right.input;
+        });
+    curve.erase(
+        std::unique(
+            curve.begin(),
+            curve.end(),
+            [](const ScalingPoint& left, const ScalingPoint& right) {
+                return left.input == right.input;
+            }),
+        curve.end());
+    return curve.size() >= 2;
+}
+
+ControlScaling SanitizeScaling(ControlScaling scaling)
+{
+    for (LinearChannelScaling& channel : scaling) {
+        const bool finite = std::isfinite(channel.rawToEngineeringGain)
+            && std::isfinite(channel.rawToEngineeringOffset)
+            && std::isfinite(channel.engineeringToRawGain)
+            && std::isfinite(channel.engineeringToRawOffset);
+        if (!finite) {
+            channel = {};
+            continue;
+        }
+        if (channel.rawToEngineeringUsesCurve) {
+            channel.rawToEngineeringUsesCurve = SanitizeCurve(channel.rawToEngineeringCurve);
+        }
+        if (channel.engineeringToRawUsesCurve) {
+            channel.engineeringToRawUsesCurve = SanitizeCurve(channel.engineeringToRawCurve);
+        }
+    }
+    return scaling;
+}
+
+ZMQServer::TargetValues BuildTargets(const ControlCommand& command, const ControlScaling& scaling)
 {
     ZMQServer::TargetValues targets{};
     for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-        targets[channel] = command[channel].target;
+        targets[channel] = EngineeringToRaw(command[channel].target, scaling[channel]);
     }
 
     return targets;
@@ -61,6 +178,19 @@ ZMQServer::TargetValues BuildTargets(const ControlCommand& command)
 
 ServerTransport::ServerTransport(std::string endpoint)
     : endpoint_(std::move(endpoint))
+    , server_(endpoint_)
+{
+    snapshot_.connection = ConnectionState::Disconnected;
+    snapshot_.simulated = false;
+
+    health_.connection = ConnectionState::Disconnected;
+    health_.endpoint = endpoint_;
+    health_.simulated = false;
+}
+
+ServerTransport::ServerTransport(std::string endpoint, ControlScaling scaling)
+    : endpoint_(std::move(endpoint))
+    , scaling_(SanitizeScaling(scaling))
     , server_(endpoint_)
 {
     snapshot_.connection = ConnectionState::Disconnected;
@@ -121,12 +251,17 @@ bool ServerTransport::SendCommand(const ControlCommand& command)
         return false;
     }
 
-    server_.SetTargets(BuildTargets(command));
-    server_.SetBitmask(BuildBitmask(command));
+    server_.SetReply(BuildTargets(command, ScalingSnapshot()), BuildBitmask(command));
 
     std::lock_guard<std::mutex> lock(stateMutex_);
     ++health_.sentPackets;
     return true;
+}
+
+void ServerTransport::SetScaling(const ControlScaling& scaling)
+{
+    std::lock_guard<std::mutex> lock(scalingMutex_);
+    scaling_ = SanitizeScaling(scaling);
 }
 
 TelemetrySnapshot ServerTransport::LatestSnapshot() const
@@ -167,6 +302,7 @@ void ServerTransport::ApplyPacket(const Packet& packet)
 {
     const double now = UnixSeconds();
     const Protocol::Timestamp normalizedTimestamp = Protocol::NormalizeTimestamp(packet.timestamp);
+    const ControlScaling scaling = ScalingSnapshot();
 
     std::lock_guard<std::mutex> lock(stateMutex_);
 
@@ -174,8 +310,8 @@ void ServerTransport::ApplyPacket(const Packet& packet)
         ChannelTelemetry& telemetry = snapshot_.channels[channel];
 
         if (channel < packet.channels.size()) {
-            telemetry.actual = packet.channels[channel];
             telemetry.raw = packet.channels[channel];
+            telemetry.actual = RawToEngineering(packet.channels[channel], scaling[channel]);
         }
 
         const bool on = ((packet.bitmask >> channel) & 1ULL) != 0;
@@ -215,6 +351,12 @@ void ServerTransport::UpdateHealthPacketAge()
         snapshot_.connection = ConnectionState::Faulted;
         health_.lastError = "ZMQ server stopped unexpectedly";
     }
+}
+
+ControlScaling ServerTransport::ScalingSnapshot() const
+{
+    std::lock_guard<std::mutex> lock(scalingMutex_);
+    return scaling_;
 }
 
 } // namespace crocker::controls

@@ -21,6 +21,7 @@ import zmq
 ADDRESS = "tcp://127.0.0.1:5555"
 NUM_CHANNELS = 14
 EPOCH_OFFSET = 2082844800.0
+SIM_RAW_SCALE = 1.0e-8
 
 
 @dataclass(frozen=True)
@@ -43,7 +44,12 @@ def build_bitmask(on_off: Iterable[bool], enable_ctrl: Iterable[bool]) -> int:
     return bitmask
 
 
-def generate_frame(step: int, amplitude: float = 35.0, baseline: float = 300.0) -> SimulatorFrame:
+def generate_frame(
+    step: int,
+    amplitude: float = 35.0,
+    baseline: float = 300.0,
+    raw_scale: float = 1.0,
+) -> SimulatorFrame:
     channels = [
         baseline + amplitude * math.sin((step * 0.18) + (channel * 0.55))
         for channel in range(NUM_CHANNELS)
@@ -52,7 +58,11 @@ def generate_frame(step: int, amplitude: float = 35.0, baseline: float = 300.0) 
     enable_ctrl = [(step + channel) % 5 != 0 for channel in range(NUM_CHANNELS)]
     bitmask = build_bitmask(on_off, enable_ctrl)
     timestamp = time.time() + EPOCH_OFFSET
-    return SimulatorFrame(timestamp=timestamp, channels=channels, bitmask=bitmask)
+    return SimulatorFrame(
+        timestamp=timestamp,
+        channels=[value * raw_scale for value in channels],
+        bitmask=bitmask,
+    )
 
 
 class Smoke2Plant:
@@ -63,7 +73,10 @@ class Smoke2Plant:
     Enable indicates whether the channel should follow the GUI target.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, raw_scale: float = SIM_RAW_SCALE) -> None:
+        if raw_scale == 0.0:
+            raise ValueError("raw_scale must be nonzero")
+        self.raw_scale = raw_scale
         self.step = 0
         self.running_values = [
             200.0,
@@ -90,7 +103,7 @@ class Smoke2Plant:
     def frame(self) -> SimulatorFrame:
         return SimulatorFrame(
             timestamp=time.time() + EPOCH_OFFSET,
-            channels=list(self.channels),
+            channels=[value * self.raw_scale for value in self.channels],
             bitmask=build_bitmask(self.on_off, self.enabled),
         )
 
@@ -98,7 +111,7 @@ class Smoke2Plant:
         if len(reply) < NUM_CHANNELS + 1:
             return
 
-        requested_targets = reply[:NUM_CHANNELS]
+        requested_targets = [target / self.raw_scale for target in reply[:NUM_CHANNELS]]
         mask = int(round(reply[NUM_CHANNELS]))
         requested_on = [bool(mask & (1 << index)) for index in range(NUM_CHANNELS)]
         requested_enabled = [
@@ -215,12 +228,15 @@ class ZMQSimulator:
 class CyclotronPlant:
     """Cyclotron plant that speaks the existing 14-channel ZMQ contract.
 
-    GUI channel values remain in their existing 0..1000 engineering range.
+    Internally the plant uses the GUI's 0..1000 engineering range, but the ZMQ
+    boundary reports and accepts hardware-style raw values scaled by 1e-8.
     Main Magnet maps linearly to 0..1 tesla, while the trim channels provide
     small field corrections around their 500-unit midpoint.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, raw_scale: float = SIM_RAW_SCALE) -> None:
+        if raw_scale == 0.0:
+            raise ValueError("raw_scale must be nonzero")
         try:
             import CycloViz
         except Exception as exc:
@@ -228,6 +244,7 @@ class CyclotronPlant:
         if not hasattr(CycloViz, "CyclotronModel"):
             raise RuntimeError("Rebuild CycloViz so it includes CyclotronModel")
 
+        self.raw_scale = raw_scale
         config = CycloViz.CyclotronConfig()
         config.magnetic_field_t = 0.1
         config.rf_frequency_hz = 15.245e6
@@ -244,14 +261,14 @@ class CyclotronPlant:
     def frame(self) -> SimulatorFrame:
         return SimulatorFrame(
             timestamp=time.time() + EPOCH_OFFSET,
-            channels=list(self.channels),
+            channels=[value * self.raw_scale for value in self.channels],
             bitmask=build_bitmask(self.on_off, self.enabled),
         )
 
     def apply_reply(self, reply: list[float], dt: float) -> None:
         if len(reply) < NUM_CHANNELS + 1:
             return
-        self.targets = reply[:NUM_CHANNELS]
+        self.targets = [target / self.raw_scale for target in reply[:NUM_CHANNELS]]
         mask = int(round(reply[NUM_CHANNELS]))
         self.on_off = [bool(mask & (1 << index)) for index in range(NUM_CHANNELS)]
         self.enabled = [
@@ -279,6 +296,12 @@ def main() -> int:
     parser.add_argument("--frames", type=int, default=None)
     parser.add_argument("--rate-hz", type=float, default=20.0)
     parser.add_argument(
+        "--raw-scale",
+        type=float,
+        default=SIM_RAW_SCALE,
+        help="Scale engineering values before sending raw ZMQ doubles. Default: 1e-8.",
+    )
+    parser.add_argument(
         "--plant",
         choices=("smoke", "smoke2", "cyclotron"),
         default="smoke",
@@ -287,12 +310,33 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.plant == "cyclotron":
-        plant = CyclotronPlant()
+        plant = CyclotronPlant(raw_scale=args.raw_scale)
     elif args.plant == "smoke2":
-        plant = Smoke2Plant()
+        plant = Smoke2Plant(raw_scale=args.raw_scale)
     else:
         plant = None
-    ZMQSimulator(args.endpoint).stream(frames=args.frames, rate_hz=args.rate_hz, plant=plant)
+    simulator = ZMQSimulator(args.endpoint)
+    if plant is None:
+        interval_seconds = 1.0 / args.rate_hz if args.rate_hz > 0 else 0.0
+        next_frame_time = time.perf_counter()
+        step = 0
+        try:
+            while args.frames is None or step < args.frames:
+                frame = generate_frame(step, raw_scale=args.raw_scale)
+                reply = simulator.send_frame(frame)
+                print(
+                    f"sent frame {step:04d}: "
+                    f"raw_ch0={frame.channels[0]:.10g}, "
+                    f"reply_bitmask={int(reply[-1]) if reply else 0}"
+                )
+                step += 1
+                if interval_seconds > 0:
+                    next_frame_time += interval_seconds
+                    time.sleep(max(0.0, next_frame_time - time.perf_counter()))
+        finally:
+            simulator.close()
+    else:
+        simulator.stream(frames=args.frames, rate_hz=args.rate_hz, plant=plant)
     return 0
 
 

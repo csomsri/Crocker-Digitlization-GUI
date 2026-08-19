@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import json
 import time
 from collections.abc import Callable
+from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -101,6 +103,7 @@ class FieldCtrlPage(DetailPage):
         self.backend_connection = "Not Connected"
         self.backend_destination = "None"
         self.backend_packets = 0
+        self.scaling_status = "identity scaling"
         self._status_tick = 0
         self.owns_backend = False
         self._telemetry_state_synced = False
@@ -654,10 +657,11 @@ class FieldCtrlPage(DetailPage):
                 self.backend_destination = "Simulation"
                 self.backend_status = "SIMULATION Connected | simulator://local"
             elif self.backend_mode == "zmq":
-                self.backend.StartServer(self.zmq_endpoint)
+                scaling = self._load_trim_coil_scaling()
+                self.backend.StartServer(self.zmq_endpoint, scaling)
                 self.backend_connection = "Listening"
                 self.backend_destination = self.zmq_endpoint
-                self.backend_status = f"ZMQ Listening | {self.zmq_endpoint}"
+                self.backend_status = f"ZMQ Listening | {self.zmq_endpoint} | {self.scaling_status}"
             else:
                 raise ValueError(f"Unknown backend mode: {self.backend_mode}")
             self.backend_available = True
@@ -670,6 +674,125 @@ class FieldCtrlPage(DetailPage):
             self.backend_destination = self.backend_mode.upper()
             self.backend_status = f"{self.backend_mode.upper()} unavailable: {exc}"
             self._refresh_backend_status_panel()
+
+    def _load_trim_coil_scaling(self) -> dict[str, object]:
+        scaling = self._identity_trim_coil_scaling()
+        config_path = self._find_scaling_config_path()
+        if config_path is None:
+            self.scaling_status = "identity scaling"
+            return scaling
+
+        try:
+            with config_path.open("r", encoding="utf-8") as handle:
+                data = json.load(handle)
+            loaded = self._scaling_from_json(data)
+        except Exception as exc:
+            self.scaling_status = f"scaling unavailable: {exc}"
+            return scaling
+
+        enabled_count = self._enabled_scaling_count(loaded)
+        self.scaling_status = f"scaling {enabled_count}/{len(CHANNEL_NAMES)} channels from {config_path.name}"
+        return loaded
+
+    def _find_scaling_config_path(self) -> Path | None:
+        app_root = Path(__file__).resolve().parents[3]
+        candidates = (
+            app_root / "config" / "trim_coil_scaling.json",
+            app_root / "calibration.json",
+            Path.cwd() / "calibration.json",
+        )
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
+
+    def _identity_trim_coil_scaling(self) -> dict[str, object]:
+        count = len(CHANNEL_NAMES)
+        return {
+            "raw_to_eng_gain": [1.0] * count,
+            "raw_to_eng_offset": [0.0] * count,
+            "eng_to_raw_gain": [1.0] * count,
+            "eng_to_raw_offset": [0.0] * count,
+            "enabled": [False] * count,
+        }
+
+    def _scaling_from_json(self, data: object) -> dict[str, object]:
+        scaling = self._identity_trim_coil_scaling()
+        if not isinstance(data, dict):
+            raise ValueError("scaling file must contain a JSON object")
+
+        array_keys = {"raw_to_eng_gain", "raw_to_eng_offset", "eng_to_raw_gain", "eng_to_raw_offset", "enabled"}
+        if array_keys.intersection(data):
+            for key in array_keys:
+                if key in data:
+                    values = data[key]
+                    if not isinstance(values, list) or len(values) != len(CHANNEL_NAMES):
+                        raise ValueError(f"{key} must contain {len(CHANNEL_NAMES)} entries")
+                    scaling[key] = [bool(value) for value in values] if key == "enabled" else [float(value) for value in values]
+            return scaling
+
+        channel_keys = [f"ch{index}" for index in range(1, 13)] + ["main_magnet", "centering_beam"]
+        if any(isinstance(data.get(key), dict) for key in channel_keys):
+            return data
+        return scaling
+
+    def _enabled_scaling_count(self, scaling: dict[str, object]) -> int:
+        enabled = scaling.get("enabled")
+        if isinstance(enabled, list):
+            return sum(1 for value in enabled if bool(value))
+
+        channel_keys = [f"ch{index}" for index in range(1, 13)] + ["main_magnet", "centering_beam"]
+        count = 0
+        for index, key in enumerate(channel_keys):
+            entry = scaling.get(key)
+            if isinstance(entry, dict):
+                count += 1 if bool(entry.get("enabled", True)) else 0
+        return count
+
+    def _apply_channel_scaling_entry(
+        self,
+        scaling: dict[str, list[float] | list[bool]],
+        index: int,
+        entry: dict[str, object],
+    ) -> None:
+        raw_to_eng = entry.get("raw_to_eng")
+        eng_to_raw = entry.get("eng_to_raw")
+        enabled = bool(entry.get("enabled", True)) and isinstance(raw_to_eng, dict) and isinstance(eng_to_raw, dict)
+        scaling["enabled"][index] = enabled
+        if not enabled:
+            return
+
+        scaling["raw_to_eng_gain"][index] = float(raw_to_eng.get("gain", 1.0))
+        scaling["raw_to_eng_offset"][index] = float(raw_to_eng.get("offset", 0.0))
+        scaling["eng_to_raw_gain"][index] = float(eng_to_raw.get("gain", 1.0))
+        scaling["eng_to_raw_offset"][index] = float(eng_to_raw.get("offset", 0.0))
+
+    def apply_scaling(self, scaling: dict[str, object] | None = None) -> bool:
+        if scaling is None:
+            scaling = self._load_trim_coil_scaling()
+        if not self.backend_available or self.backend is None or not hasattr(self.backend, "SetScaling"):
+            self.backend_status = "Scaling saved; no live Field Ctrl backend to update"
+            if hasattr(self, "backend_label"):
+                self.backend_label.setText(self.backend_status)
+            self._refresh_backend_status_panel()
+            return False
+
+        self.backend.SetScaling(scaling)
+        enabled_count = self._enabled_scaling_count(scaling)
+        self.scaling_status = f"scaling {enabled_count}/{len(CHANNEL_NAMES)} channels active"
+        self.backend_status = f"{self.backend_mode.upper()} {self.scaling_status}"
+        if hasattr(self, "backend_label"):
+            self.backend_label.setText(self.backend_status)
+        self._refresh_backend_status_panel()
+        return True
+
+    def transport_snapshot(self) -> dict | None:
+        if not self.backend_available or self.backend is None:
+            return None
+        try:
+            return self.backend.LatestSnapshot()
+        except Exception:
+            return None
 
     def _apply_selected_command(self) -> bool:
         applied = self._apply_channel_command(self.selected_index)

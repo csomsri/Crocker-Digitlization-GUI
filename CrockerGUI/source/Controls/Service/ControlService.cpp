@@ -33,11 +33,17 @@ void ControlService::StartSimulator(double updateRateHz)
 
 void ControlService::StartServer(const std::string& endpoint)
 {
+    ControlScaling scaling{};
+    StartServer(endpoint, scaling);
+}
+
+void ControlService::StartServer(const std::string& endpoint, const ControlScaling& scaling)
+{
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
 
-    auto transport = std::make_shared<ServerTransport>(endpoint);
+    auto transport = std::make_shared<ServerTransport>(endpoint, scaling);
     transport->Start();
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -111,6 +117,19 @@ void ControlService::SetCommand(const ControlCommand& command)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     pendingCommand_ = command;
+}
+
+void ControlService::SetScaling(const ControlScaling& scaling)
+{
+    std::shared_ptr<ControlTransportBase> transport;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        transport = transport_;
+    }
+
+    if (transport) {
+        transport->SetScaling(scaling);
+    }
 }
 
 ControlCommand ControlService::PendingCommand() const

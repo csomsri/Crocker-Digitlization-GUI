@@ -51,12 +51,22 @@ void ZMQServer::SetTargets(const TargetValues& targetValues)
 {
     std::lock_guard<std::mutex> lock(replyMutex_);
     latestTargets_ = targetValues;
+    hasOperatorReply_ = true;
 }
 
 void ZMQServer::SetBitmask(std::uint64_t bitmask)
 {
     std::lock_guard<std::mutex> lock(replyMutex_);
     latestBitmask_ = bitmask;
+    hasOperatorReply_ = true;
+}
+
+void ZMQServer::SetReply(const TargetValues& targetValues, std::uint64_t bitmask)
+{
+    std::lock_guard<std::mutex> lock(replyMutex_);
+    latestTargets_ = targetValues;
+    latestBitmask_ = bitmask;
+    hasOperatorReply_ = true;
 }
 
 void ZMQServer::SetBeamRangeIndex(std::optional<int> beamRangeIndex)
@@ -110,19 +120,29 @@ void ZMQServer::Run()
                     continue;
                 }
 
-                if (!packet.channels.empty()) {
-                    PushPacket(std::move(packet));
-                }
-
                 TargetValues targets{};
                 std::uint64_t bitmask = 0;
                 {
                     std::lock_guard<std::mutex> lock(replyMutex_);
-                    targets = latestTargets_;
-                    bitmask = ReplyBitmask();
+                    if (hasOperatorReply_) {
+                        targets = latestTargets_;
+                        bitmask = ReplyBitmask();
+                    } else if (packet.channels.size() >= Protocol::N_FIELD_TRIM) {
+                        std::copy_n(packet.channels.begin(), packet.channels.size(), targets.begin());
+                        bitmask = packet.bitmask;
+                    } else {
+                        targets = latestTargets_;
+                        bitmask = ReplyBitmask();
+                    }
                 }
 
-                receiver_.SendReply(targets, bitmask);
+                const std::size_t replyChannelCount =
+                    packet.channels.size() >= Protocol::N_TRIM ? Protocol::N_TRIM : Protocol::N_FIELD_TRIM;
+                receiver_.SendReply(targets, replyChannelCount, bitmask);
+
+                if (!packet.channels.empty()) {
+                    PushPacket(std::move(packet));
+                }
             } catch (const zmq::error_t& error) {
                 if (error.num() == EAGAIN) {
                     continue;
