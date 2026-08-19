@@ -9,6 +9,7 @@ MONITORING_PAGES: list[PageSpec] = [
     ("Beam Source & Extraction", "Source/extraction monitoring"),
     ("Vacuum / Beam Monitoring", "Vacuum, beam, and RF-style HUD monitoring"),
     ("RF Power Monitoring", "Currently routed to the Field Ctrl window"),
+    ("Display Controller", "Choose the monitoring view shown on managed displays"),
 ]
 
 

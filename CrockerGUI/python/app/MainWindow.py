@@ -35,6 +35,7 @@ from python.app.Monitoring.MagneticFieldMonitoringPage import (
     MagneticFieldMonitoringPage,
 )
 from python.app.Monitoring.MonitoringPage import MonitoringPage
+from python.app.Monitoring.DisplayControllerPage import DisplayControllerPage
 from python.app.Monitoring.RfPowerMonitoringPage import RfPowerMonitoringPage
 from python.app.Monitoring.VacuumBeamMonitoringPage import (
     VacuumBeamMonitoringPage,
@@ -65,6 +66,7 @@ DETAIL_BUILDERS = {
     "Beam Source & Extraction": ("Monitoring", BeamSourceExtractionPage),
     "Vacuum / Beam Monitoring": ("Monitoring", VacuumBeamMonitoringPage),
     "RF Power Monitoring": ("Monitoring", RfPowerMonitoringPage),
+    "Display Controller": ("Monitoring", DisplayControllerPage),
     "Field Ctrl": ("Manual Controls", FieldCtrlPage),
     "Beam Range": ("Manual Controls", BeamRangePage),
     "Alarm": ("Manual Controls", AlarmPage),
@@ -109,6 +111,15 @@ class MainWindow(QMainWindow):
         self._windowed_geometry = None
         self._display_transition = 0
         self._monitor_windows: dict[str, AssignedMonitorWindow] = {}
+        raw_controller_monitors = self._settings.value(
+            "display/controller_monitors", [], type=list
+        )
+        self._controller_monitors = {str(value) for value in raw_controller_monitors}
+        self._controller_layout = self._settings.value(
+            "display/controller_layout", "Auto", type=str
+        )
+        if self._controller_layout not in {"Auto", "Compact", "Full"}:
+            self._controller_layout = "Auto"
 
         mode_title = simulation_mode or backend_mode
         self.setWindowTitle(
@@ -172,6 +183,8 @@ class MainWindow(QMainWindow):
                     monitor_entries=self._monitor_entries(),
                     page_names=self._assignable_page_names(),
                     apply_monitor_assignments=self.apply_monitor_assignments,
+                    controller_layout=self._controller_layout,
+                    apply_controller_settings=self.apply_controller_settings,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -184,6 +197,20 @@ class MainWindow(QMainWindow):
                         self.show_category(category),
                     db_path=self.db_path,
                     back_label="Back to Settings",
+                )
+                self.stack.addWidget(detail_page)
+                self.pages[title] = detail_page
+                self.detail_parent[title] = parent_category
+                continue
+
+            if title == "Display Controller":
+                detail_page = page_builder(
+                    lambda checked=False, category=parent_category:
+                        self.show_category(category),
+                    monitoring_pages=self._monitoring_page_names(),
+                    monitor_entries=self._monitor_entries,
+                    show_on_monitor=self.show_monitoring_page,
+                    controller_layout=lambda: self._controller_layout,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -232,6 +259,12 @@ class MainWindow(QMainWindow):
         )
         return ["Home", *PAGE_BUILDERS.keys(), *detail_names]
 
+    def _monitoring_page_names(self) -> list[str]:
+        return [
+            name for name, (parent, _builder) in DETAIL_BUILDERS.items()
+            if parent == "Monitoring" and name != "Display Controller"
+        ]
+
     def _monitor_entries(self) -> list[dict[str, object]]:
         main_screen = self.screen()
         main_screen_id = screen_key(main_screen) if main_screen is not None else ""
@@ -254,6 +287,7 @@ class MainWindow(QMainWindow):
                 "label": f"{name} ({geometry.x()}, {geometry.y()}) {geometry.width()}x{geometry.height()}",
                 "occupied": occupied,
                 "assignment": current_page if occupied else assignment,
+                "controller_enabled": screen_id in self._controller_monitors,
             })
         return entries
 
@@ -316,6 +350,36 @@ class MainWindow(QMainWindow):
             )
             window.set_page(page_name)
 
+    def apply_controller_settings(self, screen_ids: set[str], layout: str) -> None:
+        main_screen = self.screen()
+        main_screen_id = screen_key(main_screen) if main_screen is not None else ""
+        self._controller_monitors = set(screen_ids) - {main_screen_id}
+        self._controller_layout = layout if layout in {"Auto", "Compact", "Full"} else "Auto"
+        self._settings.setValue("display/controller_monitors", list(self._controller_monitors))
+        self._settings.setValue("display/controller_layout", self._controller_layout)
+        self._settings.sync()
+
+    def show_monitoring_page(self, screen_id: str, page_name: str) -> bool:
+        if screen_id not in self._controller_monitors:
+            return False
+        if page_name not in self._monitoring_page_names():
+            return False
+        screens = {screen_key(screen): screen for screen in QApplication.screens()[:4]}
+        screen = screens.get(screen_id)
+        if screen is None or screen is self.screen():
+            return False
+        window = self._monitor_windows.get(screen_id)
+        if window is None:
+            window = AssignedMonitorWindow(self, screen_id, screen.name())
+            self._monitor_windows[screen_id] = window
+        window.winId()
+        handle = window.windowHandle()
+        if handle is not None:
+            handle.setScreen(screen)
+        window.apply_display_mode(self._display_mode, self._window_resolution_size())
+        window.set_page(page_name)
+        return True
+
     def create_assigned_page(
         self,
         page_name: str,
@@ -366,6 +430,8 @@ class MainWindow(QMainWindow):
                     monitor_entries=self._monitor_entries(),
                     page_names=self._assignable_page_names(),
                     apply_monitor_assignments=self.apply_monitor_assignments,
+                    controller_layout=self._controller_layout,
+                    apply_controller_settings=self.apply_controller_settings,
                 )
             return builder(go_back)
         fallback = QWidget()
@@ -1199,6 +1265,100 @@ class MainWindow(QMainWindow):
 
             QWidget#fieldController {
                 background: transparent;
+            }
+
+            QLabel#scalingSummary {
+                background-color: rgba(17, 24, 39, 0.78);
+                border: 1px solid rgba(71, 85, 105, 0.82);
+                border-radius: 6px;
+                color: #dbeafe;
+                font-size: 14px;
+                font-weight: 700;
+                min-height: 48px;
+                padding: 7px 12px;
+            }
+
+            QLabel#scalingSummary[warning="true"] {
+                background-color: rgba(120, 53, 15, 0.42);
+                border-color: rgba(251, 191, 36, 0.72);
+                color: #fde68a;
+            }
+
+            QFrame#controllerTargetPanel {
+                background-color: rgba(15, 23, 42, 0.94);
+                border: 1px solid rgba(51, 65, 85, 0.90);
+                border-radius: 8px;
+            }
+
+            QLabel#controllerSectionHeading {
+                color: #bfdbfe;
+                font-size: 13px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+
+            QLabel#controllerStatus {
+                color: #e5e7eb;
+                font-size: 13px;
+                font-weight: 600;
+                padding: 2px 0;
+            }
+
+            QFrame#controllerStatusBlock {
+                background-color: rgba(17, 24, 39, 0.86);
+                border: 1px solid rgba(51, 65, 85, 0.88);
+                border-radius: 6px;
+            }
+
+            QLabel#controllerStatusLabel {
+                color: #7f9bbd;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 1px;
+            }
+
+            QLabel#controllerStatusValue {
+                color: #e5e7eb;
+                font-size: 13px;
+                font-weight: 700;
+                min-height: 20px;
+            }
+
+            QLabel#controllerStatusValue[warning="true"] {
+                color: #fbbf24;
+            }
+
+            QLabel#controllerEmptyState {
+                background-color: rgba(30, 41, 59, 0.54);
+                border: 1px dashed rgba(71, 85, 105, 0.90);
+                border-radius: 5px;
+                color: #94a3b8;
+                font-size: 12px;
+                min-height: 30px;
+                padding: 5px 10px;
+            }
+
+            QPushButton#controllerPageTile {
+                background-color: rgba(30, 41, 59, 0.72);
+                border: 1px solid rgba(71, 85, 105, 0.84);
+                border-radius: 8px;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 18px 20px;
+                text-align: left;
+            }
+
+            QPushButton#controllerPageTile:hover {
+                background-color: rgba(51, 65, 85, 0.90);
+                border-color: rgba(96, 165, 250, 0.72);
+                color: #ffffff;
+            }
+
+            QPushButton#controllerPageTile:checked {
+                background-color: rgba(37, 99, 235, 0.38);
+                border: 2px solid rgba(96, 165, 250, 0.86);
+                color: #eff6ff;
             }
 
             QFrame#fieldControlTabs {

@@ -224,7 +224,7 @@ class CnlCircleDisplay(QWidget):
         super().__init__(parent)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setMinimumSize(420, 420)
-        self.setMaximumSize(660, 660)
+        self.setMaximumSize(900, 900)
         self.title = "Monitoring"
         self.preview_lines: list[str] = []
 
@@ -342,6 +342,71 @@ class CnlMonitorSelectionButton(QPushButton):
         painter.setFont(_fitted_font(family, self.description.upper(), desc_rect, max_size=11, min_size=8, weight=QFont.Normal))
         painter.setPen(MUTED_TEXT)
         painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap, self.description.upper())
+
+
+class CnlRadialMonitorArena(QWidget):
+    """Fan monitoring choices around the right edge of the preview dial."""
+
+    def __init__(
+        self,
+        preview: CnlCircleDisplay,
+        buttons: list[CnlMonitorSelectionButton],
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.preview = preview
+        self.buttons = buttons
+        self.preview.setParent(self)
+        for button in buttons:
+            button.setParent(self)
+        self.setMinimumSize(1050, 680)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        super().resizeEvent(event)
+        count = len(self.buttons)
+        if not count:
+            return
+
+        width = self.width()
+        height = self.height()
+        button_width = min(760, max(520, int(width * 0.38)))
+        separation = 68
+        dial_room = width - button_width - separation - 54
+        dial_size = min(860, height - 24, max(430, dial_room))
+        composition_width = dial_size + separation + button_width
+        dial_left = max(18, int((width - composition_width) / 2))
+        vertical_lift = min(38, max(18, int(height * 0.035)))
+        minimum_top = max(4, int(56 - dial_size * 0.04))
+        dial_top = max(minimum_top, int((height - dial_size) / 2 - vertical_lift))
+        self.preview.setGeometry(dial_left, dial_top, dial_size, dial_size)
+
+        center_y = dial_top + dial_size / 2
+        radius = dial_size / 2 - 12
+        span = min(height - 92, dial_size * 0.92)
+        step = span / max(1, count - 1)
+        first_y = center_y - span / 2
+
+        for index, button in enumerate(self.buttons):
+            marker_y = first_y + index * step
+            delta_y = marker_y - center_y
+            arc_x = (
+                dial_left
+                + dial_size / 2
+                + max(0.0, radius * radius - delta_y * delta_y) ** 0.5
+            )
+            # Keep the selector orb visibly separate from the dial rim. The
+            # varying arc_x preserves the radial fan while the whole dial/menu
+            # composition remains centered as a single unit.
+            button_x = int(arc_x + separation)
+            button_y = int(marker_y - 56)
+            button.setGeometry(
+                button_x,
+                button_y,
+                max(350, min(button_width, width - button_x - 18)),
+                112,
+            )
+            button.raise_()
 
 
 class CnlTitleBar(QWidget):
@@ -606,23 +671,13 @@ class MonitorMockupPage(PageShell):
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
         self.layout.addLayout(nav)
 
-        body = QHBoxLayout()
-        body.setContentsMargins(76, 20, 76, 44)
-        body.setSpacing(44)
-
         self.preview = CnlCircleDisplay()
-        body.addWidget(self.preview, 3)
-
-        status_column = QVBoxLayout()
-        status_column.setSpacing(16)
         for index, (title, purpose) in enumerate(self.pages):
             button = CnlMonitorSelectionButton(title, purpose)
             button.clicked.connect(lambda checked=False, idx=index: self._activate_selection(idx))
             self.selection_buttons.append(button)
-            status_column.addWidget(button)
-        status_column.addStretch(1)
-        body.addLayout(status_column, 5)
-        self.layout.addLayout(body, 1)
+        self.arena = CnlRadialMonitorArena(self.preview, self.selection_buttons)
+        self.layout.addWidget(self.arena, 1)
         self._set_selected(0)
 
     def showEvent(self, event) -> None:  # noqa: N802 - Qt API name

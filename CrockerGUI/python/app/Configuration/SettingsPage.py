@@ -3,6 +3,7 @@ from collections.abc import Callable
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QCheckBox,
     QComboBox,
     QFrame,
     QGridLayout,
@@ -42,6 +43,8 @@ class SettingsPage(DetailPage):
         apply_monitor_assignments: (
             Callable[[dict[str, str]], None] | None
         ) = None,
+        controller_layout: str = "Auto",
+        apply_controller_settings: Callable[[set[str], str], None] | None = None,
     ) -> None:
         super().__init__(
             "Settings",
@@ -74,9 +77,12 @@ class SettingsPage(DetailPage):
         self._set_display_mode = set_display_mode
         self._set_window_resolution = set_window_resolution
         self._apply_monitor_assignments = apply_monitor_assignments
+        self._apply_controller_settings = apply_controller_settings
         self._page_names = page_names or []
         self._monitor_assignments: dict[str, str] = {}
         self._selected_monitor = ""
+        self._controller_monitors: set[str] = set()
+        self._primary_monitors: set[str] = set()
         self.page_buttons: list[QPushButton] = []
 
         heading = QLabel("DISPLAY MODE")
@@ -180,6 +186,34 @@ class SettingsPage(DetailPage):
         self.page_picker_grid.setVerticalSpacing(8)
         assignment_panel_layout.addWidget(self.page_picker_grid_frame)
         panel_layout.addWidget(assignment_panel)
+
+        controller_heading = QLabel("DISPLAY CONTROLLER")
+        controller_heading.setObjectName("settingsHeading")
+        panel_layout.addWidget(controller_heading)
+        controller_description = QLabel(
+            "Select a display above, then allow the Monitoring Display Controller "
+            "to change only its monitoring view."
+        )
+        controller_description.setObjectName("settingsDescription")
+        controller_description.setWordWrap(True)
+        panel_layout.addWidget(controller_description)
+        self.controller_access = QCheckBox(
+            "Allow Display Controller to manage the selected monitor"
+        )
+        self.controller_access.setObjectName("toggleRow")
+        self.controller_access.toggled.connect(self._toggle_controller_access)
+        panel_layout.addWidget(self.controller_access)
+        controller_layout_row = QHBoxLayout()
+        controller_layout_label = QLabel("CONTROLLER LAYOUT")
+        controller_layout_label.setObjectName("monitorAssignmentLabel")
+        self.controller_layout_select = QComboBox()
+        self.controller_layout_select.setObjectName("monitorPageSelect")
+        for value in ("Auto", "Compact", "Full"):
+            self.controller_layout_select.addItem(value, value)
+        self.controller_layout_select.setCurrentText(controller_layout)
+        controller_layout_row.addWidget(controller_layout_label)
+        controller_layout_row.addWidget(self.controller_layout_select, 1)
+        panel_layout.addLayout(controller_layout_row)
         self.set_monitor_entries(monitor_entries or [])
 
         hint = QLabel(
@@ -205,6 +239,11 @@ class SettingsPage(DetailPage):
         self._set_window_resolution(str(selected_resolution))
         if self._apply_monitor_assignments is not None:
             self._apply_monitor_assignments(dict(self._monitor_assignments))
+        if self._apply_controller_settings is not None:
+            self._apply_controller_settings(
+                set(self._controller_monitors),
+                str(self.controller_layout_select.currentData()),
+            )
 
     def set_monitor_entries(self, entries: list[dict[str, object]]) -> None:
         while self.monitor_layout.count():
@@ -216,6 +255,15 @@ class SettingsPage(DetailPage):
             str(entry.get("id", entry["name"])): str(entry.get("assignment", ""))
             for entry in entries
         }
+        self._controller_monitors = {
+            str(entry.get("id", entry["name"]))
+            for entry in entries if bool(entry.get("controller_enabled", False))
+        }
+        self._primary_monitors = {
+            str(entry.get("id", entry["name"]))
+            for entry in entries if bool(entry.get("occupied", False))
+        }
+        self._controller_monitors.difference_update(self._primary_monitors)
 
         count_label = QLabel(f"DISPLAYS ({len(entries)})")
         count_label.setObjectName("monitorMapHeading")
@@ -263,6 +311,7 @@ class SettingsPage(DetailPage):
             self.assignment_label.hide()
             self.page_search.hide()
             self.page_picker_grid_frame.hide()
+            self.controller_access.setEnabled(False)
             return
 
         screen_ids = [str(entry.get("id", entry["name"])) for entry in entries]
@@ -287,7 +336,24 @@ class SettingsPage(DetailPage):
         assignment = self._monitor_assignments.get(screen_id, "")
         suffix = assignment or "Unassigned"
         self.assignment_label.setText(f"PAGE FOR {label.upper()}  -  {suffix.upper()}")
+        self.controller_access.blockSignals(True)
+        is_primary = screen_id in self._primary_monitors
+        self.controller_access.setEnabled(not is_primary)
+        self.controller_access.setChecked(screen_id in self._controller_monitors)
+        self.controller_access.setToolTip(
+            "The main application display cannot be a controlled output."
+            if is_primary else ""
+        )
+        self.controller_access.blockSignals(False)
         self._refresh_page_picker()
+
+    def _toggle_controller_access(self, enabled: bool) -> None:
+        if not self._selected_monitor:
+            return
+        if enabled:
+            self._controller_monitors.add(self._selected_monitor)
+        else:
+            self._controller_monitors.discard(self._selected_monitor)
 
     def _refresh_page_picker(self, *_ignored) -> None:
         while self.page_picker_grid.count():

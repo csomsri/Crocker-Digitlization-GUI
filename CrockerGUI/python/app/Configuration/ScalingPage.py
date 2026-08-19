@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -54,6 +55,8 @@ class ScalingPage(DetailPage):
         self.raw_to_eng_offset: list[QDoubleSpinBox] = []
         self.eng_to_raw_gain: list[QDoubleSpinBox] = []
         self.eng_to_raw_offset: list[QDoubleSpinBox] = []
+        self._loading = False
+        self._dirty = False
 
         _, workspace = self.add_workspace()
         workspace.setContentsMargins(10, 8, 10, 10)
@@ -62,6 +65,22 @@ class ScalingPage(DetailPage):
         heading = QLabel("TRIM COIL SCALING")
         heading.setObjectName("settingsHeading")
         workspace.addWidget(heading)
+
+        summary = QFrame()
+        summary.setObjectName("displayModePanel")
+        summary_layout = QGridLayout(summary)
+        summary_layout.setContentsMargins(14, 10, 14, 10)
+        summary_layout.setSpacing(8)
+        self.enabled_summary = QLabel("0 / 14\nENABLED")
+        self.enabled_summary.setObjectName("scalingSummary")
+        self.validation_summary = QLabel("READY\nVALIDATION")
+        self.validation_summary.setObjectName("scalingSummary")
+        self.change_summary = QLabel("SAVED\nSTATE")
+        self.change_summary.setObjectName("scalingSummary")
+        summary_layout.addWidget(self.enabled_summary, 0, 0)
+        summary_layout.addWidget(self.validation_summary, 0, 1)
+        summary_layout.addWidget(self.change_summary, 0, 2)
+        workspace.addWidget(summary)
 
         self.status_label = QLabel()
         self.status_label.setObjectName("settingsDescription")
@@ -82,11 +101,25 @@ class ScalingPage(DetailPage):
 
         self._build_rows()
 
+        bulk_actions = QHBoxLayout()
+        bulk_label = QLabel("CHANNEL ENABLEMENT")
+        bulk_label.setObjectName("monitorAssignmentLabel")
+        bulk_actions.addWidget(bulk_label)
+        for label, enabled in (("Enable All", True), ("Disable All", False)):
+            button = QPushButton(label)
+            button.setObjectName("fieldBulk")
+            button.clicked.connect(
+                lambda checked=False, value=enabled: self._set_all_enabled(value)
+            )
+            bulk_actions.addWidget(button)
+        bulk_actions.addStretch(1)
+        workspace.addLayout(bulk_actions)
+
         actions = QHBoxLayout()
         for label, handler in (
-            ("Load", self._load_scaling),
+            ("Reload Saved", self._load_scaling),
+            ("Apply Draft", self._apply_draft_scaling),
             ("Save + Apply", self._save_scaling),
-            ("Apply File", self._apply_file_scaling),
             ("Reset Identity", self._reset_identity),
         ):
             button = QPushButton(label)
@@ -108,6 +141,7 @@ class ScalingPage(DetailPage):
             enabled = QCheckBox()
             enabled.setObjectName("toggleRow")
             enabled.setToolTip(f"Enable scaling for {channel}")
+            enabled.toggled.connect(self._mark_dirty)
             self.table.setCellWidget(row, 1, self._centered_widget(enabled))
             self.enabled_boxes.append(enabled)
 
@@ -118,6 +152,7 @@ class ScalingPage(DetailPage):
                 (5, self.eng_to_raw_offset),
             ):
                 spinbox = self._make_scaling_spinbox()
+                spinbox.valueChanged.connect(self._mark_dirty)
                 self.table.setCellWidget(row, column, spinbox)
                 collection.append(spinbox)
 
@@ -161,10 +196,16 @@ class ScalingPage(DetailPage):
         else:
             self.status_label.setText(f"No active scaling file. Save creates {self.config_path}")
         self._apply_scaling_to_table(scaling)
+        self._set_clean()
 
     def _save_scaling(self) -> None:
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
         scaling = self._read_scaling_from_table()
+        errors = self._validation_errors(scaling)
+        if errors:
+            self.status_label.setText("Cannot save: " + "; ".join(errors[:3]))
+            self._refresh_summary()
+            return
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with self.config_path.open("w", encoding="utf-8") as handle:
             json.dump(scaling, handle, indent=2)
             handle.write("\n")
@@ -174,6 +215,24 @@ class ScalingPage(DetailPage):
             live_status = " Live backend updated." if self._apply_live_scaling(scaling) else " Live backend not active."
         self.status_label.setText(
             f"Saved {enabled_count}/{len(CHANNEL_NAMES)} enabled channels to {self.config_path}.{live_status}"
+        )
+
+        self._set_clean()
+
+    def _apply_draft_scaling(self) -> None:
+        scaling = self._read_scaling_from_table()
+        errors = self._validation_errors(scaling)
+        if errors:
+            self.status_label.setText("Cannot apply draft: " + "; ".join(errors[:3]))
+            self._refresh_summary()
+            return
+        if self._apply_live_scaling is None:
+            self.status_label.setText("No live Field Ctrl backend is available.")
+            return
+        applied = self._apply_live_scaling(scaling)
+        self.status_label.setText(
+            "Draft applied to the live backend; it has not been saved."
+            if applied else "Live Field Ctrl backend is not active."
         )
 
     def _apply_file_scaling(self) -> None:
@@ -199,6 +258,52 @@ class ScalingPage(DetailPage):
     def _reset_identity(self) -> None:
         self._apply_scaling_to_table(self._identity_scaling())
         self.status_label.setText("Reset table to identity scaling. Save to make it active.")
+        self._mark_dirty()
+
+    def _set_all_enabled(self, enabled: bool) -> None:
+        for box in self.enabled_boxes:
+            box.setChecked(enabled)
+        self.status_label.setText(
+            "All channels enabled in the draft."
+            if enabled else "All channels disabled in the draft."
+        )
+
+    def _mark_dirty(self, *_ignored) -> None:
+        if self._loading:
+            return
+        self._dirty = True
+        self._refresh_summary()
+
+    def _set_clean(self) -> None:
+        self._dirty = False
+        self._refresh_summary()
+
+    def _validation_errors(
+        self, scaling: dict[str, list[float] | list[bool]]
+    ) -> list[str]:
+        errors: list[str] = []
+        for index, channel in enumerate(CHANNEL_NAMES):
+            if not scaling["enabled"][index]:
+                continue
+            raw_gain = float(scaling["raw_to_eng_gain"][index])
+            eng_gain = float(scaling["eng_to_raw_gain"][index])
+            if raw_gain == 0.0 or eng_gain == 0.0:
+                errors.append(f"{channel} has a zero gain")
+        return errors
+
+    def _refresh_summary(self) -> None:
+        scaling = self._read_scaling_from_table()
+        enabled_count = sum(bool(value) for value in scaling["enabled"])
+        errors = self._validation_errors(scaling)
+        self.enabled_summary.setText(f"{enabled_count} / {len(CHANNEL_NAMES)}\nENABLED")
+        self.validation_summary.setText(
+            f"{len(errors)} ISSUE{'S' if len(errors) != 1 else ''}\nVALIDATION"
+            if errors else "PASSED\nVALIDATION"
+        )
+        self.validation_summary.setProperty("warning", bool(errors))
+        self.validation_summary.style().unpolish(self.validation_summary)
+        self.validation_summary.style().polish(self.validation_summary)
+        self.change_summary.setText("UNSAVED\nSTATE" if self._dirty else "SAVED\nSTATE")
 
     def _normalize_scaling(self, data: object) -> dict[str, list[float] | list[bool]]:
         scaling = self._identity_scaling()
@@ -233,12 +338,15 @@ class ScalingPage(DetailPage):
         return scaling
 
     def _apply_scaling_to_table(self, scaling: dict[str, list[float] | list[bool]]) -> None:
+        self._loading = True
         for index in range(len(CHANNEL_NAMES)):
             self.enabled_boxes[index].setChecked(bool(scaling["enabled"][index]))
             self.raw_to_eng_gain[index].setValue(float(scaling["raw_to_eng_gain"][index]))
             self.raw_to_eng_offset[index].setValue(float(scaling["raw_to_eng_offset"][index]))
             self.eng_to_raw_gain[index].setValue(float(scaling["eng_to_raw_gain"][index]))
             self.eng_to_raw_offset[index].setValue(float(scaling["eng_to_raw_offset"][index]))
+        self._loading = False
+        self._refresh_summary()
 
     def _read_scaling_from_table(self) -> dict[str, list[float] | list[bool]]:
         return {
