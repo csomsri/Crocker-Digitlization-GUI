@@ -1,0 +1,72 @@
+{
+  "select_mode": "manual",
+  "manual_index": 2,
+  "digital_source": "bitmask_low4",
+  "beam_channel": "centering_beam",
+  "smooth_tau_s": 0.2,
+  "deadband_display": 0.000001,
+  "gauge_uses_range_fs": true,
+  "gauge_fullscale_override_uA": 1.0,
+  "ranges": [
+    {
+      "label": "100 pA",
+      "full_scale_uA": 0.0001,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.0001]]
+    },
+    {
+      "label": "300 pA",
+      "full_scale_uA": 0.0003,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.0003]]
+    },
+    {
+      "label": "1 nA",
+      "full_scale_uA": 0.001,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.001]]
+    },
+    {
+      "label": "3 nA",
+      "full_scale_uA": 0.003,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.003]]
+    },
+    {
+      "label": "10 nA",
+      "full_scale_uA": 0.01,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.01]]
+    },
+    {
+      "label": "30 nA",
+      "full_scale_uA": 0.03,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.03]]
+    },
+    {
+      "label": "100 nA",
+      "full_scale_uA": 0.1,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.1]]
+    },
+    {
+      "label": "300 nA",
+      "full_scale_uA": 0.3,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 0.3]]
+    },
+    {
+      "label": "1 uA",
+      "full_scale_uA": 1.0,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 1.0]]
+    },
+    {
+      "label": "100 uA",
+      "full_scale_uA": 100.0,
+      "mode": "curve",
+      "points": [[0.0, 0.0], [1.0, 100.0]]
+    }
+  ]
+}

@@ -43,6 +43,8 @@ from python.app.Monitoring.VacuumBeamMonitoringPage import (
 from python.app.widgets.MagneticFieldWidgets import FIELD_PLOT_SAMPLE_RATE_HZ
 from source.Python.Data.pipeline_manager import DataPipelineManager
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
+from source.Python.Services.AlarmService import AlarmService
+from source.Python.Services.BeamCalibrationService import BeamCalibrationService
 
 
 PAGE_BUILDERS = {
@@ -96,6 +98,10 @@ class MainWindow(QMainWindow):
         self.enable_data_pipeline = enable_data_pipeline
         self.db_path = Path(db_path)
         self._data_pipeline: DataPipelineManager | None = None
+        self._crocker_root = Path(__file__).resolve().parents[2]
+        pipeline_db_path = self.db_path if self.db_path.is_absolute() else self._crocker_root / self.db_path
+        self.beam_calibration = BeamCalibrationService(self._crocker_root / "config" / "beam_cal.json")
+        self.alarm_service = AlarmService(self._crocker_root / "config" / "alarm_config.json", pipeline_db_path)
         self._settings = QSettings("Crocker Nuclear Lab", "Digitalization")
         self._display_mode = self._settings.value(
             "display/mode", "Windowed", type=str
@@ -211,6 +217,34 @@ class MainWindow(QMainWindow):
                     monitor_entries=self._monitor_entries,
                     show_on_monitor=self.show_monitoring_page,
                     controller_layout=lambda: self._controller_layout,
+                )
+                self.stack.addWidget(detail_page)
+                self.pages[title] = detail_page
+                self.detail_parent[title] = parent_category
+                continue
+
+            if title == "Beam Range":
+                detail_page = page_builder(
+                    lambda checked=False, category=parent_category:
+                        self.show_category(category),
+                    get_beam_state=self.current_beam_state,
+                    get_beam_ranges=self.beam_calibration.ranges_dict,
+                    set_manual_range=self.set_manual_beam_range,
+                    reload_config=self.reload_beam_calibration,
+                )
+                self.stack.addWidget(detail_page)
+                self.pages[title] = detail_page
+                self.detail_parent[title] = parent_category
+                continue
+
+            if title == "Alarm":
+                detail_page = page_builder(
+                    lambda checked=False, category=parent_category:
+                        self.show_category(category),
+                    get_alarms=self.current_alarms,
+                    acknowledge=self.acknowledge_alarms,
+                    reload_config=self.reload_alarm_config,
+                    get_config=self.alarm_service.config_dict,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -415,6 +449,22 @@ class MainWindow(QMainWindow):
                     db_path=self.db_path,
                     back_label="Back to Settings",
                 )
+            if page_name == "Beam Range":
+                return builder(
+                    go_back,
+                    get_beam_state=self.current_beam_state,
+                    get_beam_ranges=self.beam_calibration.ranges_dict,
+                    set_manual_range=self.set_manual_beam_range,
+                    reload_config=self.reload_beam_calibration,
+                )
+            if page_name == "Alarm":
+                return builder(
+                    go_back,
+                    get_alarms=self.current_alarms,
+                    acknowledge=self.acknowledge_alarms,
+                    reload_config=self.reload_alarm_config,
+                    get_config=self.alarm_service.config_dict,
+                )
             if page_name == "Scaling":
                 return builder(
                     go_back,
@@ -601,12 +651,11 @@ class MainWindow(QMainWindow):
         self._simulation_plant_thread.start()
 
     def _start_data_pipeline(self) -> None:
-        crocker_root = Path(__file__).resolve().parents[2]
         db_path = self.db_path
         if not db_path.is_absolute():
-            db_path = crocker_root / db_path
+            db_path = self._crocker_root / db_path
         self._data_pipeline = DataPipelineManager(
-            crocker_root=crocker_root,
+            crocker_root=self._crocker_root,
             db_path=db_path,
             source=self.simulation_mode or self.backend_mode,
             rate_hz=float(FIELD_PLOT_SAMPLE_RATE_HZ),
@@ -626,6 +675,44 @@ class MainWindow(QMainWindow):
         super().closeEvent(event)
 
     def _transport_snapshot(self) -> dict | None:
+        field_page = self.pages.get("Field Ctrl")
+        if isinstance(field_page, FieldCtrlPage):
+            snapshot = field_page.transport_snapshot()
+            return self._update_addon_services(snapshot)
+        return None
+
+    def _update_addon_services(self, snapshot: dict | None) -> dict | None:
+        if snapshot is None:
+            return None
+        beam_state = self.beam_calibration.update(snapshot).to_dict()
+        alarms = [alarm.to_dict() for alarm in self.alarm_service.update(snapshot, beam_state)]
+        snapshot["beam"] = beam_state
+        snapshot["active_alarms"] = alarms
+        return snapshot
+
+    def current_beam_state(self) -> dict:
+        return self.beam_calibration.update(self._latest_field_snapshot()).to_dict()
+
+    def set_manual_beam_range(self, index: int) -> dict:
+        return self.beam_calibration.set_manual_range(index).to_dict()
+
+    def reload_beam_calibration(self) -> dict:
+        self.beam_calibration.reload()
+        return self.current_beam_state()
+
+    def current_alarms(self) -> list[dict]:
+        snapshot = self._latest_field_snapshot()
+        beam_state = self.beam_calibration.update(snapshot).to_dict() if snapshot is not None else self.beam_calibration.state_dict()
+        return [alarm.to_dict() for alarm in self.alarm_service.update(snapshot, beam_state)]
+
+    def acknowledge_alarms(self) -> None:
+        self.alarm_service.acknowledge()
+
+    def reload_alarm_config(self) -> list[dict]:
+        self.alarm_service.reload()
+        return self.current_alarms()
+
+    def _latest_field_snapshot(self) -> dict | None:
         field_page = self.pages.get("Field Ctrl")
         if isinstance(field_page, FieldCtrlPage):
             return field_page.transport_snapshot()
