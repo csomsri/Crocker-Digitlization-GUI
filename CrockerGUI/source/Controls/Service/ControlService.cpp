@@ -1,8 +1,14 @@
 /**
  * @file ControlService.cpp
  * 
- * @brief This file handles commuication of REP Server and Frontend
+ * @brief Implementation of Control Service, handling 
+ *        communication of REP Server and Frontend
  * 
+ * Ownership of transport of data
+ * 
+ * @authors Chotrawit Benko, Claudio Lopez
+ * 
+ * @date 2026-08-21
  * 
  */
 #include "Controls/Service/ControlService.hpp"
@@ -26,7 +32,12 @@ ControlService::~ControlService()
 }
 
 /**
- * @brief Make data transport to simulator
+ * @brief Start Simulator Server and make data 
+ *        transport to simulator in thread-safe manner
+ * 
+ *  Connects transport a shared pointer that send commands
+ *  to the simulator
+ * 
  */
 void ControlService::StartSimulator(double updateRateHz)
 {
@@ -41,12 +52,25 @@ void ControlService::StartSimulator(double updateRateHz)
     transport_ = std::move(transport);
 }
 
+/**
+ * @brief Start REP server given an endpoint and some scaling value
+ *        that was configured beforehand
+ * 
+ * @param endpoint string containing the endpoint to bind to
+ */
 void ControlService::StartServer(const std::string& endpoint)
 {
     ControlScaling scaling{};
     StartServer(endpoint, scaling);
 }
 
+/**
+ * @brief Start REP server given an endpoint and some scaling value
+ *        that was configured beforehand
+ * 
+ * @param endpoint string containing the endpoint to bind to
+ * @param scaling array of scaling factors
+ */
 void ControlService::StartServer(const std::string& endpoint, const ControlScaling& scaling)
 {
     StopPidTrial();
@@ -60,6 +84,9 @@ void ControlService::StartServer(const std::string& endpoint, const ControlScali
     transport_ = std::move(transport);
 }
 
+/**
+ * @brief Stop the Control Service in a thread-safe manner
+ */
 void ControlService::Stop() noexcept
 {
     StopPidTrial();
@@ -67,6 +94,9 @@ void ControlService::Stop() noexcept
     StopUnlocked();
 }
 
+/**
+ * @brief Stops the Control Service in memory
+ */
 void ControlService::StopUnlocked() noexcept
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -80,6 +110,12 @@ void ControlService::StopUnlocked() noexcept
     }
 }
 
+/**
+ * @brief Check if the Control Service is running
+ * 
+ * @return true if it is running and not a nullptr
+ * @return false if it is a nullptr or is not running
+ */
 bool ControlService::IsRunning() const noexcept
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -91,6 +127,9 @@ bool ControlService::IsRunning() const noexcept
     return transport != nullptr && transport->IsRunning();
 }
 
+/**
+ * @brief Set the current channel to target in a threadsafe manner
+ */
 void ControlService::SetChannelTarget(ChannelId channel, double target)
 {
     ValidateChannel(channel);
@@ -99,6 +138,12 @@ void ControlService::SetChannelTarget(ChannelId channel, double target)
     pendingCommand_[channel].target = target;
 }
 
+/**
+ * @brief Set Channel to be On (this is based on Trim Coil being on)
+ * 
+ * @param channel size_t, indicates which channel we are setting on
+ * @param on boolean for setting the channel on or off
+ */
 void ControlService::SetChannelOn(ChannelId channel, bool on)
 {
     ValidateChannel(channel);
@@ -107,6 +152,12 @@ void ControlService::SetChannelOn(ChannelId channel, bool on)
     pendingCommand_[channel].on = on;
 }
 
+/**
+ * @brief Given a channel, set it as enabled, allowing Changes through GUI
+ * 
+ * @param channel size_t, indicates which channel we are enabling
+ * @param enabled boolean, indicates whether if we enabling or denabling
+ */
 void ControlService::SetChannelEnabled(ChannelId channel, bool enabled)
 {
     ValidateChannel(channel);
@@ -115,6 +166,12 @@ void ControlService::SetChannelEnabled(ChannelId channel, bool enabled)
     pendingCommand_[channel].enabled = enabled;
 }
 
+/**
+ * @brief Set all channel states given a channel number
+ * 
+ * @param channel size_t, indicates which channel we are enabling
+ * @param commmand struct, containing target value, enable, on
+ */
 void ControlService::SetChannelCommand(ChannelId channel, const ChannelCommand& command)
 {
     ValidateChannel(channel);
@@ -123,12 +180,22 @@ void ControlService::SetChannelCommand(ChannelId channel, const ChannelCommand& 
     pendingCommand_[channel] = command;
 }
 
+/**
+ * @brief Set command of the pending command 
+ * 
+ * @param command struct, containing target value, enable, on
+ */
 void ControlService::SetCommand(const ControlCommand& command)
 {
     std::lock_guard<std::mutex> lock(mutex_);
     pendingCommand_ = command;
 }
 
+/**
+ * @brief Set scaling factor based on the scaling we have done in Config
+ * 
+ * @param scaling mapping of scaling to channel
+ */
 void ControlService::SetScaling(const ControlScaling& scaling)
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -142,12 +209,23 @@ void ControlService::SetScaling(const ControlScaling& scaling)
     }
 }
 
+/**
+ * @brief Get the latest command to be processed in a thread-safe manner
+ * 
+ * @return pendingCommand_ (current Command)
+ */
 ControlCommand ControlService::PendingCommand() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
     return pendingCommand_;
 }
 
+/**
+ * @brief Apply the commands that had been set
+ * 
+ * @return true if succesfully send command to transport
+ * @return false if there is no transport to send to
+ */
 bool ControlService::ApplyCommand()
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -165,6 +243,12 @@ bool ControlService::ApplyCommand()
     return transport->SendCommand(command);
 }
 
+/**
+ * @brief Disable all channels, not allowing transport
+ * 
+ * @return true if able to update and send to transport
+ * @return false if unable to access transport
+ */
 bool ControlService::DisableAll()
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -187,6 +271,7 @@ bool ControlService::DisableAll()
     return transport->SendCommand(command);
 }
 
+// REVIEW THIS BEHAVIOR 
 TelemetrySnapshot ControlService::LatestSnapshot() const
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -202,6 +287,7 @@ TelemetrySnapshot ControlService::LatestSnapshot() const
     return transport->LatestSnapshot();
 }
 
+// REVIEW THIS BEHAVIOR
 HealthStatus ControlService::Health() const
 {
     std::shared_ptr<ControlTransportBase> transport;
@@ -216,6 +302,8 @@ HealthStatus ControlService::Health() const
 
     return transport->Health();
 }
+
+// ============================================================= START OF PID SECTION ============================================================= 
 
 void ControlService::StartPidTrial(const PidTrialConfig& config)
 {
@@ -442,6 +530,15 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
     }
 }
 
+// ============================================================= END OF PID SECTION ============================================================= 
+
+/**
+ * @brief Checks whether the channel being accessed is valid
+ * 
+ * @param channel size_t, indicating channel index
+ * 
+ * @throw std::out_of_range if given channel is not valid
+ */
 void ControlService::ValidateChannel(ChannelId channel)
 {
     if (!IsValidChannel(channel)) {
