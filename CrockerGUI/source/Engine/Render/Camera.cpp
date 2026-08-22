@@ -1,3 +1,14 @@
+/**
+ * @file Camera.hpp
+ * 
+ * @brief Implementation of Camera that will be used
+ *        for future 3D Visualization
+ * 
+ * Responsible for changing and moving a movable viewport
+ * 
+ * @author Chotrawit Benko
+ * @date 2026-08-22
+ */
 #include "Engine/Render/Camera.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -23,6 +34,12 @@ glm::mat4 Camera::GetViewMatrix() const {
     return glm::lookAt(position, position + front, up);
 }
 
+/**
+ * @brief Grab keyboard output to change position of Camera
+ * 
+ * @param direction an enumeration of possible position of camera
+ * @param delta_time counting frames and change of time
+ */
 void Camera::ProcessKeyboard(CameraMovement direction, float delta_time) {
     const float velocity = movement_speed * delta_time;
     switch (direction) {
@@ -35,6 +52,14 @@ void Camera::ProcessKeyboard(CameraMovement direction, float delta_time) {
     }
 }
 
+/**
+ * @brief Turn mouse movement into zoom or drag
+ * 
+ * 
+ * @param xoffset x axis offset 
+ * @param xoffset y axis offset
+ * @param constrain_pitch boolean to decide if to constrain the pitch
+ */
 void Camera::ProcessMouseMovement(float xoffset, float yoffset, bool constrain_pitch) {
     yaw += xoffset * mouse_sensitivity;
     pitch += yoffset * mouse_sensitivity;

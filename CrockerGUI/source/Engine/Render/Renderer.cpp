@@ -1,3 +1,11 @@
+/**
+ * @file Renderer.cpp
+ * 
+ * @brief Initialization and start-up of renderer
+ * 
+ * @author Chotrawit Benko
+ * @date 2026-08-22
+ */
 #include "Engine/Render/Renderer.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>

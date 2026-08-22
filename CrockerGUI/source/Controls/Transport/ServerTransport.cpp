@@ -1,3 +1,15 @@
+/**
+ * @file SeverTranscport.cpp
+ * 
+ * @brief Imlementation of Transporting Data to REP Server
+ * 
+ * Responsible for keeping flags, statuses, and scaling
+ * 
+ * @authors Chotrawit Benko, Claudio Lopez
+ * 
+ * @date 2026-08-22
+ */
+
 #include "Controls/Transport/ServerTransport.hpp"
 
 #include "Controls/Network/ZMQProtocol.hpp"
@@ -14,12 +26,27 @@ namespace {
 
 namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
 
+/**
+ * @brief This function keeps in tract of the system clock (Unix)
+ * 
+ * @return double, time in seconds from now since epoch
+ */
 double UnixSeconds()
 {
     const auto now = std::chrono::system_clock::now();
     return std::chrono::duration<double>(now.time_since_epoch()).count();
 }
 
+/**
+ * @brief Check if current flags lets us make changes
+ * 
+ * @param on boolean, true if machine is on, false / off it is not
+ * @param enabled boolean, true if GUI change is enabled, false if not
+ * 
+ * @return ChannelStatus Disabled if not enable
+ * @return ChannelStatus Off if not On
+ * @return ChannelStatus Ready if on and enabled
+ */
 ChannelStatus StatusFromFlags(bool on, bool enabled)
 {
     if (!enabled) {
@@ -33,6 +60,13 @@ ChannelStatus StatusFromFlags(bool on, bool enabled)
     return ChannelStatus::Ready;
 }
 
+/**
+ * @brief build a mask based on command being built to send
+ * 
+ * @param command ControlCommand, a list containing which channels to change
+ * 
+ * @return uint64_t, stream of 64 bits as a bitmask to send to server
+ */
 std::uint64_t BuildBitmask(const ControlCommand& command)
 {
     std::uint64_t bitmask = 0;
@@ -48,6 +82,14 @@ std::uint64_t BuildBitmask(const ControlCommand& command)
     return bitmask;
 }
 
+/**
+ * @brief Take raw values and convert to Engineering
+ * 
+ * @param raw default value taken straight for LabVIEW
+ * @param scaling scaling factor
+ * 
+ * @return double, engineering values scaled from raw
+ */
 double RawToEngineering(double raw, const LinearChannelScaling& scaling)
 {
     if (!scaling.enabled) {
@@ -82,6 +124,14 @@ double RawToEngineering(double raw, const LinearChannelScaling& scaling)
     return raw * scaling.rawToEngineeringGain + scaling.rawToEngineeringOffset;
 }
 
+/**
+ * @brief Takes Engineering values from what we see to raw
+ * 
+ * @param engineering values from the machine in engineering values
+ * @param scaling scaling factor
+ * 
+ * @return double value scaled from engineering to raw
+ */
 double EngineeringToRaw(double engineering, const LinearChannelScaling& scaling)
 {
     if (!scaling.enabled) {
@@ -116,6 +166,12 @@ double EngineeringToRaw(double engineering, const LinearChannelScaling& scaling)
     return engineering * scaling.engineeringToRawGain + scaling.engineeringToRawOffset;
 }
 
+/**
+ * @brief check if curve is valid
+ * 
+ * @return true, if curve if curve has 2 or more points
+ * @return false, if curve has less than 2 points
+ */
 bool SanitizeCurve(std::vector<ScalingPoint>& curve)
 {
     curve.erase(
@@ -143,6 +199,14 @@ bool SanitizeCurve(std::vector<ScalingPoint>& curve)
     return curve.size() >= 2;
 }
 
+/**
+ * @brief Scaling is not just infinity and is some factor
+ * 
+ * @param scaling ControlScaling, array of scaling factors
+ * 
+ * @return scaling after checking if valid if not valid return empty
+ * 
+ */
 ControlScaling SanitizeScaling(ControlScaling scaling)
 {
     for (LinearChannelScaling& channel : scaling) {
@@ -164,6 +228,14 @@ ControlScaling SanitizeScaling(ControlScaling scaling)
     return scaling;
 }
 
+/**
+ * @brief build targets to the machine from the UI
+ * 
+ * @param command commands that the Operator Gave
+ * @param scaling list of scaling factors
+ * 
+ * @return target values for the server
+ */
 ZMQServer::TargetValues BuildTargets(const ControlCommand& command, const ControlScaling& scaling)
 {
     ZMQServer::TargetValues targets{};
@@ -176,6 +248,11 @@ ZMQServer::TargetValues BuildTargets(const ControlCommand& command, const Contro
 
 } // namespace
 
+/**
+ * @brief Set up the server communication 
+ * 
+ * @param endpoint location to bind to
+ */
 ServerTransport::ServerTransport(std::string endpoint)
     : endpoint_(std::move(endpoint))
     , server_(endpoint_)
@@ -188,6 +265,12 @@ ServerTransport::ServerTransport(std::string endpoint)
     health_.simulated = false;
 }
 
+/**
+ * @brief Set up server communication with scaling
+ * 
+ * @param endpoint location to bind to
+ * @param scaling list of scaling factors
+ */
 ServerTransport::ServerTransport(std::string endpoint, ControlScaling scaling)
     : endpoint_(std::move(endpoint))
     , scaling_(SanitizeScaling(scaling))
@@ -206,6 +289,9 @@ ServerTransport::~ServerTransport()
     Stop();
 }
 
+/**
+ * @brief Start server connection in a thread safe manner
+ */
 void ServerTransport::Start()
 {
     bool expected = false;
@@ -224,6 +310,9 @@ void ServerTransport::Start()
     worker_ = std::thread(&ServerTransport::Run, this);
 }
 
+/**
+ * @brief Stop server connection in a thread safe manner
+ */
 void ServerTransport::Stop() noexcept
 {
     const bool wasRunning = running_.exchange(false);
@@ -240,11 +329,25 @@ void ServerTransport::Stop() noexcept
     }
 }
 
+/**
+ * @brief Check if server connection is running
+ * 
+ * @return true if both server and worker is running
+ * @return false if worker thread or server is not running
+ */
 bool ServerTransport::IsRunning() const noexcept
 {
     return running_.load() && server_.IsRunning();
 }
 
+/**
+ * @brief send a command to the server
+ * 
+ * @param command list of command for trim coil values
+ * 
+ * @return true , if able to send
+ * @return false , if server is not running
+ */
 bool ServerTransport::SendCommand(const ControlCommand& command)
 {
     if (!running_.load()) {
@@ -258,12 +361,20 @@ bool ServerTransport::SendCommand(const ControlCommand& command)
     return true;
 }
 
+/**
+ * @brief Set scaling factors in a thread safe manner
+ */
 void ServerTransport::SetScaling(const ControlScaling& scaling)
 {
     std::lock_guard<std::mutex> lock(scalingMutex_);
     scaling_ = SanitizeScaling(scaling);
 }
 
+/**
+ * @brief Check for snapshot
+ * 
+ * @return snapshot
+ */
 TelemetrySnapshot ServerTransport::LatestSnapshot() const
 {
     std::lock_guard<std::mutex> lock(stateMutex_);
@@ -280,6 +391,12 @@ HealthStatus ServerTransport::Health() const
     return health;
 }
 
+/**
+ * @brief Server transport main loop
+ * 
+ * While the server is running Aply packet and give to server
+ * 
+ */
 void ServerTransport::Run()
 {
     while (running_.load()) {
@@ -298,6 +415,9 @@ void ServerTransport::Run()
     }
 }
 
+/**
+ * @brief Update relevent information sent by Operator
+ */
 void ServerTransport::ApplyPacket(const Packet& packet)
 {
     const double now = UnixSeconds();
