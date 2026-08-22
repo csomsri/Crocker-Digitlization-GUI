@@ -1,3 +1,15 @@
+/**
+ * @file ZMQReceiver.cpp
+ * 
+ * @brief Implementation of receiver functions for the ZMQ REP server.
+ * 
+ * This file owns the REP socket context, endpoint binding, packet receiving,
+ * and reply sending used by ZMQServer.
+ * 
+ * @authors Chotrawit Benko, Claudio Lopez
+ * @date 2026-08-21 
+ */
+
 #include "Controls/Network/ZMQReceiver.hpp"
 
 #include <algorithm>
@@ -7,6 +19,11 @@
 
 namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
 
+/**
+ * @brief Constructs a ZMQReceiver with an endpoint, context, and REP socket.
+ * 
+ * @param endpoint ZMQ endpoint to bind, for example "tcp://0.0.0.0:5555".
+ */
 ZMQReceiver::ZMQReceiver(std::string endpoint)
     : endpoint_(std::move(endpoint)),
       context_(1),
@@ -15,18 +32,45 @@ ZMQReceiver::ZMQReceiver(std::string endpoint)
     ConfigureSocket();
 }
 
+/**
+ * @brief Binds to the endpoint given in the constructor.
+ * 
+ * Falls back to a random local port if the preferred endpoint is busy.
+ * 
+ * @throws zmq::error_t if both the preferred and fallback binds fail.
+ *
+ * @return The endpoint that was successfully bound.
+ */
 std::string ZMQReceiver::Bind()
 {
     endpoint_ = BindWithFallBack(endpoint_);
     return endpoint_;
 }
 
+/**
+ * @brief Binds to a given endpoint.
+ * 
+ * Falls back to a random local port if the preferred endpoint is busy.
+ * 
+ * @param preferredEndpoint Preferred endpoint if different from the constructor endpoint.
+ * 
+ * @throws zmq::error_t if both the preferred and fallback binds fail.
+ *
+ * @return The endpoint that was successfully bound.
+ */
 std::string ZMQReceiver::Bind(const std::string& preferredEndpoint)
 {
     endpoint_ = BindWithFallBack(preferredEndpoint);
     return endpoint_;
 }
 
+/**
+ * @brief Checks the socket for a raw ZMQ message.
+ * 
+ * @throws zmq::error_t if recv fails.
+ * 
+ * @return The received message, or an empty message if no value was received.
+ */
 zmq::message_t ZMQReceiver::ReceiveMessage()
 {
     zmq::message_t message;
@@ -38,6 +82,13 @@ zmq::message_t ZMQReceiver::ReceiveMessage()
     return message;
 }
 
+/**
+ * @brief Receives and decodes one packet.
+ * 
+ * @throws zmq::error_t if recv fails.
+ * 
+ * @return The decoded packet, or an empty packet if receive/decode did not succeed.
+ */
 Protocol::Packet ZMQReceiver::ReceivePacket()
 {
     Protocol::Packet packet;
@@ -45,6 +96,17 @@ Protocol::Packet ZMQReceiver::ReceivePacket()
     return packet;
 }
 
+
+/**
+ * @brief Calls socket.recv and attempts to decode a packet from the socket.
+ * 
+ * @param packet Output packet containing values with machine state.
+ * 
+ * @throws zmq::error_t if recv fails.
+ * 
+ * @return true if a ZMQ message was received.
+ * @return false if no message was received before the timeout.
+ */
 bool ZMQReceiver::TryReceivePacket(Protocol::Packet& packet)
 {
     packet = {};
@@ -62,11 +124,34 @@ bool ZMQReceiver::TryReceivePacket(Protocol::Packet& packet)
     return true;
 }
 
+/**
+ * @brief Sends a full 14-channel reply.
+ * 
+ * Calls the overloaded SendReply function with the full trim channel count.
+ * 
+ * @param targetValues Array of doubles containing target values of trim coils.
+ * @param bitmask Unsigned 64-bit value containing on/off, enable, and beam-range bits.
+ * 
+ * @throws zmq::error_t if the reply cannot be sent.
+ */
 void ZMQReceiver::SendReply(const std::array<double, Protocol::N_TRIM>& targetValues, std::uint64_t bitmask)
 {
     SendReply(targetValues, Protocol::N_TRIM, bitmask);
 }
 
+
+/**
+ * @brief Sends a reply with a clamped channel count.
+ * 
+ * This function takes in target values, clamps the channel count to the protocol
+ * limits, and sends those values plus the bitmask.
+ * 
+ * @param targetValues Array of doubles containing trim coil values.
+ * @param channelCount Number of channel values to send.
+ * @param bitmask Unsigned 64-bit value containing on/off, enable, and beam-range bits.
+ * 
+ * @throws zmq::error_t if the reply cannot be sent.
+ */
 void ZMQReceiver::SendReply(
     const std::array<double, Protocol::N_TRIM>& targetValues,
     std::size_t channelCount,
@@ -82,8 +167,21 @@ void ZMQReceiver::SendReply(
     socket_.send(reply, zmq::send_flags::none);
 }
 
+
+/**
+ * @brief Tries to bind to the preferred endpoint, then falls back to an available port.
+ * 
+ * The preferred endpoint is usually tcp://0.0.0.0:5555. If that endpoint is busy,
+ * this binds to a random localhost port instead.
+ * 
+ * @param preferredEndpoint Endpoint to try first.
+ * 
+ * @throws zmq::error_t if both bind attempts fail.
+ * 
+ * @return The endpoint that was successfully bound.
+ */
 std::string ZMQReceiver::BindWithFallBack(const std::string& preferredEndpoint)
-{
+{   
     try {
         socket_.bind(preferredEndpoint);
         const std::string boundEndpoint = socket_.get(zmq::sockopt::last_endpoint);
@@ -99,6 +197,10 @@ std::string ZMQReceiver::BindWithFallBack(const std::string& preferredEndpoint)
     }
 }
 
+
+/**
+ * @brief Applies socket options used by the receiver.
+ */
 void ZMQReceiver::ConfigureSocket()
 {
     socket_.set(zmq::sockopt::linger, 0);

@@ -1,3 +1,10 @@
+/**
+ * @file ControlService.cpp
+ * 
+ * @brief This file handles commuication of REP Server and Frontend
+ * 
+ * 
+ */
 #include "Controls/Service/ControlService.hpp"
 
 #include "Controls/Transport/ServerTransport.hpp"
@@ -18,6 +25,9 @@ ControlService::~ControlService()
     Stop();
 }
 
+/**
+ * @brief Make data transport to simulator
+ */
 void ControlService::StartSimulator(double updateRateHz)
 {
     StopPidTrial();
@@ -439,6 +449,11 @@ void ControlService::ValidateChannel(ChannelId channel)
     }
 }
 
+/**
+ * @brief Disconnect Snapshot
+ * 
+ * @return snapshot
+ */
 TelemetrySnapshot ControlService::DisconnectedSnapshot()
 {
     TelemetrySnapshot snapshot;

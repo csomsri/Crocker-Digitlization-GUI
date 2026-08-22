@@ -44,6 +44,7 @@ This note starts the hardware-readiness review session. The current repo has eno
 6. Alarm settings UI
    - Alarm engine exists and can view/reload/acknowledge active alarms.
    - Need full UI editing for thresholds, timing windows, channels, and old alarm display options.
+   - If oscillating too much set alarm 
 
 7. Beam range UI completeness
    - Beam Range page shows calibrated beam state and supports manual range selection.

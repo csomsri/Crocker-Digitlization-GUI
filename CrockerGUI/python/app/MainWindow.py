@@ -385,9 +385,7 @@ class MainWindow(QMainWindow):
             window.set_page(page_name)
 
     def apply_controller_settings(self, screen_ids: set[str], layout: str) -> None:
-        main_screen = self.screen()
-        main_screen_id = screen_key(main_screen) if main_screen is not None else ""
-        self._controller_monitors = set(screen_ids) - {main_screen_id}
+        self._controller_monitors = set(screen_ids)
         self._controller_layout = layout if layout in {"Auto", "Compact", "Full"} else "Auto"
         self._settings.setValue("display/controller_monitors", list(self._controller_monitors))
         self._settings.setValue("display/controller_layout", self._controller_layout)
@@ -400,8 +398,15 @@ class MainWindow(QMainWindow):
             return False
         screens = {screen_key(screen): screen for screen in QApplication.screens()[:4]}
         screen = screens.get(screen_id)
-        if screen is None or screen is self.screen():
+        if screen is None:
             return False
+        if screen is self.screen():
+            page = self.pages.get(page_name)
+            if page is None:
+                return False
+            self.stack.setCurrentWidget(page)
+            self._refresh_settings_monitors()
+            return True
         window = self._monitor_windows.get(screen_id)
         if window is None:
             window = AssignedMonitorWindow(self, screen_id, screen.name())
@@ -448,6 +453,14 @@ class MainWindow(QMainWindow):
                     go_back,
                     db_path=self.db_path,
                     back_label="Back to Settings",
+                )
+            if page_name == "Display Controller":
+                return builder(
+                    go_back,
+                    monitoring_pages=self._monitoring_page_names(),
+                    monitor_entries=self._monitor_entries,
+                    show_on_monitor=self.show_monitoring_page,
+                    controller_layout=lambda: self._controller_layout,
                 )
             if page_name == "Beam Range":
                 return builder(

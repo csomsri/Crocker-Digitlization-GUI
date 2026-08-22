@@ -263,7 +263,6 @@ class SettingsPage(DetailPage):
             str(entry.get("id", entry["name"]))
             for entry in entries if bool(entry.get("occupied", False))
         }
-        self._controller_monitors.difference_update(self._primary_monitors)
 
         count_label = QLabel(f"DISPLAYS ({len(entries)})")
         count_label.setObjectName("monitorMapHeading")
@@ -337,13 +336,9 @@ class SettingsPage(DetailPage):
         suffix = assignment or "Unassigned"
         self.assignment_label.setText(f"PAGE FOR {label.upper()}  -  {suffix.upper()}")
         self.controller_access.blockSignals(True)
-        is_primary = screen_id in self._primary_monitors
-        self.controller_access.setEnabled(not is_primary)
+        self.controller_access.setEnabled(True)
         self.controller_access.setChecked(screen_id in self._controller_monitors)
-        self.controller_access.setToolTip(
-            "The main application display cannot be a controlled output."
-            if is_primary else ""
-        )
+        self.controller_access.setToolTip("")
         self.controller_access.blockSignals(False)
         self._refresh_page_picker()
 

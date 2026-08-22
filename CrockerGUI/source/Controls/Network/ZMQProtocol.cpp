@@ -1,3 +1,14 @@
+/**
+ * @file ZMQProtocol.cpp
+ * 
+ * @brief This file contains protocol helpers used throughout the networking logic.
+ *
+ * This file owns ZMQ message sizing, packet slicing, timestamp normalization,
+ * bitmask construction, and conversion between arrays of doubles and ZMQ messages.
+ * 
+ * @authors Chotrawit Benko, Claudio Lopez
+ * @date 2026-08-21
+ */
 #include "Controls/Network/ZMQProtocol.hpp"
 
 #include <algorithm>
