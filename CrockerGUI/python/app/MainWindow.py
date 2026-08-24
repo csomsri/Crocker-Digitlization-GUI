@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 from PySide6.QtCore import QMargins, QRect, QSettings, Qt, QTimer
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFont, QFontDatabase
 from pathlib import Path
 import socket
 from threading import Event, Thread
@@ -748,6 +748,7 @@ class MainWindow(QMainWindow):
         app = QApplication.instance()
         if app is not None:
             app.setProperty("appFontFamily", app_font)
+            app.setFont(QFont("Segoe UI", 10))
         stylesheet = """
             QStackedWidget#root,
             QWidget#page,
@@ -852,9 +853,11 @@ class MainWindow(QMainWindow):
             }
 
             QLabel#settingsHeading {
-                color: #bfdbfe;
-                font-size: 18px;
-                font-weight: 700;
+                color: #dbeafe;
+                font-family: "__APP_FONT__", "Segoe UI Semibold", "Segoe UI", Arial, sans-serif;
+                font-size: 20px;
+                font-weight: 800;
+                letter-spacing: 0.6px;
                 padding-top: 8px;
             }
 
@@ -1293,6 +1296,38 @@ class MainWindow(QMainWindow):
                 alternate-background-color: rgba(30, 41, 59, 0.54);
             }
 
+            QTableWidget#scalingTable,
+            QTableWidget#scalingPointsTable {
+                background-color: rgba(11, 18, 32, 0.94);
+                border: 1px solid rgba(71, 85, 105, 0.82);
+                border-radius: 7px;
+                color: #e5e7eb;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                gridline-color: rgba(51, 65, 85, 0.40);
+                alternate-background-color: rgba(30, 41, 59, 0.34);
+                selection-background-color: rgba(37, 99, 235, 0.60);
+                selection-color: #ffffff;
+            }
+
+            QTableWidget#scalingTable::item {
+                border-bottom: 1px solid rgba(51, 65, 85, 0.28);
+                min-height: 24px;
+                padding: 4px 8px;
+            }
+
+            QTableWidget#scalingPointsTable::item {
+                border-bottom: 1px solid rgba(51, 65, 85, 0.28);
+                min-height: 30px;
+                padding: 6px 8px;
+            }
+
+            QTableWidget#scalingTable::item:selected,
+            QTableWidget#scalingPointsTable::item:selected {
+                background-color: rgba(37, 99, 235, 0.64);
+                color: #ffffff;
+            }
+
             QHeaderView::section {
                 background-color: rgba(17, 24, 39, 0.94);
                 border: 1px solid rgba(51, 65, 85, 0.86);
@@ -1301,10 +1336,51 @@ class MainWindow(QMainWindow):
                 padding: 5px;
             }
 
+            QTableWidget#scalingTable QHeaderView::section,
+            QTableWidget#scalingPointsTable QHeaderView::section {
+                background-color: rgba(15, 23, 42, 0.98);
+                border: 1px solid rgba(51, 65, 85, 0.90);
+                color: #dbeafe;
+                font-size: 12px;
+                font-weight: 800;
+                letter-spacing: 0.5px;
+                min-height: 28px;
+                padding: 7px 10px;
+            }
+
+            QTableWidget#scalingPointsTable QHeaderView::section {
+                font-size: 11px;
+                min-height: 24px;
+                padding: 5px 8px;
+            }
+
             QCheckBox#toggleRow {
                 color: #e5e7eb;
                 font-size: 16px;
                 min-height: 36px;
+            }
+
+            QTableWidget#scalingTable QCheckBox#toggleRow {
+                background-color: transparent;
+                color: #e5e7eb;
+                min-height: 30px;
+            }
+
+            QTableWidget#scalingTable QCheckBox#toggleRow::indicator {
+                background-color: rgba(15, 23, 42, 0.98);
+                border: 1px solid rgba(100, 116, 139, 0.95);
+                border-radius: 9px;
+                height: 18px;
+                width: 18px;
+            }
+
+            QTableWidget#scalingTable QCheckBox#toggleRow::indicator:hover {
+                border-color: rgba(125, 211, 252, 0.88);
+            }
+
+            QTableWidget#scalingTable QCheckBox#toggleRow::indicator:checked {
+                background-color: #38bdf8;
+                border: 2px solid #bae6fd;
             }
 
             QFrame#pidPanel QCheckBox#toggleRow {
@@ -1382,6 +1458,245 @@ class MainWindow(QMainWindow):
                 background-color: rgba(120, 53, 15, 0.42);
                 border-color: rgba(251, 191, 36, 0.72);
                 color: #fde68a;
+            }
+
+            QFrame#scalingConversionCard {
+                background-color: rgba(17, 24, 39, 0.66);
+                border: 1px solid rgba(71, 85, 105, 0.72);
+                border-radius: 8px;
+            }
+
+            QPushButton#fieldBulk {
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 700;
+            }
+
+            QLabel#scalingEditorTitle {
+                color: #dbeafe;
+                font-family: "__APP_FONT__", "Segoe UI Semibold", "Segoe UI", Arial, sans-serif;
+                font-size: 18px;
+                font-weight: 800;
+                letter-spacing: 0.4px;
+                padding: 0 8px;
+            }
+
+            QLabel#scalingSectionTitle {
+                color: #eff6ff;
+                font-family: "__APP_FONT__", "Segoe UI Semibold", "Segoe UI", Arial, sans-serif;
+                font-size: 16px;
+                font-weight: 800;
+                letter-spacing: 0.4px;
+                padding-bottom: 2px;
+            }
+
+            QLabel#scalingFieldLabel {
+                color: #93a4bd;
+                font-size: 11px;
+                font-weight: 800;
+                letter-spacing: 0.8px;
+            }
+
+            QFrame#scalingFormula {
+                background-color: rgba(15, 23, 42, 0.58);
+                border: 1px solid rgba(71, 85, 105, 0.54);
+                border-radius: 6px;
+                min-height: 68px;
+                max-height: 68px;
+            }
+
+            QFrame#scalingTransformSummary {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingLinearPanel {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingControlsPanel {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingCalibrationStack {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingCheckPanel {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingCurvePanel {
+                background-color: transparent;
+                border: none;
+            }
+
+            QFrame#scalingLinearPreviewPanel {
+                background-color: rgba(11, 18, 32, 0.88);
+                border: 1px solid rgba(71, 85, 105, 0.72);
+                border-radius: 8px;
+            }
+
+            QLabel#scalingPreviewCaption {
+                color: #93a4bd;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 10px;
+                font-weight: 800;
+                letter-spacing: 0.8px;
+                padding: 0 4px;
+            }
+
+            QLabel#scalingPreviewValue {
+                background-color: rgba(15, 23, 42, 0.72);
+                border: 1px solid rgba(71, 85, 105, 0.82);
+                border-radius: 7px;
+                color: #f8fafc;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 15px;
+                font-weight: 800;
+            }
+
+            QLabel#scalingPreviewArrow {
+                color: #93c5fd;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 21px;
+                font-weight: 900;
+            }
+
+            QLabel#scalingResult {
+                background-color: rgba(29, 78, 216, 0.22);
+                border: 1px solid rgba(96, 165, 250, 0.45);
+                border-radius: 6px;
+                color: #eff6ff;
+                font-size: 14px;
+                font-weight: 800;
+                min-height: 30px;
+                padding: 4px 10px;
+            }
+
+            QLabel#scalingTransformKind {
+                background-color: rgba(14, 165, 233, 0.22);
+                border: 1px solid rgba(125, 211, 252, 0.58);
+                border-radius: 5px;
+                color: #e0f2fe;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 800;
+                min-width: 62px;
+                max-width: 62px;
+                padding: 2px 5px;
+            }
+
+            QLabel#scalingEditorTransformKind {
+                background-color: rgba(14, 165, 233, 0.18);
+                border: 1px solid rgba(125, 211, 252, 0.58);
+                border-radius: 5px;
+                color: #e0f2fe;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 11px;
+                font-weight: 800;
+                min-width: 76px;
+                max-width: 76px;
+                padding: 2px 7px;
+            }
+
+            QLabel#scalingTransformKind[mode="curve"] {
+                background-color: rgba(34, 197, 94, 0.17);
+                border-color: rgba(134, 239, 172, 0.52);
+                color: #dcfce7;
+            }
+
+            QLabel#scalingEditorTransformKind[mode="curve"] {
+                background-color: rgba(34, 197, 94, 0.14);
+                border-color: rgba(134, 239, 172, 0.52);
+                color: #dcfce7;
+            }
+
+            QLabel#scalingTransformValue {
+                color: #f8fafc;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 800;
+                min-width: 138px;
+                max-width: 138px;
+            }
+
+            QLabel#scalingEditorTransformValue {
+                color: #f8fafc;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 13px;
+                font-weight: 800;
+                min-width: 82px;
+                max-width: 124px;
+            }
+
+            QFrame#scalingPointActions {
+                background-color: transparent;
+                border: none;
+            }
+
+            QPushButton#scalingPointButton {
+                background-color: rgba(30, 41, 59, 0.76);
+                border: 1px solid rgba(71, 85, 105, 0.84);
+                border-radius: 6px;
+                color: #e5e7eb;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 12px;
+                font-weight: 700;
+                min-height: 26px;
+                padding: 3px 6px;
+                text-align: center;
+            }
+
+            QFrame#scalingTypeToggle {
+                background-color: rgba(8, 13, 27, 0.98);
+                border: 1px solid rgba(71, 85, 105, 0.95);
+                border-radius: 7px;
+                min-height: 34px;
+            }
+
+            QPushButton#scalingTypeButton {
+                background-color: transparent;
+                border: none;
+                border-radius: 5px;
+                color: #93a4bd;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 12px;
+                font-weight: 800;
+                min-height: 30px;
+                padding: 3px 8px;
+            }
+
+            QPushButton#scalingTypeButton:hover {
+                background-color: rgba(30, 41, 59, 0.68);
+                color: #dbeafe;
+            }
+
+            QPushButton#scalingTypeButton:checked {
+                background-color: rgba(14, 116, 144, 0.50);
+                border: 1px solid rgba(125, 211, 252, 0.62);
+                color: #f8fafc;
+            }
+
+            QDoubleSpinBox#scalingInput {
+                background-color: rgba(8, 13, 27, 0.98);
+                border: 1px solid rgba(71, 85, 105, 0.95);
+                border-radius: 7px;
+                color: #f8fafc;
+                font-family: "Segoe UI", Arial, sans-serif;
+                font-size: 10pt;
+                font-weight: 600;
+                min-height: 34px;
+                padding: 4px 10px;
+            }
+
+            QDoubleSpinBox#scalingInput:focus {
+                background-color: rgba(15, 23, 42, 1.0);
+                border-color: #60a5fa;
             }
 
             QFrame#controllerTargetPanel {

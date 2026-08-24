@@ -110,7 +110,8 @@ class QtMagneticBarPlot(QWidget):
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0)
         painter.setPen(QColor("#e5e7eb"))
         title_font = QFont(self.font())
-        title_font.setPointSize(max(9, title_font.pointSize()))
+        point_size = title_font.pointSize()
+        title_font.setPointSize(point_size if point_size > 0 else 9)
         title_font.setBold(True)
         painter.setFont(title_font)
         painter.drawText(QRectF(14.0, 8.0, self.width() - 28.0, 22.0), Qt.AlignLeft | Qt.AlignVCenter, self.title)
@@ -218,7 +219,8 @@ class QtMagneticLinePlot(QWidget):
 
     def _draw_header_and_legend(self, painter: QPainter, plot: QRectF, enabled: list[int]) -> None:
         title_font = QFont(self.font())
-        title_font.setPointSize(max(9, title_font.pointSize()))
+        point_size = title_font.pointSize()
+        title_font.setPointSize(point_size if point_size > 0 else 9)
         title_font.setBold(True)
         painter.setFont(title_font)
         painter.setPen(QColor("#e5e7eb"))

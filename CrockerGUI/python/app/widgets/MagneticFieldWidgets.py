@@ -361,7 +361,8 @@ class QtTimeDomainPlot(QWidget):
         painter.drawRect(plot)
 
         font = QFont(self.font())
-        font.setPointSize(max(8, font.pointSize()))
+        point_size = font.pointSize()
+        font.setPointSize(point_size if point_size > 0 else 8)
         painter.setFont(font)
 
         samples = self._samples[-FIELD_PLOT_VISIBLE_SAMPLES:]
