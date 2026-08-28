@@ -107,6 +107,12 @@ if(BUILD_TESTING)
     )
     target_link_libraries(ControlServicePidTrialTest PRIVATE crocker_engine)
     add_test(NAME ControlServicePidTrialTest COMMAND ControlServicePidTrialTest)
+
+    add_executable(ControlServiceSequenceTest
+        tests/ControlServiceSequenceTest.cpp
+    )
+    target_link_libraries(ControlServiceSequenceTest PRIVATE crocker_engine)
+    add_test(NAME ControlServiceSequenceTest COMMAND ControlServiceSequenceTest)
 endif()
 
 if(MSVC)

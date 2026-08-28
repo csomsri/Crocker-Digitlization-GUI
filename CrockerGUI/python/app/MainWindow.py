@@ -45,6 +45,8 @@ from source.Python.Data.pipeline_manager import DataPipelineManager
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 from source.Python.Services.AlarmService import AlarmService
 from source.Python.Services.BeamCalibrationService import BeamCalibrationService
+from source.Python.Services.InterlockService import InterlockService
+from source.Python.Services.SignalMapService import SignalMapService
 
 
 PAGE_BUILDERS = {
@@ -102,6 +104,8 @@ class MainWindow(QMainWindow):
         pipeline_db_path = self.db_path if self.db_path.is_absolute() else self._crocker_root / self.db_path
         self.beam_calibration = BeamCalibrationService(self._crocker_root / "config" / "beam_cal.json")
         self.alarm_service = AlarmService(self._crocker_root / "config" / "alarm_config.json", pipeline_db_path)
+        self.signal_map = SignalMapService(self._crocker_root / "config" / "signal_map.json")
+        self.interlocks = InterlockService(self._crocker_root / "config" / "interlock_config.json")
         self._settings = QSettings("Crocker Nuclear Lab", "Digitalization")
         self._display_mode = self._settings.value(
             "display/mode", "Windowed", type=str
@@ -245,6 +249,7 @@ class MainWindow(QMainWindow):
                     acknowledge=self.acknowledge_alarms,
                     reload_config=self.reload_alarm_config,
                     get_config=self.alarm_service.config_dict,
+                    save_config=self.save_alarm_config,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -477,6 +482,7 @@ class MainWindow(QMainWindow):
                     acknowledge=self.acknowledge_alarms,
                     reload_config=self.reload_alarm_config,
                     get_config=self.alarm_service.config_dict,
+                    save_config=self.save_alarm_config,
                 )
             if page_name == "Scaling":
                 return builder(
@@ -697,10 +703,12 @@ class MainWindow(QMainWindow):
     def _update_addon_services(self, snapshot: dict | None) -> dict | None:
         if snapshot is None:
             return None
+        self.signal_map.enrich_snapshot(snapshot)
         beam_state = self.beam_calibration.update(snapshot).to_dict()
         alarms = [alarm.to_dict() for alarm in self.alarm_service.update(snapshot, beam_state)]
+        interlock_alarms = self.interlocks.evaluate(snapshot)
         snapshot["beam"] = beam_state
-        snapshot["active_alarms"] = alarms
+        snapshot["active_alarms"] = alarms + interlock_alarms
         return snapshot
 
     def current_beam_state(self) -> dict:
@@ -724,6 +732,9 @@ class MainWindow(QMainWindow):
     def reload_alarm_config(self) -> list[dict]:
         self.alarm_service.reload()
         return self.current_alarms()
+
+    def save_alarm_config(self, updates: dict) -> dict:
+        return self.alarm_service.save_config(updates)
 
     def _latest_field_snapshot(self) -> dict | None:
         field_page = self.pages.get("Field Ctrl")

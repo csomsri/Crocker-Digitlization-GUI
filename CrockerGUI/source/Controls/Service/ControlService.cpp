@@ -27,6 +27,7 @@ namespace crocker::controls {
 
 ControlService::~ControlService()
 {
+    StopSequence();
     StopPidTrial();
     Stop();
 }
@@ -41,6 +42,7 @@ ControlService::~ControlService()
  */
 void ControlService::StartSimulator(double updateRateHz)
 {
+    StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
@@ -73,6 +75,7 @@ void ControlService::StartServer(const std::string& endpoint)
  */
 void ControlService::StartServer(const std::string& endpoint, const ControlScaling& scaling)
 {
+    StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
@@ -89,6 +92,7 @@ void ControlService::StartServer(const std::string& endpoint, const ControlScali
  */
 void ControlService::Stop() noexcept
 {
+    StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
     StopUnlocked();
@@ -531,6 +535,238 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
 }
 
 // ============================================================= END OF PID SECTION ============================================================= 
+
+void ControlService::StartSequence(const SequenceRunConfig& config)
+{
+    ValidateSequenceRunConfig(config);
+    StopPidTrial();
+    StopSequence(false);
+
+    const TelemetrySnapshot snapshot = LatestSnapshot();
+    if (config.requireConnected && snapshot.connection != ConnectionState::Connected) {
+        throw std::runtime_error("sequence requires a connected control transport");
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(sequenceMutex_);
+        sequenceStatus_ = {};
+        sequenceStatus_.state = SequenceRunState::Running;
+        sequenceStatus_.message = "Sequence running";
+        sequenceStatus_.stepCount = config.sequence.size();
+        sequenceTouchedChannels_.fill(false);
+        for (const SequencePoint& point : config.sequence) {
+            for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+                sequenceTouchedChannels_[channel] = sequenceTouchedChannels_[channel] || point.targets[channel].has_value();
+            }
+        }
+    }
+
+    sequenceRunning_.store(true);
+    sequenceWorker_ = std::thread(&ControlService::RunSequence, this, config);
+}
+
+void ControlService::StopSequence(bool disableChannels) noexcept
+{
+    sequenceRunning_.store(false);
+    if (sequenceWorker_.joinable() && sequenceWorker_.get_id() != std::this_thread::get_id()) {
+        sequenceWorker_.join();
+    }
+
+    std::array<bool, ChannelCount> touched{};
+    {
+        std::lock_guard<std::mutex> lock(sequenceMutex_);
+        touched = sequenceTouchedChannels_;
+        if (sequenceStatus_.state == SequenceRunState::Running || sequenceStatus_.state == SequenceRunState::Dwelling) {
+            sequenceStatus_.state = SequenceRunState::Stopped;
+            sequenceStatus_.message = "Sequence stopped";
+        }
+    }
+
+    if (!disableChannels) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+        if (touched[channel]) {
+            pendingCommand_[channel].on = false;
+            pendingCommand_[channel].enabled = false;
+        }
+    }
+    if (transport_) {
+        transport_->SendCommand(pendingCommand_);
+    }
+}
+
+SequenceRunStatus ControlService::SequenceStatusSnapshot() const
+{
+    std::lock_guard<std::mutex> lock(sequenceMutex_);
+    return sequenceStatus_;
+}
+
+void ControlService::RunSequence(SequenceRunConfig config) noexcept
+{
+    using clock = std::chrono::steady_clock;
+    const auto period = std::chrono::duration<double>(1.0 / config.updateRateHz);
+    const auto started = clock::now();
+    ControlCommand command = PendingCommand();
+
+    for (std::size_t stepIndex = 0; stepIndex < config.sequence.size() && sequenceRunning_.load(); ++stepIndex) {
+        const SequencePoint& point = config.sequence[stepIndex];
+        for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+            if (point.targets[channel].has_value()) {
+                command[channel] = ChannelCommand{*point.targets[channel], true, true};
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            pendingCommand_ = command;
+        }
+        if (!ApplyCommand()) {
+            SetSequenceFault("Sequence command was not acknowledged");
+            sequenceRunning_.store(false);
+            break;
+        }
+
+        const auto stepStarted = clock::now();
+        auto nextTick = stepStarted;
+        bool reached = false;
+        while (sequenceRunning_.load()) {
+            const TelemetrySnapshot snapshot = LatestSnapshot();
+            const HealthStatus health = Health();
+            const double elapsed = std::chrono::duration<double>(clock::now() - started).count();
+            const double stepElapsed = std::chrono::duration<double>(clock::now() - stepStarted).count();
+            const bool connectionHealthy = snapshot.connection == ConnectionState::Connected;
+            const bool telemetryFresh = health.packetAgeMilliseconds <= config.stepTimeoutSeconds * 1000.0;
+            if (config.requireConnected && (!connectionHealthy || !telemetryFresh)) {
+                SetSequenceFault(!connectionHealthy ? "Control transport disconnected" : "Sequence telemetry watchdog expired");
+                sequenceRunning_.store(false);
+                break;
+            }
+
+            reached = true;
+            for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+                if (!point.targets[channel].has_value()) {
+                    continue;
+                }
+                const ChannelTelemetry& telemetry = snapshot.channels[channel];
+                if (telemetry.interlocked || telemetry.status == ChannelStatus::Fault || telemetry.status == ChannelStatus::Interlocked) {
+                    SetSequenceFault("Sequence channel fault or interlock");
+                    sequenceRunning_.store(false);
+                    reached = false;
+                    break;
+                }
+                reached = reached && std::abs(telemetry.actual - *point.targets[channel]) <= config.targetTolerance;
+            }
+
+            {
+                std::lock_guard<std::mutex> lock(sequenceMutex_);
+                sequenceStatus_.state = SequenceRunState::Running;
+                sequenceStatus_.message = "Ramping to sequence target";
+                sequenceStatus_.stepIndex = stepIndex;
+                sequenceStatus_.stepCount = config.sequence.size();
+                sequenceStatus_.elapsedSeconds = elapsed;
+                sequenceStatus_.dwellRemainingSeconds = point.timeSeconds;
+                sequenceStatus_.targetReached = reached;
+                sequenceStatus_.watchdogHealthy = true;
+            }
+
+            if (!sequenceRunning_.load() || reached) {
+                break;
+            }
+            if (stepElapsed >= config.stepTimeoutSeconds) {
+                SetSequenceFault("Sequence step timed out before reaching target");
+                sequenceRunning_.store(false);
+                break;
+            }
+
+            nextTick += std::chrono::duration_cast<clock::duration>(period);
+            std::this_thread::sleep_until(nextTick);
+        }
+
+        if (!sequenceRunning_.load()) {
+            break;
+        }
+
+        const auto dwellStarted = clock::now();
+        auto dwellNextTick = dwellStarted;
+        while (sequenceRunning_.load()) {
+            const double dwellElapsed = std::chrono::duration<double>(clock::now() - dwellStarted).count();
+            const double remaining = std::max(0.0, point.timeSeconds - dwellElapsed);
+            {
+                std::lock_guard<std::mutex> lock(sequenceMutex_);
+                sequenceStatus_.state = SequenceRunState::Dwelling;
+                sequenceStatus_.message = "Dwelling at sequence target";
+                sequenceStatus_.stepIndex = stepIndex;
+                sequenceStatus_.stepCount = config.sequence.size();
+                sequenceStatus_.elapsedSeconds = std::chrono::duration<double>(clock::now() - started).count();
+                sequenceStatus_.dwellRemainingSeconds = remaining;
+                sequenceStatus_.targetReached = true;
+                sequenceStatus_.watchdogHealthy = true;
+            }
+            if (dwellElapsed >= point.timeSeconds) {
+                break;
+            }
+            dwellNextTick += std::chrono::duration_cast<clock::duration>(period);
+            std::this_thread::sleep_until(dwellNextTick);
+        }
+    }
+
+    if (sequenceRunning_.load()) {
+        std::lock_guard<std::mutex> lock(sequenceMutex_);
+        sequenceStatus_.state = SequenceRunState::Completed;
+        sequenceStatus_.message = "Sequence completed";
+        sequenceStatus_.stepIndex = config.sequence.empty() ? 0 : config.sequence.size() - 1;
+        sequenceStatus_.stepCount = config.sequence.size();
+        sequenceStatus_.dwellRemainingSeconds = 0.0;
+        sequenceStatus_.targetReached = true;
+        sequenceStatus_.watchdogHealthy = true;
+    }
+    sequenceRunning_.store(false);
+}
+
+void ControlService::SetSequenceFault(const std::string& message) noexcept
+{
+    std::lock_guard<std::mutex> lock(sequenceMutex_);
+    sequenceStatus_.state = SequenceRunState::Faulted;
+    sequenceStatus_.message = message;
+    sequenceStatus_.watchdogHealthy = false;
+}
+
+void ControlService::ValidateSequenceRunConfig(const SequenceRunConfig& config)
+{
+    const double scalars[] = {config.updateRateHz, config.targetTolerance, config.stepTimeoutSeconds};
+    for (double value : scalars) {
+        if (!std::isfinite(value)) {
+            throw std::invalid_argument("sequence timing and tolerance values must be finite");
+        }
+    }
+    if (config.sequence.empty()) {
+        throw std::invalid_argument("sequence requires at least one step");
+    }
+    if (config.updateRateHz <= 0.0 || config.targetTolerance < 0.0 || config.stepTimeoutSeconds <= 0.0) {
+        throw std::invalid_argument("sequence timing values must be positive and tolerance must be non-negative");
+    }
+    for (const SequencePoint& point : config.sequence) {
+        if (!std::isfinite(point.timeSeconds) || point.timeSeconds < 0.0) {
+            throw std::invalid_argument("sequence dwell times must be finite and non-negative");
+        }
+        bool hasTarget = false;
+        for (const std::optional<double>& target : point.targets) {
+            if (!target.has_value()) {
+                continue;
+            }
+            hasTarget = true;
+            if (!std::isfinite(*target)) {
+                throw std::invalid_argument("sequence targets must be finite");
+            }
+        }
+        if (!hasTarget) {
+            throw std::invalid_argument("each sequence step requires at least one target");
+        }
+    }
+}
 
 /**
  * @brief Checks whether the channel being accessed is valid

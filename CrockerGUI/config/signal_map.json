@@ -1,0 +1,15 @@
+{
+  "signals": [
+    {"name": "source_arc_current", "channel": "ch1", "units": "A", "device_class": "source_extraction"},
+    {"name": "source_extraction_voltage", "channel": "ch2", "units": "A", "device_class": "source_extraction"},
+    {"name": "vac1", "channel": "ch3", "units": "engineering", "device_class": "vacuum"},
+    {"name": "vac2", "channel": "ch4", "units": "engineering", "device_class": "vacuum"},
+    {"name": "rf_kv", "channel": "ch5", "units": "kV", "device_class": "rf"},
+    {"name": "rf_phase", "channel": "ch6", "units": "deg", "device_class": "rf"},
+    {"name": "beam_transport_x", "channel": "ch7", "units": "engineering", "device_class": "beam_transport"},
+    {"name": "beam_transport_y", "channel": "ch8", "units": "engineering", "device_class": "beam_transport"},
+    {"name": "beam_slit_current", "channel": "ch9", "units": "uA", "device_class": "beam_current"},
+    {"name": "main_magnet_current", "channel": "main_magnet", "units": "A", "device_class": "main_magnet"},
+    {"name": "centering_beam_current", "channel": "centering_beam", "units": "uA", "device_class": "beam_current"}
+  ]
+}

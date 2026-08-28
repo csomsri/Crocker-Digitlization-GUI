@@ -20,6 +20,10 @@ int main() {
     assert(!point.targets[1].has_value());
     assert(point.targets[2].value() == 42.0);
 
+    SequenceRunStatus sequenceStatus{};
+    assert(sequenceStatus.state == SequenceRunState::Idle);
+    assert(sequenceStatus.message == "Idle");
+
     TelemetrySnapshot snapshot{};
     assert(snapshot.connection == ConnectionState::Disconnected);
     assert(IsValidChannel(13));

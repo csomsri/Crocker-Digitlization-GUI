@@ -45,11 +45,18 @@ public:
     void StopPidTrial(bool disableAllocatedChannels = true) noexcept;
     [[nodiscard]] PidTrialStatus PidTrialStatusSnapshot() const;
 
+    void StartSequence(const SequenceRunConfig& config);
+    void StopSequence(bool disableChannels = false) noexcept;
+    [[nodiscard]] SequenceRunStatus SequenceStatusSnapshot() const;
+
 private:
     void StopUnlocked() noexcept;
     void RunPidTrial(PidTrialConfig config) noexcept;
     void SetPidTrialFault(const std::string& message) noexcept;
     static void ValidatePidTrialConfig(const PidTrialConfig& config);
+    void RunSequence(SequenceRunConfig config) noexcept;
+    void SetSequenceFault(const std::string& message) noexcept;
+    static void ValidateSequenceRunConfig(const SequenceRunConfig& config);
 
     static void ValidateChannel(ChannelId channel);
     static TelemetrySnapshot DisconnectedSnapshot();
@@ -66,6 +73,12 @@ private:
     std::atomic_bool pidTrialRunning_{false};
     PidTrialStatus pidTrialStatus_{};
     std::array<bool, ChannelCount> pidAllocatedChannels_{};
+
+    mutable std::mutex sequenceMutex_;
+    std::thread sequenceWorker_;
+    std::atomic_bool sequenceRunning_{false};
+    SequenceRunStatus sequenceStatus_{};
+    std::array<bool, ChannelCount> sequenceTouchedChannels_{};
 };
 
 } // namespace crocker::controls

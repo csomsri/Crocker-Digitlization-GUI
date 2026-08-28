@@ -75,6 +75,7 @@ def snapshot_to_readings(snapshot: dict, *, source: str) -> list[Reading]:
             source=source,
         )
     )
+    readings.extend(_signal_readings(snapshot, timestamp, logged_at, source))
     readings.extend(_beam_readings(snapshot, timestamp, logged_at, source))
     readings.extend(_alarm_readings(snapshot, timestamp, logged_at, source))
     return readings
@@ -141,6 +142,38 @@ def _beam_readings(
             quality=quality,
         ),
     ]
+
+
+def _signal_readings(
+    snapshot: dict,
+    timestamp: float,
+    logged_at: float,
+    source: str,
+) -> list[Reading]:
+    signals = snapshot.get("signals")
+    if not isinstance(signals, dict):
+        return []
+    units_by_signal = snapshot.get("signal_units")
+    if not isinstance(units_by_signal, dict):
+        units_by_signal = {}
+    readings: list[Reading] = []
+    for name, value in signals.items():
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            continue
+        readings.append(
+            Reading(
+                timestamp=timestamp,
+                logged_at=logged_at,
+                channel=f"signal:{name}",
+                raw_value=numeric,
+                engineering_value=numeric,
+                units=str(units_by_signal.get(name, "engineering")),
+                source=source,
+            )
+        )
+    return readings
 
 
 def _alarm_readings(
@@ -293,6 +326,7 @@ def _snapshot_signature(snapshot: dict) -> tuple[Any, ...]:
             )
     beam = snapshot.get("beam") if isinstance(snapshot.get("beam"), dict) else {}
     alarms = snapshot.get("active_alarms") if isinstance(snapshot.get("active_alarms"), list) else []
+    signals = snapshot.get("signals") if isinstance(snapshot.get("signals"), dict) else {}
     alarm_signature = tuple(
         (
             alarm.get("id"),
@@ -315,6 +349,7 @@ def _snapshot_signature(snapshot: dict) -> tuple[Any, ...]:
             beam.get("range_index"),
             beam.get("quality"),
         ),
+        tuple(sorted(signals.items())),
         alarm_signature,
     )
 

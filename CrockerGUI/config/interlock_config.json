@@ -1,0 +1,27 @@
+{
+  "enabled": false,
+  "rules": [
+    {
+      "id": "rf_high",
+      "enabled": true,
+      "signal": "rf_kv",
+      "operator": ">",
+      "limit": 100.0,
+      "severity": "Critical",
+      "code": "RF_HIGH",
+      "message": "RF kV above commissioned limit",
+      "interlock_channels": ["ch5"]
+    },
+    {
+      "id": "vac1_high",
+      "enabled": true,
+      "signal": "vac1",
+      "operator": ">",
+      "limit": 0.000001,
+      "severity": "Critical",
+      "code": "VAC_HIGH",
+      "message": "Vacuum signal above commissioned limit",
+      "interlock_channels": ["ch3"]
+    }
+  ]
+}

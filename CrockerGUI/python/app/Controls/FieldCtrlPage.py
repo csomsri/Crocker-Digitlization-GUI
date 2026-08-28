@@ -8,17 +8,22 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QButtonGroup,
+    QComboBox,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QPushButton,
     QSlider,
     QSizePolicy,
     QSplitter,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -91,6 +96,8 @@ class FieldCtrlPage(DetailPage):
         self.toggle_bulk_buttons: list[QPushButton] = []
         self.monitor_bulk_buttons: list[QPushButton] = []
         self.control_tab_buttons: list[QPushButton] = []
+        self.sequence_status_label: QLabel | None = None
+        self.sequence_table: QTableWidget | None = None
         self.toggle_lock_button: QPushButton | None = None
         self.toggles_locked = True
         self.digit_labels: list[QLabel] = []
@@ -129,6 +136,7 @@ class FieldCtrlPage(DetailPage):
 
         for page_title, _tab_title in MONITOR_CONTROL_TABS[1:]:
             self.control_stack.addWidget(self._build_monitor_plot_panel(page_title))
+        self.control_stack.addWidget(self._build_sequencer_panel())
 
         workspace.addWidget(self.control_stack, 1)
 
@@ -151,7 +159,8 @@ class FieldCtrlPage(DetailPage):
 
         self.control_tab_group = QButtonGroup(self)
         self.control_tab_group.setExclusive(True)
-        for index, (_page_title, tab_title) in enumerate(MONITOR_CONTROL_TABS):
+        tab_entries = [*MONITOR_CONTROL_TABS, ("Sequencer", "Sequencer")]
+        for index, (_page_title, tab_title) in enumerate(tab_entries):
             button = QPushButton(tab_title)
             button.setObjectName("fieldControlTab")
             button.setCheckable(True)
@@ -226,6 +235,189 @@ class FieldCtrlPage(DetailPage):
         layout.addLayout(grid)
         layout.addStretch(1)
         return body
+
+    def _build_sequencer_panel(self) -> QWidget:
+        body = QWidget()
+        body.setObjectName("fieldMonitorControl")
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+
+        heading = QLabel("Field Control Sequencer")
+        heading.setObjectName("fieldMonitorTitle")
+        layout.addWidget(heading)
+
+        self.sequence_status_label = QLabel("Sequence idle")
+        self.sequence_status_label.setObjectName("fieldBackendStatus")
+        self.sequence_status_label.setMinimumHeight(44)
+        layout.addWidget(self.sequence_status_label)
+
+        self.sequence_table = QTableWidget(0, 3)
+        self.sequence_table.setObjectName("scalingTable")
+        self.sequence_table.setHorizontalHeaderLabels(["Channel", "Target A", "Dwell s"])
+        self.sequence_table.verticalHeader().setVisible(False)
+        self.sequence_table.setAlternatingRowColors(True)
+        self.sequence_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sequence_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        layout.addWidget(self.sequence_table, 1)
+
+        actions = QHBoxLayout()
+        for label, handler in (
+            ("Add Step", self._add_sequence_step),
+            ("Remove Selected", self._remove_sequence_steps),
+            ("Start Sequence", self._start_sequence),
+            ("Stop Sequence", self._stop_sequence),
+        ):
+            button = QPushButton(label)
+            button.setObjectName("fieldBulk")
+            button.setCursor(Qt.PointingHandCursor)
+            button.clicked.connect(handler)
+            actions.addWidget(button)
+        actions.addStretch(1)
+        layout.addLayout(actions)
+
+        self._add_sequence_step()
+        return body
+
+    def _add_sequence_step(self) -> None:
+        if self.sequence_table is None:
+            return
+        row = self.sequence_table.rowCount()
+        self.sequence_table.insertRow(row)
+
+        channel_select = QComboBox()
+        channel_select.setObjectName("pidTunerProfile")
+        channel_select.addItems(CHANNEL_NAMES)
+        channel_select.setCurrentIndex(self.selected_index)
+        self.sequence_table.setCellWidget(row, 0, channel_select)
+
+        target_spin = QDoubleSpinBox()
+        target_spin.setObjectName("fieldTargetInput")
+        target_spin.setRange(0.0, MAX_GAUGE_VALUE)
+        target_spin.setDecimals(2)
+        target_spin.setSingleStep(0.1)
+        target_spin.setSuffix(" A")
+        target_spin.setValue(self.target_values[self.selected_index])
+        self.sequence_table.setCellWidget(row, 1, target_spin)
+
+        dwell_spin = QDoubleSpinBox()
+        dwell_spin.setObjectName("fieldTargetInput")
+        dwell_spin.setRange(0.0, 3600.0)
+        dwell_spin.setDecimals(2)
+        dwell_spin.setSingleStep(1.0)
+        dwell_spin.setSuffix(" s")
+        dwell_spin.setValue(5.0)
+        self.sequence_table.setCellWidget(row, 2, dwell_spin)
+
+    def _remove_sequence_steps(self) -> None:
+        if self.sequence_table is None:
+            return
+        rows = sorted({index.row() for index in self.sequence_table.selectedIndexes()}, reverse=True)
+        for row in rows:
+            self.sequence_table.removeRow(row)
+        if self.sequence_table.rowCount() == 0:
+            self._add_sequence_step()
+
+    def _sequence_steps_from_table(self) -> list[dict[str, float | int]]:
+        if self.sequence_table is None:
+            return []
+        steps: list[dict[str, float | int]] = []
+        for row in range(self.sequence_table.rowCount()):
+            channel_select = self.sequence_table.cellWidget(row, 0)
+            target_spin = self.sequence_table.cellWidget(row, 1)
+            dwell_spin = self.sequence_table.cellWidget(row, 2)
+            if not isinstance(channel_select, QComboBox) or not isinstance(target_spin, QDoubleSpinBox) or not isinstance(dwell_spin, QDoubleSpinBox):
+                continue
+            steps.append(
+                {
+                    "channel": int(channel_select.currentIndex()),
+                    "target": float(target_spin.value()),
+                    "dwell_seconds": float(dwell_spin.value()),
+                }
+            )
+        return steps
+
+    def _start_sequence(self) -> None:
+        if not self.backend_available or self.backend is None or not hasattr(self.backend, "StartSequence"):
+            self._set_sequence_status_text("Sequence unavailable: no live backend")
+            return
+        steps = self._sequence_steps_from_table()
+        if not steps:
+            self._set_sequence_status_text("Sequence needs at least one step")
+            return
+        try:
+            self.backend.StartSequence(
+                {
+                    "steps": steps,
+                    "update_rate_hz": float(FIELD_PLOT_SAMPLE_RATE_HZ),
+                    "target_tolerance": CONVERGENCE_TOLERANCE,
+                    "step_timeout_seconds": 30.0,
+                    "require_connected": True,
+                    "disable_channels_on_stop": False,
+                }
+            )
+        except Exception as exc:
+            self._set_sequence_status_text(f"Sequence start failed: {exc}")
+            return
+        self._set_sequence_status_text(f"Sequence started with {len(steps)} step(s)")
+
+    def _stop_sequence(self) -> None:
+        if not self.backend_available or self.backend is None or not hasattr(self.backend, "StopSequence"):
+            self._set_sequence_status_text("Sequence unavailable: no live backend")
+            return
+        try:
+            self.backend.StopSequence(False)
+        except Exception as exc:
+            self._set_sequence_status_text(f"Sequence stop failed: {exc}")
+            return
+        self._refresh_sequence_status()
+
+    def _refresh_sequence_status(self) -> None:
+        if not self.backend_available or self.backend is None or not hasattr(self.backend, "SequenceStatus"):
+            return
+        try:
+            status = self.backend.SequenceStatus()
+        except Exception:
+            return
+        state = str(status.get("state", "Idle"))
+        message = str(status.get("message", ""))
+        step_count = int(status.get("step_count", 0))
+        step_index = int(status.get("step_index", 0))
+        elapsed = float(status.get("elapsed_seconds", 0.0))
+        dwell_remaining = float(status.get("dwell_remaining_seconds", 0.0))
+        if step_count > 0 and state in {"Running", "Dwelling"}:
+            self._set_sequence_status_text(
+                f"{state}: step {step_index + 1}/{step_count} | "
+                f"{message} | elapsed {elapsed:.1f}s | dwell left {dwell_remaining:.1f}s"
+            )
+        else:
+            self._set_sequence_status_text(f"{state}: {message}")
+
+    def _set_sequence_status_text(self, text: str) -> None:
+        if self.sequence_status_label is not None:
+            self.sequence_status_label.setText(text)
+
+    def _sync_targets_from_running_sequence(self) -> None:
+        if self.backend is None or not hasattr(self.backend, "SequenceStatus") or not hasattr(self.backend, "PendingCommand"):
+            return
+        try:
+            status = self.backend.SequenceStatus()
+        except Exception:
+            return
+        if str(status.get("state", "Idle")) not in {"Running", "Dwelling"}:
+            return
+        try:
+            command = self.backend.PendingCommand()
+        except Exception:
+            return
+        for index, channel in enumerate(command[: len(CHANNEL_NAMES)]):
+            if not isinstance(channel, dict):
+                continue
+            self.target_values[index] = float(channel.get("target", self.target_values[index]))
+            self.applied_targets[index] = self.target_values[index]
+            self.applied_on[index] = bool(channel.get("on", self.applied_on[index]))
+            self.applied_enabled[index] = bool(channel.get("enabled", self.applied_enabled[index]))
+        self._refresh_target_display()
 
     def _install_shortcuts(self) -> None:
         for key, direction in (("Shift+Left", -1), ("Shift+Right", 1)):
@@ -603,6 +795,7 @@ class FieldCtrlPage(DetailPage):
                         self._set_toggle_from_telemetry(self.enable_buttons[index], bool(channel["enabled"]))
                 if has_real_telemetry and channels and not self._operator_toggle_edited:
                     self._telemetry_state_synced = True
+                self._sync_targets_from_running_sequence()
                 self.backend_connection = str(health["connection"])
                 self.backend_destination = str(health["endpoint"])
                 self.backend_packets = int(health["received_packets"])
@@ -631,6 +824,7 @@ class FieldCtrlPage(DetailPage):
             actual = self.actual_values[index]
             self._append_plot_sample(index, target, actual, target - actual)
         self._refresh_actual_display()
+        self._refresh_sequence_status()
         self._update_speedometer()
 
     def _update_speedometer(self) -> None:

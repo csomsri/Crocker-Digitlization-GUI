@@ -64,6 +64,40 @@ class AlarmService:
             if isinstance(vac_channels, list):
                 self._vac_channels = [str(channel) for channel in vac_channels]
 
+    def save_config(self, updates: dict[str, Any]) -> dict[str, Any]:
+        config = self.config_dict()
+        allowed = {
+            "enabled",
+            "log_events",
+            "rf_dkv",
+            "rf_window_s",
+            "vac_factor",
+            "vac_window_s",
+            "rf_channel",
+            "vac_channels",
+        }
+        for key, value in updates.items():
+            if key not in allowed:
+                continue
+            if key in {"enabled", "log_events"}:
+                config[key] = bool(value)
+            elif key in {"rf_dkv", "rf_window_s", "vac_factor", "vac_window_s"}:
+                config[key] = float(value)
+            elif key == "vac_channels":
+                if isinstance(value, str):
+                    config[key] = [part.strip() for part in value.split(",") if part.strip()]
+                elif isinstance(value, list):
+                    config[key] = [str(part).strip() for part in value if str(part).strip()]
+            else:
+                config[key] = str(value).strip()
+
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.config_path.open("w", encoding="utf-8") as handle:
+            json.dump(config, handle, indent=2)
+            handle.write("\n")
+        self.reload()
+        return self.config_dict()
+
     def update(self, snapshot: dict[str, Any] | None, beam_state: dict[str, Any] | None = None) -> list[AlarmState]:
         timestamp = float((snapshot or {}).get("timestamp") or time.time())
         if not self._enabled:

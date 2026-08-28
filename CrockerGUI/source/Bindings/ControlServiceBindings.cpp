@@ -80,6 +80,19 @@ const char* ToString(Controls::PidTrialState state)
     return "Idle";
 }
 
+const char* ToString(Controls::SequenceRunState state)
+{
+    switch (state) {
+    case Controls::SequenceRunState::Idle: return "Idle";
+    case Controls::SequenceRunState::Running: return "Running";
+    case Controls::SequenceRunState::Dwelling: return "Dwelling";
+    case Controls::SequenceRunState::Completed: return "Completed";
+    case Controls::SequenceRunState::Stopped: return "Stopped";
+    case Controls::SequenceRunState::Faulted: return "Faulted";
+    }
+    return "Idle";
+}
+
 template <typename Array>
 void ReadDoubleArray(const py::dict& source, const char* key, Array& destination)
 {
@@ -260,6 +273,56 @@ Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
     return config;
 }
 
+Controls::SequenceRunConfig SequenceRunConfigFromDict(const py::dict& source)
+{
+    Controls::SequenceRunConfig config;
+    if (source.contains("update_rate_hz")) {
+        config.updateRateHz = source["update_rate_hz"].cast<double>();
+    }
+    if (source.contains("target_tolerance")) {
+        config.targetTolerance = source["target_tolerance"].cast<double>();
+    }
+    if (source.contains("step_timeout_seconds")) {
+        config.stepTimeoutSeconds = source["step_timeout_seconds"].cast<double>();
+    }
+    if (source.contains("require_connected")) {
+        config.requireConnected = source["require_connected"].cast<bool>();
+    }
+    if (source.contains("disable_channels_on_stop")) {
+        config.disableChannelsOnStop = source["disable_channels_on_stop"].cast<bool>();
+    }
+
+    const py::sequence steps = source["steps"].cast<py::sequence>();
+    config.sequence.reserve(static_cast<std::size_t>(steps.size()));
+    for (const py::handle item : steps) {
+        const py::dict step = py::reinterpret_borrow<py::dict>(item);
+        Controls::SequencePoint point;
+        point.timeSeconds = step.contains("dwell_seconds")
+            ? step["dwell_seconds"].cast<double>()
+            : step["time_seconds"].cast<double>();
+
+        if (step.contains("targets")) {
+            const py::dict targets = py::reinterpret_borrow<py::dict>(step["targets"]);
+            for (const auto& [key, value] : targets) {
+                const std::size_t channel = py::cast<std::size_t>(key);
+                if (channel >= Controls::ChannelCount) {
+                    throw py::value_error("sequence target channel index is out of range");
+                }
+                point.targets[channel] = py::cast<double>(value);
+            }
+        } else {
+            const std::size_t channel = step["channel"].cast<std::size_t>();
+            if (channel >= Controls::ChannelCount) {
+                throw py::value_error("sequence channel index is out of range");
+            }
+            point.targets[channel] = step["target"].cast<double>();
+        }
+
+        config.sequence.push_back(point);
+    }
+    return config;
+}
+
 py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
 {
     py::dict out;
@@ -272,6 +335,20 @@ py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
     out["iterations"] = status.iterations;
     out["saturated"] = status.saturated;
     out["rate_limited"] = status.rateLimited;
+    out["watchdog_healthy"] = status.watchdogHealthy;
+    return out;
+}
+
+py::dict SequenceStatusToDict(const Controls::SequenceRunStatus& status)
+{
+    py::dict out;
+    out["state"] = ToString(status.state);
+    out["message"] = status.message;
+    out["step_index"] = status.stepIndex;
+    out["step_count"] = status.stepCount;
+    out["elapsed_seconds"] = status.elapsedSeconds;
+    out["dwell_remaining_seconds"] = status.dwellRemainingSeconds;
+    out["target_reached"] = status.targetReached;
     out["watchdog_healthy"] = status.watchdogHealthy;
     return out;
 }
@@ -416,5 +493,13 @@ void BindControlService(py::module_& module)
             py::arg("disable_allocated_channels") = true)
         .def("PidTrialStatus", [](const Controls::ControlService& service) {
             return PidTrialStatusToDict(service.PidTrialStatusSnapshot());
+        })
+        .def("StartSequence", [](Controls::ControlService& service, const py::dict& config) {
+            service.StartSequence(SequenceRunConfigFromDict(config));
+        }, py::arg("config"))
+        .def("StopSequence", &Controls::ControlService::StopSequence,
+            py::arg("disable_channels") = false)
+        .def("SequenceStatus", [](const Controls::ControlService& service) {
+            return SequenceStatusToDict(service.SequenceStatusSnapshot());
         });
 }

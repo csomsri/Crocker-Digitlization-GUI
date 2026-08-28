@@ -30,6 +30,12 @@ def main() -> int:
                 }
             ],
             "bitmask": 7,
+            "signals": {
+                "rf_kv": 12.5,
+            },
+            "signal_units": {
+                "rf_kv": "kV",
+            },
             "beam": {
                 "raw_value": 0.25,
                 "display_ua": 0.0005,
@@ -55,6 +61,9 @@ def main() -> int:
     assert snapshot_readings[0].units == "A"
     bitmask_reading = next(reading for reading in snapshot_readings if reading.channel == "bitmask")
     assert int(bitmask_reading.raw_value) == 7
+    signal_reading = next(reading for reading in snapshot_readings if reading.channel == "signal:rf_kv")
+    assert signal_reading.engineering_value == 12.5
+    assert signal_reading.units == "kV"
     beam_reading = next(reading for reading in snapshot_readings if reading.channel == "beam_current")
     assert beam_reading.raw_value == 0.25
     assert beam_reading.engineering_value == 0.0005

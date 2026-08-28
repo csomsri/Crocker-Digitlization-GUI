@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "log_events": true,
+  "rf_dkv": 1.0,
+  "rf_window_s": 3.0,
+  "vac_factor": 2.0,
+  "vac_window_s": 3.0,
+  "rf_channel": "rf_kv",
+  "vac_channels": ["vac1", "vac2"]
+}

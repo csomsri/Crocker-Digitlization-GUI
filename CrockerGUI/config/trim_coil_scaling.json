@@ -1,82 +1,198 @@
 {
-  "raw_to_eng_gain": [
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0,
-    10000000.0
-  ],
-  "raw_to_eng_offset": [
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0
-  ],
-  "eng_to_raw_gain": [
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0
-  ],
-  "eng_to_raw_offset": [
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    0.0
-  ],
-  "enabled": [
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true,
-    true
-  ]
+  "ch1": {
+    "label": "TC1",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch2": {
+    "label": "TC2",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch3": {
+    "label": "TC3",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch4": {
+    "label": "TC4",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch5": {
+    "label": "TC5",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch6": {
+    "label": "TC6",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch7": {
+    "label": "TC7",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch8": {
+    "label": "TC8",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch9": {
+    "label": "TC9",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch10": {
+    "label": "TC10",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch11": {
+    "label": "TC11",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "ch12": {
+    "label": "TC12",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "main_magnet": {
+    "label": "Main Magnet",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  },
+  "centering_beam": {
+    "label": "Centering Beam",
+    "enabled": true,
+    "raw_to_eng": {
+      "type": "linear",
+      "gain": 10000000.0,
+      "offset": 0.0
+    },
+    "eng_to_raw": {
+      "type": "linear",
+      "gain": 1.0,
+      "offset": 0.0
+    }
+  }
 }

@@ -8,10 +8,11 @@ from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
 
 def preload_zmq_for_qt(simulation_mode: str | None) -> None:
-    if simulation_mode not in {"smoke2", "cyclotron"}:
+    if simulation_mode not in {"smoke", "smoke2", "cyclotron", None}:
         return
     # PySide installs an import hook that can interfere with pyzmq's import
-    # chain on Python 3.13. Load pyzmq before Qt/PySide modules are imported.
+    # chain on Python 3.13. MainWindow imports the data pipeline at module load,
+    # which imports the ZMQ simulator even for the original smoke mode.
     import zmq  # noqa: F401
 
 
