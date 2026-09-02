@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSlider,
     QSizePolicy,
@@ -63,6 +64,8 @@ class FieldCtrlPage(DetailPage):
         go_back: Callable[[], None],
         backend_mode: str,
         zmq_endpoint: str = "tcp://0.0.0.0:5555",
+        manual_max_change: float = 10.0,
+        confirm_large_changes: bool = True,
     ) -> None:
         super().__init__(
             "Field Ctrl",
@@ -73,6 +76,8 @@ class FieldCtrlPage(DetailPage):
 
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
+        self.manual_max_change = max(0.01, float(manual_max_change))
+        self.confirm_large_changes = bool(confirm_large_changes)
         self.plot_state = magnetic_field_plot_state()
         self.monitor_plot_state = monitoring_plot_state()
         self.selected_index = 0
@@ -991,6 +996,8 @@ class FieldCtrlPage(DetailPage):
             return None
 
     def _apply_selected_command(self) -> bool:
+        if not self._confirm_command_changes([self.selected_index]):
+            return False
         applied = self._apply_channel_command(self.selected_index)
         if applied:
             self._begin_convergence_timer(self.selected_index)
@@ -1038,6 +1045,9 @@ class FieldCtrlPage(DetailPage):
         self.applied_enabled[index] = enabled
 
     def _apply_all_commands(self) -> None:
+        if not self._confirm_command_changes(list(range(len(CHANNEL_NAMES)))):
+            self.backend_label.setText("Apply all cancelled by operator")
+            return
         applied = self._apply_all_channel_commands()
         if applied:
             for index in range(len(CHANNEL_NAMES)):
@@ -1050,6 +1060,40 @@ class FieldCtrlPage(DetailPage):
                 self._begin_convergence_timer(index)
         ok_count = len(CHANNEL_NAMES) if applied else 0
         self.backend_label.setText(f"{ok_count}/{len(CHANNEL_NAMES)} channel commands applied")
+
+    def set_manual_safety_settings(self, maximum_change: float, require_confirmation: bool) -> None:
+        self.manual_max_change = max(0.01, float(maximum_change))
+        self.confirm_large_changes = bool(require_confirmation)
+
+    def _confirm_command_changes(self, indices: list[int]) -> bool:
+        if not self.confirm_large_changes or self.backend_mode != "zmq":
+            return True
+        large_changes = []
+        for index in indices:
+            previous = self.applied_targets[index]
+            requested = self.target_values[index]
+            change = abs(requested - previous)
+            if change > self.manual_max_change:
+                large_changes.append((index, previous, requested, change))
+        if not large_changes:
+            return True
+
+        details = "\n".join(
+            f"{CHANNEL_NAMES[index]}: {previous:.2f} A → {requested:.2f} A "
+            f"(change {change:.2f} A)"
+            for index, previous, requested, change in large_changes[:8]
+        )
+        if len(large_changes) > 8:
+            details += f"\n…and {len(large_changes) - 8} more channels"
+        answer = QMessageBox.warning(
+            self,
+            "Confirm large field-control change",
+            f"The requested change exceeds the {self.manual_max_change:.2f} A "
+            f"confirmation threshold.\n\n{details}\n\nApply this command?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        return answer == QMessageBox.StandardButton.Yes
 
     def _apply_all_channel_commands(self) -> bool:
         if self.backend_available and self.backend is not None:

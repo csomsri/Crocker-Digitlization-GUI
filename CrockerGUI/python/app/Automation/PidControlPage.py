@@ -200,6 +200,7 @@ class PidControlPage(DetailPage):
         self.channel_select.setProperty("stablePopup", True)
         self.channel_select.addItems(CHANNEL_NAMES)
         self.channel_select.currentIndexChanged.connect(self._set_channel)
+        channel_selector = self._channel_selector_widget(self.channel_select)
 
         self.enable_button = QPushButton("Enable PID")
         self.enable_button.setObjectName("pidEnable")
@@ -211,7 +212,7 @@ class PidControlPage(DetailPage):
         self.arm_button.setObjectName("pidArm")
         self.arm_button.setCheckable(True)
         self.arm_button.toggled.connect(self._set_armed)
-        layout.addWidget(self.channel_select, 1, 0, 1, 2)
+        layout.addWidget(channel_selector, 1, 0, 1, 2)
         layout.addWidget(self.arm_button, 1, 2)
         layout.addWidget(self.enable_button, 1, 3)
 
@@ -318,6 +319,7 @@ class PidControlPage(DetailPage):
         self.tuner_channel.setObjectName("pidTunerChannel")
         self.tuner_channel.setProperty("stablePopup", True)
         self.tuner_channel.addItems(CHANNEL_NAMES)
+        tuner_channel_selector = self._channel_selector_widget(self.tuner_channel)
         self.tuner_target = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
         self.tuner_trials = QSpinBox()
         self.tuner_trials.setObjectName("pidSpin")
@@ -332,7 +334,7 @@ class PidControlPage(DetailPage):
         )
 
         primary_fields = (
-            ("Controlled channel", self.tuner_channel),
+            ("Controlled channel", tuner_channel_selector),
             ("Trial target", self.tuner_target),
             ("Trial budget", self.tuner_trials),
             ("Trial duration", self.tuner_duration),
@@ -851,6 +853,36 @@ class PidControlPage(DetailPage):
         spinbox.setSingleStep(step)
         spinbox.setSuffix(suffix)
         return spinbox
+
+    def _channel_selector_widget(self, combo: QComboBox) -> QWidget:
+        """Provide channel selection that does not depend on a popup window."""
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        previous_button = QPushButton("‹")
+        previous_button.setObjectName("pidChannelStep")
+        previous_button.setToolTip("Previous channel")
+        previous_button.setAccessibleName("Previous channel")
+        previous_button.clicked.connect(lambda checked=False: self._cycle_channel(combo, -1))
+
+        next_button = QPushButton("›")
+        next_button.setObjectName("pidChannelStep")
+        next_button.setToolTip("Next channel")
+        next_button.setAccessibleName("Next channel")
+        next_button.clicked.connect(lambda checked=False: self._cycle_channel(combo, 1))
+
+        layout.addWidget(previous_button)
+        layout.addWidget(combo, 1)
+        layout.addWidget(next_button)
+        return container
+
+    @staticmethod
+    def _cycle_channel(combo: QComboBox, direction: int) -> None:
+        count = combo.count()
+        if count:
+            combo.setCurrentIndex((combo.currentIndex() + direction) % count)
 
     def _set_channel(self, index: int) -> None:
         if self.pid_enabled:

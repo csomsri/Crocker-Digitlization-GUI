@@ -107,6 +107,13 @@ class MainWindow(QMainWindow):
         self.signal_map = SignalMapService(self._crocker_root / "config" / "signal_map.json")
         self.interlocks = InterlockService(self._crocker_root / "config" / "interlock_config.json")
         self._settings = QSettings("Crocker Nuclear Lab", "Digitalization")
+        self._manual_max_change = max(
+            0.01,
+            float(self._settings.value("controls/manual_max_change_a", 10.0)),
+        )
+        self._confirm_large_manual_changes = self._settings.value(
+            "controls/confirm_large_manual_changes", True, type=bool
+        )
         self._display_mode = self._settings.value(
             "display/mode", "Windowed", type=str
         )
@@ -179,6 +186,11 @@ class MainWindow(QMainWindow):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
                     page_kwargs["manage_backend"] = False
+                else:
+                    page_kwargs["manual_max_change"] = self._manual_max_change
+                    page_kwargs["confirm_large_changes"] = (
+                        self._confirm_large_manual_changes and self.simulation_mode is None
+                    )
                 detail_page = page_builder(
                     lambda checked=False, category=parent_category:
                         self.show_category(category),
@@ -202,6 +214,9 @@ class MainWindow(QMainWindow):
                     apply_monitor_assignments=self.apply_monitor_assignments,
                     controller_layout=self._controller_layout,
                     apply_controller_settings=self.apply_controller_settings,
+                    manual_max_change=self._manual_max_change,
+                    confirm_large_manual_changes=self._confirm_large_manual_changes,
+                    apply_manual_control_safety=self.apply_manual_control_safety,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -403,6 +418,22 @@ class MainWindow(QMainWindow):
         self._settings.setValue("display/controller_layout", self._controller_layout)
         self._settings.sync()
 
+    def apply_manual_control_safety(self, maximum_change: float, require_confirmation: bool) -> None:
+        self._manual_max_change = max(0.01, float(maximum_change))
+        self._confirm_large_manual_changes = bool(require_confirmation)
+        self._settings.setValue("controls/manual_max_change_a", self._manual_max_change)
+        self._settings.setValue(
+            "controls/confirm_large_manual_changes",
+            self._confirm_large_manual_changes,
+        )
+        self._settings.sync()
+        field_page = self.pages.get("Field Ctrl")
+        if isinstance(field_page, FieldCtrlPage):
+            field_page.set_manual_safety_settings(
+                self._manual_max_change,
+                self._confirm_large_manual_changes and self.simulation_mode is None,
+            )
+
     def show_monitoring_page(self, screen_id: str, page_name: str) -> bool:
         if screen_id not in self._controller_monitors:
             return False
@@ -463,6 +494,11 @@ class MainWindow(QMainWindow):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
                     page_kwargs["manage_backend"] = False
+                else:
+                    page_kwargs["manual_max_change"] = self._manual_max_change
+                    page_kwargs["confirm_large_changes"] = (
+                        self._confirm_large_manual_changes and self.simulation_mode is None
+                    )
                 return builder(
                     go_back,
                     **page_kwargs,
@@ -515,6 +551,9 @@ class MainWindow(QMainWindow):
                     apply_monitor_assignments=self.apply_monitor_assignments,
                     controller_layout=self._controller_layout,
                     apply_controller_settings=self.apply_controller_settings,
+                    manual_max_change=self._manual_max_change,
+                    confirm_large_manual_changes=self._confirm_large_manual_changes,
+                    apply_manual_control_safety=self.apply_manual_control_safety,
                 )
             return builder(go_back)
         fallback = QWidget()
@@ -2203,6 +2242,23 @@ class MainWindow(QMainWindow):
                 color: #e5e7eb;
                 min-height: 28px;
                 padding: 3px 8px;
+            }
+
+            QPushButton#pidChannelStep {
+                background-color: rgba(30, 41, 59, 0.96);
+                border: 1px solid rgba(96, 165, 250, 0.72);
+                border-radius: 5px;
+                color: #e5e7eb;
+                font-size: 20px;
+                font-weight: 700;
+                min-height: 28px;
+                min-width: 32px;
+                padding: 2px 6px;
+            }
+
+            QPushButton#pidChannelStep:hover {
+                background-color: rgba(37, 99, 235, 0.55);
+                border-color: #93c5fd;
             }
 
             QLabel#pidTunerSubtitle {

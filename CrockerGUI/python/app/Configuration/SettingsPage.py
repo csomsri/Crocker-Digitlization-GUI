@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -45,6 +46,9 @@ class SettingsPage(DetailPage):
         ) = None,
         controller_layout: str = "Auto",
         apply_controller_settings: Callable[[set[str], str], None] | None = None,
+        manual_max_change: float = 10.0,
+        confirm_large_manual_changes: bool = True,
+        apply_manual_control_safety: Callable[[float, bool], None] | None = None,
     ) -> None:
         super().__init__(
             "Settings",
@@ -78,6 +82,7 @@ class SettingsPage(DetailPage):
         self._set_window_resolution = set_window_resolution
         self._apply_monitor_assignments = apply_monitor_assignments
         self._apply_controller_settings = apply_controller_settings
+        self._apply_manual_control_safety = apply_manual_control_safety
         self._page_names = page_names or []
         self._monitor_assignments: dict[str, str] = {}
         self._selected_monitor = ""
@@ -216,6 +221,40 @@ class SettingsPage(DetailPage):
         panel_layout.addLayout(controller_layout_row)
         self.set_monitor_entries(monitor_entries or [])
 
+        safety_heading = QLabel("MANUAL FIELD CONTROL SAFETY")
+        safety_heading.setObjectName("settingsHeading")
+        panel_layout.addWidget(safety_heading)
+        safety_description = QLabel(
+            "Require explicit operator confirmation before applying a trim-coil "
+            "change larger than the configured amount."
+        )
+        safety_description.setObjectName("settingsDescription")
+        safety_description.setWordWrap(True)
+        panel_layout.addWidget(safety_description)
+
+        safety_panel = QFrame()
+        safety_panel.setObjectName("displayModePanel")
+        safety_layout = QGridLayout(safety_panel)
+        safety_layout.setContentsMargins(12, 12, 12, 12)
+        safety_label = QLabel("MAXIMUM CHANGE WITHOUT CONFIRMATION")
+        safety_label.setObjectName("monitorAssignmentLabel")
+        self.manual_max_change_input = QDoubleSpinBox()
+        self.manual_max_change_input.setObjectName("pidSpin")
+        self.manual_max_change_input.setRange(0.01, 1000.0)
+        self.manual_max_change_input.setDecimals(2)
+        self.manual_max_change_input.setSingleStep(1.0)
+        self.manual_max_change_input.setSuffix(" A")
+        self.manual_max_change_input.setValue(manual_max_change)
+        self.confirm_large_manual_changes = QCheckBox(
+            "Require confirmation when this limit is exceeded"
+        )
+        self.confirm_large_manual_changes.setObjectName("toggleRow")
+        self.confirm_large_manual_changes.setChecked(confirm_large_manual_changes)
+        safety_layout.addWidget(safety_label, 0, 0)
+        safety_layout.addWidget(self.manual_max_change_input, 0, 1)
+        safety_layout.addWidget(self.confirm_large_manual_changes, 1, 0, 1, 2)
+        panel_layout.addWidget(safety_panel)
+
         hint = QLabel(
             "Windowed keeps the title bar and borders. Full Screen and "
             "Borderless Window use the full display."
@@ -243,6 +282,11 @@ class SettingsPage(DetailPage):
             self._apply_controller_settings(
                 set(self._controller_monitors),
                 str(self.controller_layout_select.currentData()),
+            )
+        if self._apply_manual_control_safety is not None:
+            self._apply_manual_control_safety(
+                self.manual_max_change_input.value(),
+                self.confirm_large_manual_changes.isChecked(),
             )
 
     def set_monitor_entries(self, entries: list[dict[str, object]]) -> None:
