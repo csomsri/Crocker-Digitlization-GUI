@@ -537,7 +537,9 @@ class FieldCtrlPage(DetailPage):
             on_toggle = BubbleToggle(f"{channel} output on", "#49e6ff")
             enable_toggle = BubbleToggle(f"{channel} enabled", "#7cffb2")
             plot_toggle = BubbleToggle(f"{channel} plotted", "#ffb52d")
-            on_toggle.setChecked(True)
+            # Unknown until the first live snapshot arrives. ZMQ and Smoke2
+            # both replace this with the machine's reported output state.
+            on_toggle.setChecked(False)
             enable_toggle.setChecked(False)
             plot_toggle.setChecked(self.plot_state.plot_enabled[row - 2])
             on_toggle.toggled.connect(lambda checked=False: self._mark_operator_toggle_edit())
@@ -789,10 +791,10 @@ class FieldCtrlPage(DetailPage):
                         if not self._operator_toggle_edited and not self._telemetry_state_synced:
                             self.applied_targets[index] = self.actual_values[index]
                             self.applied_on[index] = bool(channel["on"])
-                            self.applied_enabled[index] = bool(channel["enabled"])
+                            self.applied_enabled[index] = False
                     if has_real_telemetry and not self._operator_toggle_edited and not self._telemetry_state_synced:
                         self._set_toggle_from_telemetry(self.on_buttons[index], bool(channel["on"]))
-                        self._set_toggle_from_telemetry(self.enable_buttons[index], bool(channel["enabled"]))
+                        self._set_toggle_from_telemetry(self.enable_buttons[index], False)
                 if has_real_telemetry and channels and not self._operator_toggle_edited:
                     self._telemetry_state_synced = True
                 self._sync_targets_from_running_sequence()

@@ -169,13 +169,20 @@ class MainWindow(QMainWindow):
                     field_backend_mode = "zmq"
                 elif title == "PID Control" and self.simulation_mode == "cyclotron":
                     field_backend_mode = "zmq"
-                elif title == "PID Control" and self.backend_mode == "zmq":
-                    field_backend_mode = "offline"
+                page_kwargs = {
+                    "backend_mode": field_backend_mode,
+                    "zmq_endpoint": self.zmq_endpoint,
+                }
+                if title == "PID Control":
+                    field_page = self.pages.get("Field Ctrl")
+                    if isinstance(field_page, FieldCtrlPage):
+                        page_kwargs["shared_backend"] = field_page.backend
+                    page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["manage_backend"] = False
                 detail_page = page_builder(
                     lambda checked=False, category=parent_category:
                         self.show_category(category),
-                    backend_mode=field_backend_mode,
-                    zmq_endpoint=self.zmq_endpoint,
+                    **page_kwargs,
                 )
                 self.stack.addWidget(detail_page)
                 self.pages[title] = detail_page
@@ -446,12 +453,19 @@ class MainWindow(QMainWindow):
                     if self.simulation_mode == "cyclotron"
                     else self.backend_mode
                 )
-                if page_name == "PID Control" and self.backend_mode == "zmq" and self.simulation_mode is None:
-                    field_backend_mode = "offline"
+                page_kwargs = {
+                    "backend_mode": field_backend_mode,
+                    "zmq_endpoint": self.zmq_endpoint,
+                }
+                if page_name == "PID Control":
+                    field_page = self.pages.get("Field Ctrl")
+                    if isinstance(field_page, FieldCtrlPage):
+                        page_kwargs["shared_backend"] = field_page.backend
+                    page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["manage_backend"] = False
                 return builder(
                     go_back,
-                    backend_mode=field_backend_mode,
-                    zmq_endpoint=self.zmq_endpoint,
+                    **page_kwargs,
                 )
             if page_name == "Database History":
                 return builder(

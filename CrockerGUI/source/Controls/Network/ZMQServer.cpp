@@ -218,7 +218,13 @@ void ZMQServer::Run()
                     } else if (packet.channels.size() >= Protocol::N_FIELD_TRIM) {
                         const std::size_t channelCount = std::min(packet.channels.size(), targets.size());
                         std::copy_n(packet.channels.begin(), channelCount, targets.begin());
-                        bitmask = packet.bitmask;
+                        // Before the operator applies a command, preserve the
+                        // machine's live output/on state but never inherit its
+                        // control-enable state. Enable is a GUI write authority
+                        // and must start clear on every connection.
+                        constexpr std::uint64_t channelFlags = (1ULL << Protocol::N_TRIM) - 1ULL;
+                        constexpr std::uint64_t enableFlags = channelFlags << Protocol::N_TRIM;
+                        bitmask = packet.bitmask & ~enableFlags;
                     } else {
                         targets = {};
                         bitmask = 0;

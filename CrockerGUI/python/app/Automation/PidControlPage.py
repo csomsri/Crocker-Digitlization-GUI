@@ -57,6 +57,9 @@ class PidControlPage(DetailPage):
         go_back: Callable[[], None],
         backend_mode: str,
         zmq_endpoint: str = "tcp://0.0.0.0:5555",
+        shared_backend: object | None = None,
+        tuning_enabled: bool | None = None,
+        manage_backend: bool = True,
     ) -> None:
         super().__init__(
             "PID Control",
@@ -71,6 +74,12 @@ class PidControlPage(DetailPage):
 
         self.backend_mode = backend_mode.lower()
         self.zmq_endpoint = zmq_endpoint
+        self.tuning_enabled = (
+            self.backend_mode == "simulation"
+            if tuning_enabled is None
+            else bool(tuning_enabled)
+        )
+        self.manage_backend = manage_backend
         self.selected_index = 0
         self.command_values = [0.0 for _ in CHANNEL_NAMES]
         self.actual_values = [0.0 for _ in CHANNEL_NAMES]
@@ -89,7 +98,8 @@ class PidControlPage(DetailPage):
         self.pid_previous_error: float | None = None
         self.pid_previous_time: float | None = None
         self.pid_output_bias = 0.0
-        self.backend = None
+        self.backend = shared_backend
+        self.owns_backend = False
         self.backend_available = False
         self.backend_connection = "Not Connected"
         self.backend_destination = "None"
@@ -184,6 +194,10 @@ class PidControlPage(DetailPage):
 
         self.channel_select = QComboBox()
         self.channel_select.setObjectName("pidChannelSelect")
+        # Keep Qt's native popup.  The application-wide animation polish swaps
+        # combo views, which can leave this frequently refreshed page with a
+        # popup that displays choices but does not commit mouse selections.
+        self.channel_select.setProperty("stablePopup", True)
         self.channel_select.addItems(CHANNEL_NAMES)
         self.channel_select.currentIndexChanged.connect(self._set_channel)
 
@@ -302,6 +316,7 @@ class PidControlPage(DetailPage):
 
         self.tuner_channel = QComboBox()
         self.tuner_channel.setObjectName("pidTunerChannel")
+        self.tuner_channel.setProperty("stablePopup", True)
         self.tuner_channel.addItems(CHANNEL_NAMES)
         self.tuner_target = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
         self.tuner_trials = QSpinBox()
@@ -523,7 +538,7 @@ class PidControlPage(DetailPage):
             self.tuner_progress_values[name].setText(f"{name}\n{value}")
 
     def _prepare_tuning_session(self) -> None:
-        if self.backend_mode != "simulation":
+        if not self.tuning_enabled:
             self.tuner_status.setText(
                 "Hardware tuning is unavailable until a calibrated allocation profile is loaded."
             )
@@ -1130,15 +1145,26 @@ class PidControlPage(DetailPage):
         )
 
     def _start_backend(self) -> None:
-        if self.backend_mode == "offline":
+        if self.backend is not None:
+            self.backend_available = True
+            try:
+                health = self.backend.Health()
+                self.backend_connection = str(health["connection"])
+                self.backend_destination = str(health["endpoint"])
+            except Exception:
+                self.backend_connection = "Connected"
+                self.backend_destination = self.zmq_endpoint
+            return
+        if not self.manage_backend:
             self.backend_available = False
             self.backend_connection = "Not Connected"
-            self.backend_destination = "PID backend disabled for manual ZMQ control"
+            self.backend_destination = "Shared Field Control backend unavailable"
             return
         if CycloViz is None or not hasattr(CycloViz, "ControlService"):
             return
         try:
             self.backend = CycloViz.ControlService()
+            self.owns_backend = True
             if self.backend_mode == "simulation":
                 self.backend.StartSimulator(20.0)
                 self.backend_connection = "Connected"
@@ -1152,6 +1178,7 @@ class PidControlPage(DetailPage):
             self.backend_available = True
         except Exception as exc:
             self.backend = None
+            self.owns_backend = False
             self.backend_available = False
             self.backend_connection = "Not Connected"
             self.backend_destination = f"{self.backend_mode.upper()} unavailable: {exc}"
@@ -1163,7 +1190,7 @@ class PidControlPage(DetailPage):
     def stop_backend(self) -> None:
         self._stop_tuning_session()
         self.tuning_executor.shutdown(wait=False, cancel_futures=True)
-        if self.backend is not None:
+        if self.backend is not None and self.owns_backend:
             try:
                 self.backend.Stop()
             except Exception:
