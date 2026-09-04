@@ -52,6 +52,13 @@ def main() -> int:
             raise RuntimeError("Optimized Tuner visualization viewport should remain empty")
         if page.apply_tuned_gains_button.isEnabled():
             raise RuntimeError("Unvalidated tuner gains must not be applicable to PID Control")
+        for combo in (page.tuner_channel, page.tuner_profile, page.tuner_safety_profile):
+            if not combo.property("stablePopup"):
+                raise RuntimeError(f"{combo.objectName()} does not preserve its native clickable popup")
+        page.tuner_safety_profile.setCurrentIndex(1)
+        if page.tuner_safety_profile.currentText() != "Approved hardware profile":
+            raise RuntimeError("Safety-profile dropdown did not accept a selection")
+        page.tuner_safety_profile.setCurrentIndex(0)
 
         page.tuner_target.setValue(30.0)
         page.tuner_duration.setValue(0.5)

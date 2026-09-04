@@ -94,6 +94,10 @@ struct PidTrialConfig {
     double updateRateHz = 20.0;
     double durationSeconds = 3.0;
     double telemetryTimeoutSeconds = 1.0;
+    double maxAbsoluteError = 1.0e12;
+    double maxOvershoot = 1.0e12;
+    double maxControlOutput = 1.0e12;
+    double maxSaturationSeconds = 1.0e12;
     std::array<double, ChannelCount> allocation{};
     std::array<double, ChannelCount> commandBias{};
     std::array<double, ChannelCount> minimumCommand{};

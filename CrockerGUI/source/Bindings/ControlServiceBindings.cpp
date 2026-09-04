@@ -262,6 +262,10 @@ Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
     config.updateRateHz = source["update_rate_hz"].cast<double>();
     config.durationSeconds = source["duration_seconds"].cast<double>();
     config.telemetryTimeoutSeconds = source["telemetry_timeout_seconds"].cast<double>();
+    if (source.contains("max_absolute_error")) config.maxAbsoluteError = source["max_absolute_error"].cast<double>();
+    if (source.contains("max_overshoot")) config.maxOvershoot = source["max_overshoot"].cast<double>();
+    if (source.contains("max_control_output")) config.maxControlOutput = source["max_control_output"].cast<double>();
+    if (source.contains("max_saturation_seconds")) config.maxSaturationSeconds = source["max_saturation_seconds"].cast<double>();
     ReadDoubleArray(source, "allocation", config.allocation);
     ReadDoubleArray(source, "command_bias", config.commandBias);
     ReadDoubleArray(source, "minimum_command", config.minimumCommand);

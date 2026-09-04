@@ -7,16 +7,18 @@ explicitly arms it and marks its allocation as calibrated.
 
 ## Allocation calibration
 
-The frontend currently supplies a one-hot allocation only for simulation. Real
-hardware must load a reviewed calibration that maps scalar field correction to
+The frontend supplies a one-hot allocation only for simulation. Real hardware
+loads `config/pid_hardware_profile.json`, which maps scalar field correction to
 all relevant TC channels. Each allocated channel also requires an independently
 reviewed bias, minimum command, maximum command, and maximum slew rate. Do not
 set `allocation_calibrated=true` merely to bypass the gate.
 
 Calibration provenance must include measurement date, machine configuration,
 units, operator/reviewer, source dataset, uncertainty, and an expiration or
-revalidation condition. The calibration loader and facility values are not part
-of this repository yet.
+revalidation condition. Copy `config/pid_hardware_profile.example.json`, replace
+every placeholder with measured facility values, set `approval_status` to
+`approved` only after independent review, and save it without the `.example`
+suffix. Invalid, draft, incomplete, or expired profiles fail closed.
 
 ## Required validation sequence
 

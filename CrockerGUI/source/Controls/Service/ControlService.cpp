@@ -386,6 +386,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
     auto nextTick = started;
     double integral = 0.0;
     double previousError = 0.0;
+    double saturationSeconds = 0.0;
     bool hasPreviousError = false;
     ControlCommand lastCommand = PendingCommand();
 
@@ -421,9 +422,27 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
         }
 
         const double error = config.setpoint - measurement.actual;
+        if (std::abs(error) > config.maxAbsoluteError) {
+            SetPidTrialFault("Absolute error abort limit exceeded");
+            DisableAll();
+            pidTrialRunning_.store(false);
+            break;
+        }
+        if (measurement.actual - config.setpoint > config.maxOvershoot) {
+            SetPidTrialFault("Overshoot abort limit exceeded");
+            DisableAll();
+            pidTrialRunning_.store(false);
+            break;
+        }
         const double derivative = hasPreviousError ? (error - previousError) / dt : 0.0;
         const double candidateIntegral = integral + error * dt;
         double output = config.kp * error + config.ki * candidateIntegral + config.kd * derivative;
+        if (std::abs(output) > config.maxControlOutput) {
+            SetPidTrialFault("Control-output abort limit exceeded");
+            DisableAll();
+            pidTrialRunning_.store(false);
+            break;
+        }
         bool saturated = false;
         bool rateLimited = false;
         ControlCommand command = lastCommand;
@@ -450,6 +469,13 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
         if (!saturated) {
             integral = candidateIntegral;
             output = config.kp * error + config.ki * integral + config.kd * derivative;
+        }
+        saturationSeconds = saturated ? saturationSeconds + dt : 0.0;
+        if (saturationSeconds > config.maxSaturationSeconds) {
+            SetPidTrialFault("Command saturation persisted beyond abort limit");
+            DisableAll();
+            pidTrialRunning_.store(false);
+            break;
         }
         previousError = error;
         hasPreviousError = true;
@@ -498,6 +524,8 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
     const double scalars[] = {
         config.setpoint, config.kp, config.ki, config.kd, config.updateRateHz,
         config.durationSeconds, config.telemetryTimeoutSeconds,
+        config.maxAbsoluteError, config.maxOvershoot, config.maxControlOutput,
+        config.maxSaturationSeconds,
     };
     for (double value : scalars) {
         if (!std::isfinite(value)) {
@@ -508,7 +536,9 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
         throw std::invalid_argument("PID gains must be non-negative");
     }
     if (config.updateRateHz <= 0.0 || config.durationSeconds <= 0.0
-        || config.telemetryTimeoutSeconds <= 0.0) {
+        || config.telemetryTimeoutSeconds <= 0.0 || config.maxAbsoluteError <= 0.0
+        || config.maxOvershoot <= 0.0 || config.maxControlOutput <= 0.0
+        || config.maxSaturationSeconds <= 0.0) {
         throw std::invalid_argument("PID timing values must be positive");
     }
     bool hasAllocation = false;

@@ -71,4 +71,22 @@ int main()
         }
         service.StopPidTrial();
     }
+
+    {
+        ControlService service;
+        service.StartSimulator(100.0);
+        PidTrialConfig config = TrialConfig(false);
+        config.maxAbsoluteError = 10.0;
+        service.StartPidTrial(config);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        const PidTrialStatus status = service.PidTrialStatusSnapshot();
+        assert(status.state == PidTrialState::Faulted);
+        assert(status.message == "Absolute error abort limit exceeded");
+        const ControlCommand command = service.PendingCommand();
+        for (const ChannelCommand& channel : command) {
+            assert(!channel.on);
+            assert(!channel.enabled);
+        }
+        service.StopPidTrial();
+    }
 }

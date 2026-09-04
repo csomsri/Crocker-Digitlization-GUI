@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import math
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -40,6 +41,7 @@ from source.Python.PID_Tuner.bayesion_optimization.bayesian_optimization import 
     PidGainCandidate,
     PidTrialResult,
 )
+from source.Python.PID_Tuner.hardware_profile import HardwareProfile
 
 try:
     import CycloViz
@@ -114,6 +116,10 @@ class PidControlPage(DetailPage):
         self.tuning_session_active = False
         self.tuning_proposal: Future[list[PidGainCandidate]] | None = None
         self.tuning_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pid-bo")
+        self.hardware_profile: HardwareProfile | None = None
+        self.hardware_profile_error = ""
+        self.hardware_profile_path = Path(__file__).resolve().parents[3] / "config" / "pid_hardware_profile.json"
+        self._reload_hardware_profile()
         self.log_path = Path(__file__).resolve().parents[3] / "logs" / "pid_commands.csv"
 
         self._start_backend()
@@ -329,6 +335,9 @@ class PidControlPage(DetailPage):
         self.tuner_duration.setValue(10.0)
         self.tuner_profile = QComboBox()
         self.tuner_profile.setObjectName("pidTunerProfile")
+        # Keep Qt's native popup. Replacing the view while this stacked page is
+        # being attached can produce a popup that paints but ignores clicks.
+        self.tuner_profile.setProperty("stablePopup", True)
         self.tuner_profile.addItems(
             ["Balanced", "Fast response", "Minimal overshoot", "High precision", "Low control effort"]
         )
@@ -400,6 +409,7 @@ class PidControlPage(DetailPage):
 
         self.tuner_safety_profile = QComboBox()
         self.tuner_safety_profile.setObjectName("pidTunerSafetyProfile")
+        self.tuner_safety_profile.setProperty("stablePopup", True)
         self.tuner_safety_profile.addItems(["Simulation / dry run", "Approved hardware profile"])
 
         candidate_panel = QFrame()
@@ -540,10 +550,22 @@ class PidControlPage(DetailPage):
             self.tuner_progress_values[name].setText(f"{name}\n{value}")
 
     def _prepare_tuning_session(self) -> None:
-        if not self.tuning_enabled:
+        hardware_requested = self.backend_mode != "simulation" and self.tuner_safety_profile.currentIndex() == 1
+        if not self.tuning_enabled and not hardware_requested:
             self.tuner_status.setText(
                 "Hardware tuning is unavailable until a calibrated allocation profile is loaded."
             )
+            return
+        if self.backend_mode != "simulation" and not hardware_requested:
+            self.tuner_status.setText("Select Approved hardware profile for a hardware tuning session.")
+            return
+        if hardware_requested:
+            self._reload_hardware_profile()
+            if self.hardware_profile is None:
+                self.tuner_status.setText(f"Hardware profile rejected: {self.hardware_profile_error}")
+                return
+        if hardware_requested and not self.arm_button.isChecked():
+            self.tuner_status.setText("Explicitly arm PID before preparing a hardware tuning session.")
             return
         if not self.backend_available or self.backend is None:
             self.tuner_status.setText("Tuning cannot start because the control backend is unavailable.")
@@ -639,6 +661,17 @@ class PidControlPage(DetailPage):
         if self.tuning_candidate is None or self.backend is None:
             return
         channel = self.tuner_channel.currentIndex()
+        hardware_trial = self.backend_mode != "simulation"
+        profile_allocation = None
+        if hardware_trial:
+            if self.hardware_profile is None or not self.arm_button.isChecked():
+                self.tuner_status.setText("Hardware trial rejected: approved profile and explicit arming are required.")
+                return
+            try:
+                profile_allocation = self.hardware_profile.allocation_for(CHANNEL_NAMES[channel])
+            except ValueError as exc:
+                self.tuner_status.setText(f"Hardware trial rejected: {exc}")
+                return
         allocation = [0.0 for _ in CHANNEL_NAMES]
         allocation[channel] = 1.0
         minimum = min(self.min_output_input.value(), self.max_output_input.value())
@@ -653,14 +686,18 @@ class PidControlPage(DetailPage):
             "update_rate_hz": 20.0,
             "duration_seconds": self.tuner_duration.value(),
             "telemetry_timeout_seconds": 1.0,
-            "allocation": allocation,
-            "command_bias": list(self.command_values),
-            "minimum_command": [minimum for _ in CHANNEL_NAMES],
-            "maximum_command": [maximum for _ in CHANNEL_NAMES],
-            "maximum_slew_per_second": [self.max_step_input.value() * 8.0 for _ in CHANNEL_NAMES],
-            "allocation_calibrated": False,
-            "hardware_armed": True,
-            "dry_run": False,
+            "allocation": allocation if profile_allocation is None else profile_allocation.allocation,
+            "command_bias": list(self.command_values) if profile_allocation is None else profile_allocation.command_bias,
+            "minimum_command": [minimum for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.minimum_command,
+            "maximum_command": [maximum for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.maximum_command,
+            "maximum_slew_per_second": [self.max_step_input.value() * 8.0 for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.maximum_slew_per_second,
+            "allocation_calibrated": profile_allocation is not None,
+            "hardware_armed": self.arm_button.isChecked() if hardware_trial else True,
+            "dry_run": self.dry_run_check.isChecked() if hardware_trial else False,
+            "max_absolute_error": 1.0e12 if profile_allocation is None else profile_allocation.max_absolute_error,
+            "max_overshoot": 1.0e12 if profile_allocation is None else profile_allocation.max_overshoot,
+            "max_control_output": 1.0e12 if profile_allocation is None else profile_allocation.max_control_output,
+            "max_saturation_seconds": 1.0e12 if profile_allocation is None else profile_allocation.max_saturation_seconds,
         }
         try:
             self.backend.StartPidTrial(config)
@@ -672,6 +709,14 @@ class PidControlPage(DetailPage):
         self.tuning_samples.clear()
         self.run_tuning_trial_button.setEnabled(False)
         self.stop_tuning_button.setEnabled(True)
+
+    def _reload_hardware_profile(self) -> None:
+        try:
+            self.hardware_profile = HardwareProfile(self.hardware_profile_path, CHANNEL_NAMES)
+            self.hardware_profile_error = ""
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            self.hardware_profile = None
+            self.hardware_profile_error = str(exc)
 
     def _complete_tuning_trial(self, safe: bool) -> None:
         candidate = self.tuning_trial_candidate
