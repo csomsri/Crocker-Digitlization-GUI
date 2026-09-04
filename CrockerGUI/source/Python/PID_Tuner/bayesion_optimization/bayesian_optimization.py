@@ -1,3 +1,9 @@
+"""
+Bayesian optimization of PID gains with BoTorch.
+This module is a wrapper around BoTorch that proposes PID gains for evaluation
+and records the results of closed-loop experiments. It does not run the plant
+"""
+
 from __future__ import annotations
 
 import math
