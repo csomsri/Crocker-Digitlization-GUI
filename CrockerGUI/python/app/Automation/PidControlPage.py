@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from python.app.PageShell import DetailPage
+from python.app.Automation.SurrogatePlotWidget import SurrogatePlotWidget
 from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
     MAX_GAUGE_VALUE,
@@ -36,12 +37,12 @@ from python.app.widgets.MagneticFieldWidgets import (
     clamp,
     make_time_domain_plot,
 )
-from source.Python.PID_Tuner.bayesion_optimization.bayesian_optimization import (
+from source.Python.Optimization.pid_gain_adapter import (
     BotorchPidOptimizer,
     PidGainCandidate,
     PidTrialResult,
 )
-from source.Python.PID_Tuner.hardware_profile import HardwareProfile
+from source.Python.Automation.hardware_profile import HardwareProfile
 
 try:
     import CycloViz
@@ -115,7 +116,9 @@ class PidControlPage(DetailPage):
         self.tuning_results: list[PidTrialResult] = []
         self.tuning_session_active = False
         self.tuning_proposal: Future[list[PidGainCandidate]] | None = None
-        self.tuning_executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pid-bo")
+        self.tuning_surrogate_grid: dict | None = None
+        self.tuning_surrogate_proposal: Future[dict] | None = None
+        self.tuning_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pid-bo")
         self.hardware_profile: HardwareProfile | None = None
         self.hardware_profile_error = ""
         self.hardware_profile_path = Path(__file__).resolve().parents[3] / "config" / "pid_hardware_profile.json"
@@ -457,6 +460,10 @@ class PidControlPage(DetailPage):
         self.tuner_viewport.setMinimumHeight(280)
         self.tuner_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tuner_viewport.setAccessibleName("Optimized tuner visualization viewport")
+        tuner_viewport_layout = QVBoxLayout(self.tuner_viewport)
+        tuner_viewport_layout.setContentsMargins(0, 0, 0, 0)
+        self.surrogate_plot = SurrogatePlotWidget(self.tuner_viewport)
+        tuner_viewport_layout.addWidget(self.surrogate_plot)
         outer.addWidget(self.tuner_viewport, 1)
 
         actions = QHBoxLayout()
@@ -586,6 +593,8 @@ class PidControlPage(DetailPage):
         self.tuning_trial_candidate = None
         self.tuning_samples.clear()
         self.tuning_results.clear()
+        self.tuning_surrogate_grid = None
+        self._refresh_surrogate_plot()
         self.review_history_button.setEnabled(False)
         self._set_tuning_progress(state="Preparing")
         self.tuning_session_active = True
@@ -622,6 +631,7 @@ class PidControlPage(DetailPage):
                 return
             candidate = self.tuning_candidate
             self._set_candidate_values(candidate)
+            self._refresh_surrogate_plot()
             self.tuner_status.setText(
                 "Review the proposed gains before starting the trial."
             )
@@ -630,6 +640,18 @@ class PidControlPage(DetailPage):
                 state="Ready",
             )
             self.run_tuning_trial_button.setEnabled(True)
+
+        surrogate_proposal = self.tuning_surrogate_proposal
+        if surrogate_proposal is not None and surrogate_proposal.done():
+            self.tuning_surrogate_proposal = None
+            try:
+                self.tuning_surrogate_grid = surrogate_proposal.result()
+            except Exception as exc:
+                self.tuning_surrogate_grid = {
+                    "ready": False,
+                    "message": f"Surrogate plot unavailable: {exc}",
+                }
+            self._refresh_surrogate_plot()
 
         if self.tuning_trial_candidate is None or self.backend is None:
             return
@@ -706,6 +728,7 @@ class PidControlPage(DetailPage):
             return
         self.tuning_trial_candidate = candidate
         self.tuning_candidate = None
+        self._refresh_surrogate_plot()
         self.tuning_samples.clear()
         self.run_tuning_trial_button.setEnabled(False)
         self.stop_tuning_button.setEnabled(True)
@@ -763,6 +786,8 @@ class PidControlPage(DetailPage):
         self.tuning_results.append(result)
         self.review_history_button.setEnabled(True)
         self.tuning_trial_candidate = None
+        self._request_surrogate_grid()
+        self._refresh_surrogate_plot()
         best = self.tuning_optimizer.best_result
         best_text = "none" if best is None else f"{best.score:.4f}"
         self.tuner_status.setText(
@@ -789,6 +814,7 @@ class PidControlPage(DetailPage):
             f"Tuning is complete. The best observed cost is {best.score:.4f}."
         )
         self._set_candidate_values(best.candidate)
+        self._refresh_surrogate_plot()
 
     def _validate_best_gains(self) -> None:
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
@@ -800,6 +826,32 @@ class PidControlPage(DetailPage):
             "The displayed gains have been validated for simulation and are ready to apply."
         )
         self._set_candidate_values(best.candidate)
+        self._refresh_surrogate_plot()
+
+    def _request_surrogate_grid(self) -> None:
+        if self.tuning_optimizer is None:
+            return
+        best = self.tuning_optimizer.best_result
+        kd_value = None if best is None else best.candidate.kd
+        if kd_value is None and self.tuning_candidate is not None:
+            kd_value = self.tuning_candidate.kd
+        self.tuning_surrogate_proposal = self.tuning_executor.submit(
+            self.tuning_optimizer.surrogate_grid,
+            kd_value=kd_value,
+            grid_size=28,
+        )
+
+    def _refresh_surrogate_plot(self) -> None:
+        if not hasattr(self, "surrogate_plot"):
+            return
+        best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
+        candidate = self.tuning_candidate or self.tuning_trial_candidate
+        self.surrogate_plot.set_state(
+            grid=self.tuning_surrogate_grid,
+            results=self.tuning_results,
+            candidate=candidate,
+            best=best,
+        )
 
     def _show_tuning_history(self) -> None:
         dialog = QDialog(self)
@@ -850,8 +902,12 @@ class PidControlPage(DetailPage):
         if self.tuning_proposal is not None:
             self.tuning_proposal.cancel()
             self.tuning_proposal = None
+        if self.tuning_surrogate_proposal is not None:
+            self.tuning_surrogate_proposal.cancel()
+            self.tuning_surrogate_proposal = None
         self.tuning_trial_candidate = None
         self.tuning_candidate = None
+        self._refresh_surrogate_plot()
         self.run_tuning_trial_button.setEnabled(False)
         self.stop_tuning_button.setEnabled(False)
         self.prepare_tuning_button.setEnabled(True)

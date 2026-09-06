@@ -48,8 +48,8 @@ def main() -> int:
             raise RuntimeError("Optimized Tuner did not open from PID Control")
         if page.tuner_channel.currentIndex() != 1 or page.tuner_target.value() != setpoint:
             raise RuntimeError("Optimized Tuner did not inherit PID channel and target")
-        if page.tuner_viewport.layout() is not None:
-            raise RuntimeError("Optimized Tuner visualization viewport should remain empty")
+        if page.tuner_viewport.layout() is None or not hasattr(page, "surrogate_plot"):
+            raise RuntimeError("Optimized Tuner did not create the surrogate visualization viewport")
         if page.apply_tuned_gains_button.isEnabled():
             raise RuntimeError("Unvalidated tuner gains must not be applicable to PID Control")
         for combo in (page.tuner_channel, page.tuner_profile, page.tuner_safety_profile):

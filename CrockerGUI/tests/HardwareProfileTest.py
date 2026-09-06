@@ -10,7 +10,7 @@ from pathlib import Path
 CROCKER_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CROCKER_ROOT))
 
-from source.Python.PID_Tuner.hardware_profile import HardwareProfile
+from source.Python.Automation.hardware_profile import HardwareProfile
 
 
 def main() -> int:

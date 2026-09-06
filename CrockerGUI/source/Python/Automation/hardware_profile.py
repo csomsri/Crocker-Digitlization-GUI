@@ -86,8 +86,10 @@ class HardwareProfile:
                 raise ValueError(f"{measurement_name} requires four positive finite abort limits")
             self.allocations[measurement_name] = HardwareAllocation(
                 **vectors,
-                max_absolute_error=abort_values[0], max_overshoot=abort_values[1],
-                max_control_output=abort_values[2], max_saturation_seconds=abort_values[3],
+                max_absolute_error=abort_values[0],
+                max_overshoot=abort_values[1],
+                max_control_output=abort_values[2],
+                max_saturation_seconds=abort_values[3],
             )
         if not self.allocations:
             raise ValueError("profile contains no measurement-channel allocations")
@@ -97,3 +99,4 @@ class HardwareProfile:
             return self.allocations[measurement_name]
         except KeyError as exc:
             raise ValueError(f"profile has no allocation for {measurement_name}") from exc
+

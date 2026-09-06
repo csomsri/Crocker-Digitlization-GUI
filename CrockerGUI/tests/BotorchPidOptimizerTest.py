@@ -7,9 +7,9 @@ from pathlib import Path
 
 
 CROCKER_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(CROCKER_ROOT / "source" / "Python" / "PID_Tuner"))
+sys.path.insert(0, str(CROCKER_ROOT))
 
-from bayesion_optimization.bayesian_optimization import (  # noqa: E402
+from source.Python.Optimization.pid_gain_adapter import (  # noqa: E402
     BotorchPidOptimizer,
     PidTrialResult,
 )
@@ -37,6 +37,9 @@ def main() -> int:
     proposed = optimizer.propose_batch(1)
     if len(proposed) != 1:
         raise RuntimeError("BoTorch did not return one candidate")
+    grid = optimizer.surrogate_grid(kd_value=0.0, grid_size=8)
+    if not grid.get("ready"):
+        raise RuntimeError(f"PID surrogate grid was not ready: {grid}")
     if optimizer.best_result is None:
         raise RuntimeError("Best safe PID result was not retained")
     print(f"BoTorch PID optimizer test passed: proposed={proposed[0]}")
