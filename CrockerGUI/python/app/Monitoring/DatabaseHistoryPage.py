@@ -30,12 +30,14 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
     QImage,
+    QTextCharFormat,
 )
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QButtonGroup,
     QDateEdit,
+    QCalendarWidget,
     QFileDialog,
     QFrame,
     QHBoxLayout,
@@ -646,8 +648,24 @@ class DatabaseHistoryPage(DetailPage):
         top.addWidget(db_group, 1)
 
         self.date_edit = QDateEdit(QDate.currentDate())
-        self.date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.date_edit.setDisplayFormat("dd MMM yyyy")
         self.date_edit.setCalendarPopup(True)
+        self.date_edit.setMinimumWidth(175)
+        self.date_edit.setKeyboardTracking(False)
+        self.date_edit.setAccessibleName("History date")
+        self.date_edit.setToolTip("Type a date or open the calendar to select a day")
+        theme_dir = Path(__file__).resolve().parents[1] / "theme"
+        date_style = (theme_dir / "date-selector.qss").read_text(encoding="utf-8")
+        self.date_edit.setStyleSheet(date_style.replace("__CHEVRON_PATH__", (theme_dir / "chevron-down.svg").as_posix()))
+        calendar = self.date_edit.calendarWidget()
+        calendar.setMinimumSize(320, 270)
+        calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)
+        calendar.setHorizontalHeaderFormat(QCalendarWidget.ShortDayNames)
+        calendar.setGridVisible(False)
+        weekend = QTextCharFormat()
+        weekend.setForeground(QColor("#a9c9ed"))
+        for day in (Qt.Saturday, Qt.Sunday):
+            calendar.setWeekdayTextFormat(day, weekend)
         self.sample_limit = QSpinBox()
         self.sample_limit.setRange(25, 20000)
         self.sample_limit.setSingleStep(25)
@@ -681,8 +699,6 @@ class DatabaseHistoryPage(DetailPage):
             pdf_color_layout.addWidget(button)
         self.date_edit.dateChanged.connect(lambda date: self.plot())
         self.sample_limit.valueChanged.connect(lambda value: self.plot())
-        for editor in (self.date_edit,):
-            editor.setCalendarPopup(True)
 
         filters_group = QFrame()
         filters_group.setObjectName("historyToolbarGroup")

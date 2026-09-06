@@ -5,7 +5,6 @@ from typing import Any
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -17,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from python.app.PageShell import DetailPage
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 
 
 class BeamRangePage(DetailPage):

@@ -1,0 +1,40 @@
+QAbstractItemView {
+    background: #111c30;
+    color: #dbe7f5;
+    border: 1px solid #425775;
+    border-radius: 8px;
+    padding: 5px;
+    outline: 0;
+    selection-background-color: #254b78;
+    selection-color: #ffffff;
+}
+QAbstractItemView::item {
+    min-height: 26px;
+    padding: 5px 12px;
+    margin: 2px 0;
+    border: 1px solid transparent;
+    border-radius: 5px;
+}
+QAbstractItemView::item:hover {
+    background: #1e324d;
+    color: #ffffff;
+}
+QAbstractItemView::item:selected {
+    background: #254b78;
+    border-color: #477bb4;
+    color: #ffffff;
+}
+QAbstractItemView::item:disabled { color: #64748b; }
+QScrollBar:vertical {
+    background: transparent;
+    width: 8px;
+    margin: 3px 0;
+}
+QScrollBar::handle:vertical {
+    background: #425775;
+    border-radius: 4px;
+    min-height: 24px;
+}
+QScrollBar::handle:vertical:hover { background: #6484a9; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }

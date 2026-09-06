@@ -10,7 +10,6 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
-    QComboBox,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -30,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from python.app.PageShell import DetailPage
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 from python.app.widgets.MagneticFieldWidgets import (
     BubbleToggle,
     CHANNEL_NAMES,

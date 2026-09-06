@@ -1,5 +1,15 @@
 # BO PID hardware commissioning gates
 
+## Direct trim-coil BO
+
+The PID tuner now supports TC1–TC12 current control, one coil per trial, without
+`pid_hardware_profile.json`. It uses identity allocation to the selected coil and
+the existing control transport scaling. The PID page's Min Cmd, Max Cmd and Max
+Step settings remain active, along with explicit arming, dry run and telemetry
+checks. Scaling is a unit conversion, not proof of safe operating limits.
+The calibration-profile workflow described below applies to custom field or
+multi-channel allocations rather than this direct current-control path.
+
 The BO PID page is not authority to operate hardware. The C++ `ControlService`
 owns the PID trial loop, command limits, slew limits, telemetry watchdog, and
 failsafe shutdown. A non-dry-run hardware trial is rejected unless the caller

@@ -3,7 +3,6 @@ from __future__ import annotations
 from PySide6.QtCore import QEvent, QObject, Qt
 from PySide6.QtWidgets import (
     QComboBox,
-    QListView,
     QPushButton,
     QStackedWidget,
     QWidget,
@@ -24,6 +23,9 @@ class UIAnimationController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API name
         event_type = event.type()
+        if event_type == QEvent.Show and isinstance(watched, QWidget) and watched.property("comboPopup"):
+            # Keep the transient popup above the fullscreen owner on Windows.
+            watched.raise_()
         if event_type == QEvent.ChildAdded and isinstance(watched, QWidget):
             if self._is_app_widget(watched):
                 self._attach_subtree(watched)
@@ -41,7 +43,7 @@ class UIAnimationController(QObject):
     def _attach_subtree(self, root: QWidget) -> None:
         if not self._is_app_widget(root):
             return
-        if root.windowFlags() & Qt.WindowType.Popup:
+        if root.windowType() == Qt.WindowType.Popup:
             return
         for combo in root.findChildren(QComboBox):
             self._prepare_combo(combo)
@@ -51,16 +53,18 @@ class UIAnimationController(QObject):
     def _prepare_combo(self, combo: QComboBox) -> None:
         if not self._is_app_widget(combo):
             return
-        if combo.property("stablePopup"):
+        if combo.property("comboPolish"):
             return
+        combo.setProperty("comboPolish", True)
         combo.setProperty("stablePopup", True)
         combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         combo.setMaxVisibleItems(10)
-        view = QListView(combo)
-        view.setObjectName("comboPopupView")
-        view.setUniformItemSizes(True)
-        view.setMouseTracking(False)
-        combo.setView(view)
+        # Preserve Qt's internal popup view and its mouse/keyboard handling.
+        # Window types are enum values, not independent bit flags: testing
+        # `flags & Popup` also matches ordinary top-level windows.
+        popup = combo.view().window()
+        popup.setProperty("comboPopup", True)
+        popup.installEventFilter(self)
 
     def _prepare_button(self, button: QPushButton) -> None:
         if not self._is_app_widget(button):

@@ -33,7 +33,7 @@ class HardwareProfile:
     def _load(self) -> None:
         source = json.loads(self.path.read_text(encoding="utf-8"))
         if source.get("approval_status") != "approved":
-            raise ValueError("profile approval_status must be 'approved'")
+            raise ValueError("Hardware profile exists but needs measured allocation, command and abort limits, and reviewer approval. Complete config/pid_hardware_profile.json before live tuning.")
         required_provenance = (
             "measurement_date", "machine_configuration", "units", "operator",
             "reviewer", "source_dataset", "uncertainty", "valid_until",
@@ -99,4 +99,3 @@ class HardwareProfile:
             return self.allocations[measurement_name]
         except KeyError as exc:
             raise ValueError(f"profile has no allocation for {measurement_name}") from exc
-

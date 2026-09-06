@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QMargins, QRect, Qt
 from PySide6.QtWidgets import QApplication, QFrame, QMainWindow, QScrollArea, QSizePolicy
+from python.app.Display.WindowMode import set_decorated, set_screen_filling
 
 if TYPE_CHECKING:
     from python.app.MainWindow import MainWindow
@@ -30,34 +31,30 @@ class AssignedMonitorWindow(QMainWindow):
         self.setWindowTitle(f"Crocker Display - {screen_name}")
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.sync_theme()
+
+    def sync_theme(self) -> None:
+        """Apply the theme once at the window, preserving page-local styles."""
+        self.setFont(self.owner.font())
+        self.setPalette(self.owner.palette())
+        self.setStyleSheet(self.owner.styleSheet())
 
     def apply_display_mode(
         self,
         mode: str,
         window_resolution: tuple[int, int] | None = None,
     ) -> None:
-        flags = self.windowFlags()
-        desired_flags = flags
-        desired_flags &= ~Qt.WindowType.FramelessWindowHint
-        if desired_flags != flags:
-            self.setWindowFlags(desired_flags)
-
         screen = self._assigned_screen()
         if screen is not None:
             handle = self.windowHandle()
             if handle is not None:
                 handle.setScreen(screen)
         if mode == "Windowed":
+            set_decorated(self)
             if screen is not None:
                 self._place_windowed(screen, window_resolution)
-            if self.isFullScreen() or self.isMaximized() or not self.isVisible():
-                self.setWindowState(Qt.WindowState.WindowNoState)
-                self.showNormal()
         else:
-            if screen is not None:
-                self._place_fullscreen(screen)
-            elif not self.isFullScreen():
-                self.showFullScreen()
+            set_screen_filling(self, screen)
 
     def _place_windowed(self, screen, window_resolution: tuple[int, int] | None) -> None:
         geometry = self._safe_screen_rect(screen, available=True)
@@ -70,16 +67,6 @@ class AssignedMonitorWindow(QMainWindow):
             geometry.x() + int((geometry.width() - width) / 2),
             geometry.y() + int((geometry.height() - height) / 2),
         )
-
-    def _place_fullscreen(self, screen) -> None:
-        was_visible = self.isVisible()
-        if was_visible and (self.isFullScreen() or self.isMaximized()):
-            self.setWindowState(Qt.WindowState.WindowNoState)
-            self.showNormal()
-        geometry = self._safe_screen_rect(screen, available=False)
-        self.setGeometry(geometry)
-        self.move(geometry.topLeft())
-        self.showFullScreen()
 
     def _frame_margins(self) -> QMargins:
         handle = self.windowHandle()
@@ -107,12 +94,11 @@ class AssignedMonitorWindow(QMainWindow):
     def set_page(self, page_name: str) -> None:
         if page_name == self.page_name and self.centralWidget() is not None:
             return
-        self.setStyleSheet(self.owner.styleSheet())
+        self.sync_theme()
         old_page = self.takeCentralWidget()
         if old_page is not None:
             old_page.deleteLater()
         page = self.owner.create_assigned_page(page_name, self)
-        page.setStyleSheet(self.owner.styleSheet())
         scroll_area = QScrollArea()
         scroll_area.setObjectName("assignedPageScrollArea")
         scroll_area.setWidgetResizable(True)
@@ -120,7 +106,6 @@ class AssignedMonitorWindow(QMainWindow):
         scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        scroll_area.setStyleSheet(self.owner.styleSheet())
         scroll_area.setWidget(page)
         self.setCentralWidget(scroll_area)
         self.page_name = page_name

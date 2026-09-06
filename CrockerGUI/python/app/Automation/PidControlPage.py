@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import json
 import math
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -11,7 +10,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QDialog,
     QFrame,
@@ -29,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from python.app.PageShell import DetailPage
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 from python.app.Automation.SurrogatePlotWidget import SurrogatePlotWidget
 from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
@@ -42,7 +41,6 @@ from source.Python.Optimization.pid_gain_adapter import (
     PidGainCandidate,
     PidTrialResult,
 )
-from source.Python.Automation.hardware_profile import HardwareProfile
 
 try:
     import CycloViz
@@ -115,14 +113,11 @@ class PidControlPage(DetailPage):
         self.tuning_samples: list[tuple[float, float, float, float]] = []
         self.tuning_results: list[PidTrialResult] = []
         self.tuning_session_active = False
+        self.tuning_auto_run = False
         self.tuning_proposal: Future[list[PidGainCandidate]] | None = None
         self.tuning_surrogate_grid: dict | None = None
         self.tuning_surrogate_proposal: Future[dict] | None = None
         self.tuning_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pid-bo")
-        self.hardware_profile: HardwareProfile | None = None
-        self.hardware_profile_error = ""
-        self.hardware_profile_path = Path(__file__).resolve().parents[3] / "config" / "pid_hardware_profile.json"
-        self._reload_hardware_profile()
         self.log_path = Path(__file__).resolve().parents[3] / "logs" / "pid_commands.csv"
 
         self._start_backend()
@@ -187,7 +182,7 @@ class PidControlPage(DetailPage):
         controller_status_layout.setContentsMargins(6, 4, 6, 4)
         controller_status_layout.setSpacing(6)
         self.pid_status_values: dict[str, QLabel] = {}
-        for name in ("Channel", "State", "Error", "Command"):
+        for name in ("Channel", "State", "Error", "Actual"):
             value = QLabel(f"{name}\n—")
             value.setObjectName("pidControllerMetric")
             value.setAlignment(Qt.AlignCenter)
@@ -209,7 +204,7 @@ class PidControlPage(DetailPage):
         self.channel_select.setProperty("stablePopup", True)
         self.channel_select.addItems(CHANNEL_NAMES)
         self.channel_select.currentIndexChanged.connect(self._set_channel)
-        channel_selector = self._channel_selector_widget(self.channel_select)
+        channel_selector = self.channel_select
 
         self.enable_button = QPushButton("Enable PID")
         self.enable_button.setObjectName("pidEnable")
@@ -328,7 +323,10 @@ class PidControlPage(DetailPage):
         self.tuner_channel.setObjectName("pidTunerChannel")
         self.tuner_channel.setProperty("stablePopup", True)
         self.tuner_channel.addItems(CHANNEL_NAMES)
-        tuner_channel_selector = self._channel_selector_widget(self.tuner_channel)
+        if self.backend_mode != "simulation":
+            for index in range(12, len(CHANNEL_NAMES)):
+                self.tuner_channel.model().item(index).setEnabled(False)
+        tuner_channel_selector = self.tuner_channel
         self.tuner_target = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
         self.tuner_trials = QSpinBox()
         self.tuner_trials.setObjectName("pidSpin")
@@ -413,7 +411,9 @@ class PidControlPage(DetailPage):
         self.tuner_safety_profile = QComboBox()
         self.tuner_safety_profile.setObjectName("pidTunerSafetyProfile")
         self.tuner_safety_profile.setProperty("stablePopup", True)
-        self.tuner_safety_profile.addItems(["Simulation / dry run", "Approved hardware profile"])
+        self.tuner_safety_profile.addItems(["Simulation / dry run", "Trim coils / existing scaling"])
+        self.tuner_safety_profile.setCurrentIndex(0 if self.backend_mode == "simulation" else 1)
+        self.tuner_safety_profile.setEnabled(False)
 
         candidate_panel = QFrame()
         candidate_panel.setObjectName("pidCandidatePanel")
@@ -421,7 +421,7 @@ class PidControlPage(DetailPage):
         candidate_layout.setContentsMargins(10, 8, 10, 8)
         candidate_layout.setSpacing(6)
         safety_row = QHBoxLayout()
-        safety_label = QLabel("Safety profile")
+        safety_label = QLabel("Control mode")
         safety_label.setObjectName("pidSectionTitle")
         safety_row.addWidget(safety_label)
         safety_row.addWidget(self.tuner_safety_profile, 1)
@@ -470,6 +470,10 @@ class PidControlPage(DetailPage):
         self.prepare_tuning_button = QPushButton("Prepare Tuning Session")
         self.prepare_tuning_button.setObjectName("fieldAction")
         self.prepare_tuning_button.clicked.connect(self._prepare_tuning_session)
+        self.auto_tuning_button = QPushButton("Auto Run N Trials")
+        self.auto_tuning_button.setObjectName("fieldAction")
+        self.auto_tuning_button.setToolTip("Start a new session and run the Trial Budget automatically; stop on a fault.")
+        self.auto_tuning_button.clicked.connect(self._start_auto_tuning)
         self.run_tuning_trial_button = QPushButton("Run Proposed Trial")
         self.run_tuning_trial_button.setObjectName("pidEnable")
         self.run_tuning_trial_button.setEnabled(False)
@@ -494,6 +498,7 @@ class PidControlPage(DetailPage):
         self.apply_tuned_gains_button.setEnabled(False)
         self.apply_tuned_gains_button.clicked.connect(self._apply_tuned_gains)
         actions.addWidget(self.prepare_tuning_button)
+        actions.addWidget(self.auto_tuning_button)
         actions.addWidget(self.run_tuning_trial_button)
         actions.addWidget(self.stop_tuning_button)
         actions.addWidget(self.review_history_button)
@@ -504,6 +509,9 @@ class PidControlPage(DetailPage):
         return page
 
     def _show_tuner(self) -> None:
+        if self.tuning_session_active:
+            self.page_stack.setCurrentWidget(self.tuner_page)
+            return
         self.tuner_channel.setCurrentIndex(self.selected_index)
         self.tuner_target.setValue(self.setpoint_input.value())
         current_gains = {
@@ -556,21 +564,29 @@ class PidControlPage(DetailPage):
         for name, value in values.items():
             self.tuner_progress_values[name].setText(f"{name}\n{value}")
 
+    def _set_auto_tuning(self, enabled: bool) -> None:
+        self.tuning_auto_run = enabled
+        controls = [self.control_panel, self.tuner_channel, self.tuner_target,
+                    self.tuner_trials, self.tuner_duration, self.tuner_profile,
+                    self.reset_bounds_button]
+        controls.extend(widget for pair in self.tuner_gain_bounds.values() for widget in pair)
+        for widget in controls:
+            widget.setEnabled(not enabled)
+
+    def _start_auto_tuning(self) -> None:
+        if self.tuning_session_active:
+            return
+        self._prepare_tuning_session()
+        if self.tuning_session_active:
+            self._set_auto_tuning(True)
+
     def _prepare_tuning_session(self) -> None:
-        hardware_requested = self.backend_mode != "simulation" and self.tuner_safety_profile.currentIndex() == 1
-        if not self.tuning_enabled and not hardware_requested:
-            self.tuner_status.setText(
-                "Hardware tuning is unavailable until a calibrated allocation profile is loaded."
-            )
+        if self.tuning_session_active:
             return
-        if self.backend_mode != "simulation" and not hardware_requested:
-            self.tuner_status.setText("Select Approved hardware profile for a hardware tuning session.")
+        hardware_requested = self.backend_mode != "simulation"
+        if hardware_requested and self.tuner_channel.currentIndex() >= 12:
+            self.tuner_status.setText("Select a trim coil (TC1-TC12) for hardware BO.")
             return
-        if hardware_requested:
-            self._reload_hardware_profile()
-            if self.hardware_profile is None:
-                self.tuner_status.setText(f"Hardware profile rejected: {self.hardware_profile_error}")
-                return
         if hardware_requested and not self.arm_button.isChecked():
             self.tuner_status.setText("Explicitly arm PID before preparing a hardware tuning session.")
             return
@@ -599,6 +615,7 @@ class PidControlPage(DetailPage):
         self._set_tuning_progress(state="Preparing")
         self.tuning_session_active = True
         self.prepare_tuning_button.setEnabled(False)
+        self.auto_tuning_button.setEnabled(False)
         self.stop_tuning_button.setEnabled(True)
         self.approve_gains_button.setEnabled(False)
         self.apply_tuned_gains_button.setEnabled(False)
@@ -640,6 +657,8 @@ class PidControlPage(DetailPage):
                 state="Ready",
             )
             self.run_tuning_trial_button.setEnabled(True)
+            if self.tuning_auto_run:
+                self._run_tuning_trial()
 
         surrogate_proposal = self.tuning_surrogate_proposal
         if surrogate_proposal is not None and surrogate_proposal.done():
@@ -680,20 +699,17 @@ class PidControlPage(DetailPage):
             self._complete_tuning_trial(False)
 
     def _run_tuning_trial(self) -> None:
+        if not self.tuning_session_active or self.tuning_trial_candidate is not None:
+            return
         if self.tuning_candidate is None or self.backend is None:
             return
         channel = self.tuner_channel.currentIndex()
         hardware_trial = self.backend_mode != "simulation"
-        profile_allocation = None
-        if hardware_trial:
-            if self.hardware_profile is None or not self.arm_button.isChecked():
-                self.tuner_status.setText("Hardware trial rejected: approved profile and explicit arming are required.")
-                return
-            try:
-                profile_allocation = self.hardware_profile.allocation_for(CHANNEL_NAMES[channel])
-            except ValueError as exc:
-                self.tuner_status.setText(f"Hardware trial rejected: {exc}")
-                return
+        if hardware_trial and (channel >= 12 or not self.arm_button.isChecked()):
+            if self.tuning_auto_run:
+                self._stop_tuning_session()
+            self.tuner_status.setText("Hardware BO requires TC1-TC12 and explicit PID arming.")
+            return
         allocation = [0.0 for _ in CHANNEL_NAMES]
         allocation[channel] = 1.0
         minimum = min(self.min_output_input.value(), self.max_output_input.value())
@@ -708,22 +724,24 @@ class PidControlPage(DetailPage):
             "update_rate_hz": 20.0,
             "duration_seconds": self.tuner_duration.value(),
             "telemetry_timeout_seconds": 1.0,
-            "allocation": allocation if profile_allocation is None else profile_allocation.allocation,
-            "command_bias": list(self.command_values) if profile_allocation is None else profile_allocation.command_bias,
-            "minimum_command": [minimum for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.minimum_command,
-            "maximum_command": [maximum for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.maximum_command,
-            "maximum_slew_per_second": [self.max_step_input.value() * 8.0 for _ in CHANNEL_NAMES] if profile_allocation is None else profile_allocation.maximum_slew_per_second,
-            "allocation_calibrated": profile_allocation is not None,
+            "allocation": allocation,
+            "command_bias": list(self.command_values),
+            "minimum_command": [minimum for _ in CHANNEL_NAMES],
+            "maximum_command": [maximum for _ in CHANNEL_NAMES],
+            "maximum_slew_per_second": [self.max_step_input.value() * 8.0 for _ in CHANNEL_NAMES],
+            "allocation_calibrated": False,
             "hardware_armed": self.arm_button.isChecked() if hardware_trial else True,
             "dry_run": self.dry_run_check.isChecked() if hardware_trial else False,
-            "max_absolute_error": 1.0e12 if profile_allocation is None else profile_allocation.max_absolute_error,
-            "max_overshoot": 1.0e12 if profile_allocation is None else profile_allocation.max_overshoot,
-            "max_control_output": 1.0e12 if profile_allocation is None else profile_allocation.max_control_output,
-            "max_saturation_seconds": 1.0e12 if profile_allocation is None else profile_allocation.max_saturation_seconds,
+            "max_absolute_error": 1.0e12,
+            "max_overshoot": 1.0e12,
+            "max_control_output": 1.0e12,
+            "max_saturation_seconds": 1.0e12,
         }
         try:
             self.backend.StartPidTrial(config)
         except Exception as exc:
+            if self.tuning_auto_run:
+                self._stop_tuning_session()
             self.tuner_status.setText(f"The trial could not be started: {exc}")
             return
         self.tuning_trial_candidate = candidate
@@ -733,13 +751,6 @@ class PidControlPage(DetailPage):
         self.run_tuning_trial_button.setEnabled(False)
         self.stop_tuning_button.setEnabled(True)
 
-    def _reload_hardware_profile(self) -> None:
-        try:
-            self.hardware_profile = HardwareProfile(self.hardware_profile_path, CHANNEL_NAMES)
-            self.hardware_profile_error = ""
-        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-            self.hardware_profile = None
-            self.hardware_profile_error = str(exc)
 
     def _complete_tuning_trial(self, safe: bool) -> None:
         candidate = self.tuning_trial_candidate
@@ -799,10 +810,16 @@ class PidControlPage(DetailPage):
             elapsed=f"{samples[-1][0]:.1f} s",
             error=f"{steady_state_error:.3f}",
         )
+        if self.tuning_auto_run and not safe:
+            self._stop_tuning_session()
+            self.tuner_status.setText("Automatic tuning stopped: trial faulted, stopped, or produced invalid results. Review Trial History.")
+            return
         self._request_tuning_candidate()
 
     def _finish_tuning_session(self) -> None:
         self.tuning_session_active = False
+        self._set_auto_tuning(False)
+        self.auto_tuning_button.setEnabled(True)
         self.stop_tuning_button.setEnabled(False)
         self.prepare_tuning_button.setEnabled(True)
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
@@ -899,6 +916,8 @@ class PidControlPage(DetailPage):
         if self.backend is not None and self.tuning_trial_candidate is not None:
             self.backend.StopPidTrial(True)
         self.tuning_session_active = False
+        self._set_auto_tuning(False)
+        self.auto_tuning_button.setEnabled(True)
         if self.tuning_proposal is not None:
             self.tuning_proposal.cancel()
             self.tuning_proposal = None
@@ -955,35 +974,6 @@ class PidControlPage(DetailPage):
         spinbox.setSuffix(suffix)
         return spinbox
 
-    def _channel_selector_widget(self, combo: QComboBox) -> QWidget:
-        """Provide channel selection that does not depend on a popup window."""
-        container = QWidget()
-        layout = QHBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(5)
-
-        previous_button = QPushButton("‹")
-        previous_button.setObjectName("pidChannelStep")
-        previous_button.setToolTip("Previous channel")
-        previous_button.setAccessibleName("Previous channel")
-        previous_button.clicked.connect(lambda checked=False: self._cycle_channel(combo, -1))
-
-        next_button = QPushButton("›")
-        next_button.setObjectName("pidChannelStep")
-        next_button.setToolTip("Next channel")
-        next_button.setAccessibleName("Next channel")
-        next_button.clicked.connect(lambda checked=False: self._cycle_channel(combo, 1))
-
-        layout.addWidget(previous_button)
-        layout.addWidget(combo, 1)
-        layout.addWidget(next_button)
-        return container
-
-    @staticmethod
-    def _cycle_channel(combo: QComboBox, direction: int) -> None:
-        count = combo.count()
-        if count:
-            combo.setCurrentIndex((combo.currentIndex() + direction) % count)
 
     def _set_channel(self, index: int) -> None:
         if self.pid_enabled:
@@ -1249,14 +1239,13 @@ class PidControlPage(DetailPage):
     def _refresh_status(self) -> None:
         channel = CHANNEL_NAMES[self.selected_index]
         actual = self.actual_values[self.selected_index]
-        command = self.command_values[self.selected_index]
         error = self.setpoint_input.value() - actual
         state = "active" if self.pid_enabled else "standby"
         status_values = {
             "Channel": channel,
             "State": state.title(),
             "Error": f"{error:+.2f} A",
-            "Command": f"{command:.2f} A",
+            "Actual": f"{actual:.2f} A",
         }
         for name, value in status_values.items():
             self.pid_status_values[name].setText(f"{name.upper()}\n{value}")

@@ -56,7 +56,7 @@ def main() -> int:
             if not combo.property("stablePopup"):
                 raise RuntimeError(f"{combo.objectName()} does not preserve its native clickable popup")
         page.tuner_safety_profile.setCurrentIndex(1)
-        if page.tuner_safety_profile.currentText() != "Approved hardware profile":
+        if page.tuner_safety_profile.currentText() != "Trim coils / existing scaling":
             raise RuntimeError("Safety-profile dropdown did not accept a selection")
         page.tuner_safety_profile.setCurrentIndex(0)
 

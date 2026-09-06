@@ -319,7 +319,15 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
         throw std::runtime_error("PID trial requires a connected control transport");
     }
     if (!snapshot.simulated && !config.dryRun && !config.allocationCalibrated) {
-        throw std::invalid_argument("hardware PID trial requires a calibrated allocation");
+        // Direct trim-coil current control uses the transport's existing engineering
+        // scaling; it does not need a separate field-allocation calibration.
+        bool directTrimCoil = config.measurementChannel < 12;
+        for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+            directTrimCoil = directTrimCoil && config.allocation[channel] == (channel == config.measurementChannel ? 1.0 : 0.0);
+        }
+        if (!directTrimCoil) {
+            throw std::invalid_argument("unprofiled hardware PID trials require direct TC1-TC12 current control");
+        }
     }
     if (!config.dryRun && !config.hardwareArmed) {
         throw std::invalid_argument("non-dry-run PID trial requires explicit hardware arming");

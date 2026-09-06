@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -20,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from python.app.PageShell import DetailPage
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 
 
 class SettingsPage(DetailPage):

@@ -1,0 +1,35 @@
+{
+  "profile_name": "TC10 current-control commissioning - awaiting operating limits",
+  "approval_status": "draft",
+  "setup_notes": {
+    "scope": "TC10 current readback and TC10 command only; all other allocation coefficients are zero.",
+    "allocation_basis": "Identity routing of scalar PID current output to TC10 engineering-current command, not a magnetic-field sensitivity calibration.",
+    "operator_confirmed": "LabVIEW ramps requested values and the app receives actual current during the ramp.",
+    "pending": "Confirm command/readback units, operating current range, baseline bias, ramp rate, abort thresholds and calibration review before approving. Existing curve endpoints are calibration data, not approved operating limits."
+  },
+  "provenance": {
+    "measurement_date": "YYYY-MM-DD",
+    "machine_configuration": "TC10 only; LabVIEW ramp; actual-current feedback (operator reported)",
+    "units": "allocation: command-unit/PID-output-unit; commands: A; slew: A/s",
+    "operator": "Operator name",
+    "reviewer": "Independent reviewer name",
+    "source_dataset": "Immutable calibration record or dataset ID",
+    "uncertainty": "Document coefficient uncertainty",
+    "valid_until": "YYYY-MM-DD"
+  },
+  "measurement_channels": {
+    "TC10": {
+      "allocation": {"TC10": 1.0},
+      "command_bias": {"TC10": 0.0},
+      "minimum_command": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
+      "maximum_command": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
+      "maximum_slew_per_second": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
+      "abort_limits": {
+        "max_absolute_error": 0.0,
+        "max_overshoot": 0.0,
+        "max_control_output": 0.0,
+        "max_saturation_seconds": 0.0
+      }
+    }
+  }
+}
