@@ -26,6 +26,16 @@ int main() {
     }
     assert(nearlyEqual(boundedIntegral.update(-1.0), 9.0));
 
+    // Service retains the legacy candidate-output/conditional-integration rule.
+    PID trial(2.0, 1.0, 0.5, 0.1);
+    assert(nearlyEqual(trial.propose(3.0, 0.2), 6.6));
+    trial.acceptIntegral(false);
+    assert(nearlyEqual(trial.propose(2.0, 0.5), 4.0));
+    trial.acceptIntegral(true);
+    assert(nearlyEqual(trial.propose(2.0, 0.5), 6.0));
+    trial.reset();
+    assert(nearlyEqual(trial.propose(3.0, 0.2), 6.6));
+
     bool rejectedInvalidSampleTime = false;
     try {
         PID invalid(1.0, 0.0, 0.0, 0.0);

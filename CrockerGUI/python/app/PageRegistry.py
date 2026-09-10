@@ -2,6 +2,7 @@
 
 from python.app.Automation.AutomationPage import AutomationPage
 from python.app.Automation.PidControlPage import PidControlPage
+from python.app.Automation.PythonPIDPage import PythonPIDPage
 from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
@@ -59,5 +60,6 @@ DETAIL_BUILDERS = {
     "Settings": ("Configuration", SettingsPage),
     "Scaling": ("Configuration", ScalingPage),
     "PID Control": ("Automation", PidControlPage),
+    "PythonPID": ("Automation", PythonPIDPage),
 }
 

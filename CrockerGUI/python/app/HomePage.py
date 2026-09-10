@@ -15,7 +15,7 @@ from python.app.PageShell import (
 
 HOME_LABELS = {
     "Manual Controls": "MANUAL CONTROL",
-    "Automation": "AI CONTROL",
+    "Automation": "AUTOMATION",
     "Configuration": "SETTINGS",
     "Monitoring": "MONITOR",
 }

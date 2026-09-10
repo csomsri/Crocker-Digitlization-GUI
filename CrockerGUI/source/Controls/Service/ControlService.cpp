@@ -13,6 +13,8 @@
  */
 #include "Controls/Service/ControlService.hpp"
 
+#include "Controls/ControlSystem/PID.hpp"
+#include "Controls/ControlSystem/NLAPID.hpp"
 #include "Controls/Transport/ServerTransport.hpp"
 #include "Controls/Transport/SimulatorTransport.hpp"
 
@@ -313,6 +315,7 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
 {
     ValidatePidTrialConfig(config);
     StopPidTrial(false);
+    StopSequence(false);
 
     const TelemetrySnapshot snapshot = LatestSnapshot();
     if (snapshot.connection != ConnectionState::Connected) {
@@ -336,6 +339,8 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
     {
         std::lock_guard<std::mutex> lock(pidTrialMutex_);
         pidTrialStatus_ = {};
+        pidTrialDryRun_ = config.dryRun;
+        pidTrialStatus_.controllerKind = config.controllerKind;
         pidTrialStatus_.state = PidTrialState::Running;
         pidTrialStatus_.message = config.dryRun ? "Dry-run PID trial running" : "PID trial running";
         pidAllocatedChannels_.fill(false);
@@ -355,15 +360,17 @@ void ControlService::StopPidTrial(bool disableAllocatedChannels) noexcept
     }
 
     std::array<bool, ChannelCount> allocated{};
+    bool dryRun = true;
     {
         std::lock_guard<std::mutex> lock(pidTrialMutex_);
         allocated = pidAllocatedChannels_;
+        dryRun = pidTrialDryRun_;
         if (pidTrialStatus_.state == PidTrialState::Running) {
             pidTrialStatus_.state = PidTrialState::Stopped;
             pidTrialStatus_.message = "PID trial stopped";
         }
     }
-    if (!disableAllocatedChannels) {
+    if (!disableAllocatedChannels || dryRun) {
         return;
     }
 
@@ -387,134 +394,180 @@ PidTrialStatus ControlService::PidTrialStatusSnapshot() const
 
 void ControlService::RunPidTrial(PidTrialConfig config) noexcept
 {
-    using clock = std::chrono::steady_clock;
-    const auto period = std::chrono::duration<double>(1.0 / config.updateRateHz);
-    const auto started = clock::now();
-    auto previous = started;
-    auto nextTick = started;
-    double integral = 0.0;
-    double previousError = 0.0;
-    double saturationSeconds = 0.0;
-    bool hasPreviousError = false;
-    ControlCommand lastCommand = PendingCommand();
+    try {
+        using clock = std::chrono::steady_clock;
+        const auto period = std::chrono::duration<double>(1.0 / config.updateRateHz);
+        const auto started = clock::now();
+        auto previous = started;
+        auto nextTick = started;
+        PID conventional(config.kp, config.ki, config.kd, 1.0 / config.updateRateHz);
+        NLAPID nla({config.kp, config.ki, config.kd}, config.nlaLimits, config.nlaSettings);
+        const bool adaptive = config.controllerKind == PidControllerKind::NLA;
+        std::optional<double> lastSampleTime;
+        bool holdIntegral = false;
+        double saturationSeconds = 0.0;
+        ControlCommand lastCommand = PendingCommand();
 
-    while (pidTrialRunning_.load()) {
-        const auto now = clock::now();
-        const double elapsed = std::chrono::duration<double>(now - started).count();
-        const double dt = std::max(1.0e-6, std::chrono::duration<double>(now - previous).count());
-        previous = now;
-        if (elapsed >= config.durationSeconds) {
-            std::lock_guard<std::mutex> lock(pidTrialMutex_);
-            pidTrialStatus_.state = PidTrialState::Completed;
-            pidTrialStatus_.message = "PID trial completed";
-            pidTrialStatus_.elapsedSeconds = elapsed;
-            pidTrialRunning_.store(false);
-            break;
-        }
-
-        const TelemetrySnapshot snapshot = LatestSnapshot();
-        const HealthStatus health = Health();
-        const ChannelTelemetry& measurement = snapshot.channels[config.measurementChannel];
-        const bool telemetryFresh = health.packetAgeMilliseconds <= config.telemetryTimeoutSeconds * 1000.0;
-        const bool connectionHealthy = snapshot.connection == ConnectionState::Connected;
-        const bool channelHealthy = !measurement.interlocked
-            && measurement.status != ChannelStatus::Fault
-            && measurement.status != ChannelStatus::Interlocked;
-        if (!telemetryFresh || !connectionHealthy || !channelHealthy) {
-            SetPidTrialFault(!telemetryFresh ? "Telemetry watchdog expired"
-                : !connectionHealthy ? "Control transport disconnected"
-                : "Measurement channel fault or interlock");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
-
-        const double error = config.setpoint - measurement.actual;
-        if (std::abs(error) > config.maxAbsoluteError) {
-            SetPidTrialFault("Absolute error abort limit exceeded");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
-        if (measurement.actual - config.setpoint > config.maxOvershoot) {
-            SetPidTrialFault("Overshoot abort limit exceeded");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
-        const double derivative = hasPreviousError ? (error - previousError) / dt : 0.0;
-        const double candidateIntegral = integral + error * dt;
-        double output = config.kp * error + config.ki * candidateIntegral + config.kd * derivative;
-        if (std::abs(output) > config.maxControlOutput) {
-            SetPidTrialFault("Control-output abort limit exceeded");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
-        bool saturated = false;
-        bool rateLimited = false;
-        ControlCommand command = lastCommand;
-
-        for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-            if (std::abs(config.allocation[channel]) <= 0.0) {
-                continue;
+        while (pidTrialRunning_.load()) {
+            const auto now = clock::now();
+            const double elapsed = std::chrono::duration<double>(now - started).count();
+            double dt = std::max(1.0e-6, std::chrono::duration<double>(now - previous).count());
+            previous = now;
+            if (!config.continuous && elapsed >= config.durationSeconds) {
+                std::lock_guard<std::mutex> lock(pidTrialMutex_);
+                pidTrialStatus_.state = PidTrialState::Completed;
+                pidTrialStatus_.message = "PID trial completed";
+                pidTrialStatus_.elapsedSeconds = elapsed;
+                pidTrialRunning_.store(false);
+                break;
             }
-            const double requested = config.commandBias[channel] + config.allocation[channel] * output;
-            const double bounded = std::clamp(requested, config.minimumCommand[channel], config.maximumCommand[channel]);
-            saturated = saturated || bounded != requested;
-            const double maximumDelta = config.maximumSlewPerSecond[channel] * dt;
-            const double slewed = std::clamp(
-                bounded,
-                lastCommand[channel].target - maximumDelta,
-                lastCommand[channel].target + maximumDelta);
-            rateLimited = rateLimited || slewed != bounded;
-            command[channel] = ChannelCommand{slewed, true, true};
-        }
 
-        // Freeze integration whenever any allocated actuator saturates. This
-        // conservative rule is valid even when allocation coefficients have
-        // different signs.
-        if (!saturated) {
-            integral = candidateIntegral;
-            output = config.kp * error + config.ki * integral + config.kd * derivative;
-        }
-        saturationSeconds = saturated ? saturationSeconds + dt : 0.0;
-        if (saturationSeconds > config.maxSaturationSeconds) {
-            SetPidTrialFault("Command saturation persisted beyond abort limit");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
-        previousError = error;
-        hasPreviousError = true;
+            const TelemetrySnapshot snapshot = LatestSnapshot();
+            const HealthStatus health = Health();
+            const ChannelTelemetry& measurement = snapshot.channels[config.measurementChannel];
+            const bool telemetryFresh = health.packetAgeMilliseconds <= config.telemetryTimeoutSeconds * 1000.0;
+            const bool connectionHealthy = snapshot.connection == ConnectionState::Connected;
+            const bool channelHealthy = !measurement.interlocked
+                && measurement.status != ChannelStatus::Fault
+                && measurement.status != ChannelStatus::Interlocked;
+            if (!telemetryFresh || !connectionHealthy || !channelHealthy) {
+                SetPidTrialFault(!telemetryFresh ? "Telemetry watchdog expired"
+                    : !connectionHealthy ? "Control transport disconnected"
+                    : "Measurement channel fault or interlock");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
 
-        bool sent = true;
-        if (!config.dryRun) {
-            SetCommand(command);
-            sent = ApplyCommand();
+            // The adaptive reference consumes each fresh measurement once. Watchdogs
+            // above continue to run even while a held snapshot is skipped.
+            if (adaptive) {
+                const double stamp = snapshot.timestampUnixSeconds;
+                if (!std::isfinite(stamp) || (lastSampleTime && stamp < *lastSampleTime)) {
+                    throw std::runtime_error("Invalid or out-of-order NLA telemetry timestamp");
+                }
+                if (!lastSampleTime) {
+                    nla.reset(config.setpoint, measurement.actual);
+                    lastSampleTime = stamp;
+                    nextTick += std::chrono::duration_cast<clock::duration>(period);
+                    std::this_thread::sleep_until(nextTick);
+                    continue;
+                }
+                if (stamp == *lastSampleTime) {
+                    nextTick += std::chrono::duration_cast<clock::duration>(period);
+                    std::this_thread::sleep_until(nextTick);
+                    continue;
+                }
+                dt = stamp - *lastSampleTime;
+                lastSampleTime = stamp;
+            }
+            const double error = config.setpoint - measurement.actual;
+            if (std::abs(error) > config.maxAbsoluteError) {
+                SetPidTrialFault("Absolute error abort limit exceeded");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
+            if (measurement.actual - config.setpoint > config.maxOvershoot) {
+                SetPidTrialFault("Overshoot abort limit exceeded");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
+            const auto calculationStarted = clock::now();
+            NLAPIDResult nlaResult;
+            const double output = adaptive
+                ? (nlaResult = nla.update(config.setpoint, measurement.actual, dt, holdIntegral)).output
+                : conventional.propose(error, dt);
+            const double calculationMicroseconds =
+                std::chrono::duration<double, std::micro>(clock::now() - calculationStarted).count();
+            if (!std::isfinite(output)) throw std::runtime_error("Nonfinite PID output");
+            if (std::abs(output) > config.maxControlOutput) {
+                SetPidTrialFault("Control-output abort limit exceeded");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
+            bool saturated = false;
+            bool rateLimited = false;
+            ControlCommand command = lastCommand;
+
+            for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+                if (std::abs(config.allocation[channel]) <= 0.0) {
+                    continue;
+                }
+                const double base = adaptive ? lastCommand[channel].target : config.commandBias[channel];
+                const double requested = base + config.allocation[channel] * output;
+                const double bounded = std::clamp(requested, config.minimumCommand[channel], config.maximumCommand[channel]);
+                saturated = saturated || bounded != requested;
+                const double maximumDelta = config.maximumSlewPerSecond[channel] * dt;
+                const double slewed = std::clamp(
+                    bounded,
+                    lastCommand[channel].target - maximumDelta,
+                    lastCommand[channel].target + maximumDelta);
+                rateLimited = rateLimited || slewed != bounded;
+                if (slewed < config.minimumCommand[channel] || slewed > config.maximumCommand[channel]) {
+                    throw std::runtime_error("Current target lies outside configured PID command limits");
+                }
+                command[channel] = ChannelCommand{slewed, true, true};
+            }
+
+            conventional.acceptIntegral(!saturated);
+            // External actuator constraints are separate from the NLA engine limits.
+            // Age its integral on the next update when the actuator cannot follow.
+            holdIntegral = saturated || rateLimited;
+            saturationSeconds = saturated ? saturationSeconds + dt : 0.0;
+            if (saturationSeconds > config.maxSaturationSeconds) {
+                SetPidTrialFault("Command saturation persisted beyond abort limit");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
+
+            const double target = command[config.measurementChannel].target;
+            const double commandDelta = target - lastCommand[config.measurementChannel].target;
+            bool sent = true;
+            if (!config.dryRun) {
+                SetCommand(command);
+                sent = ApplyCommand();
+            }
+            if (!sent) {
+                SetPidTrialFault("Control command was not acknowledged");
+                if (!config.dryRun) DisableAll();
+                pidTrialRunning_.store(false);
+                break;
+            }
+
+            // Advance virtual targets in dry run too, without sending any command.
             lastCommand = command;
-        }
-        if (!sent) {
-            SetPidTrialFault("Control command was not acknowledged");
-            DisableAll();
-            pidTrialRunning_.store(false);
-            break;
-        }
+            {
+                std::lock_guard<std::mutex> lock(pidTrialMutex_);
+                pidTrialStatus_.nla = nlaResult;
+                pidTrialStatus_.commandTarget = target;
+                pidTrialStatus_.commandDelta = commandDelta;
+                pidTrialStatus_.controlRate = adaptive ? output / std::min(dt, std::max(1.0e-4, config.nlaSettings.maxControlDt)) : output;
+                pidTrialStatus_.calculationMicroseconds = calculationMicroseconds;
+                pidTrialStatus_.elapsedSeconds = elapsed;
+                pidTrialStatus_.measuredField = measurement.actual;
+                pidTrialStatus_.error = error;
+                pidTrialStatus_.controlOutput = output;
+                ++pidTrialStatus_.iterations;
+                pidTrialStatus_.saturated = saturated;
+                pidTrialStatus_.rateLimited = rateLimited;
+                pidTrialStatus_.watchdogHealthy = true;
+            }
 
-        {
-            std::lock_guard<std::mutex> lock(pidTrialMutex_);
-            pidTrialStatus_.elapsedSeconds = elapsed;
-            pidTrialStatus_.measuredField = measurement.actual;
-            pidTrialStatus_.error = error;
-            pidTrialStatus_.controlOutput = output;
-            ++pidTrialStatus_.iterations;
-            pidTrialStatus_.saturated = saturated;
-            pidTrialStatus_.rateLimited = rateLimited;
-            pidTrialStatus_.watchdogHealthy = true;
+            nextTick += std::chrono::duration_cast<clock::duration>(period);
+            std::this_thread::sleep_until(nextTick);
         }
-
-        nextTick += std::chrono::duration_cast<clock::duration>(period);
-        std::this_thread::sleep_until(nextTick);
+    } catch (const std::exception& error) {
+        SetPidTrialFault(error.what());
+        if (!config.dryRun) DisableAll();
+        pidTrialRunning_.store(false);
+    } catch (...) {
+        SetPidTrialFault("Unknown PID worker failure");
+        if (!config.dryRun) DisableAll();
+        pidTrialRunning_.store(false);
     }
 }
 
@@ -548,6 +601,16 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
         || config.maxOvershoot <= 0.0 || config.maxControlOutput <= 0.0
         || config.maxSaturationSeconds <= 0.0) {
         throw std::invalid_argument("PID timing values must be positive");
+    }
+    if (config.controllerKind == PidControllerKind::NLA) {
+        // Validate before starting the noexcept worker and limit NLA to the
+        // direct-channel mapping used by the Python reference page.
+        NLAPID check({config.kp, config.ki, config.kd}, config.nlaLimits, config.nlaSettings);
+        for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
+            if (config.allocation[channel] != (channel == config.measurementChannel ? 1.0 : 0.0)) {
+                throw std::invalid_argument("NLA requires direct single-channel allocation");
+            }
+        }
     }
     bool hasAllocation = false;
     for (ChannelId channel = 0; channel < ChannelCount; ++channel) {

@@ -8,8 +8,9 @@ bounded parameter space.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import Iterable
+from source.Python.Optimization.trial_metrics import TrialMetrics
 
 from source.Python.Optimization.bayesian_optimizer import BotorchBayesianOptimizer
 from source.Python.Optimization.observations import OptimizationObservation
@@ -39,6 +40,9 @@ class PidTrialResult:
     steady_state_error: float
     control_effort: float
     safe: bool
+    controller_kind: str = "conventional"
+    metrics: TrialMetrics | None = None
+    termination_reason: str = "Completed"
 
 
 class BotorchPidOptimizer:
@@ -51,12 +55,16 @@ class BotorchPidOptimizer:
         kd_bounds: tuple[float, float],
         use_cuda: bool = True,
         *,
+        controller_kind: str = "conventional",
         initial_safe_trials: int = 6,
         seed: int = 1729,
         mc_samples: int = 256,
         num_restarts: int = 10,
         raw_samples: int = 256,
     ) -> None:
+        if controller_kind not in {"conventional", "nla", "python_nla"}:
+            raise ValueError("Unknown PID controller kind")
+        self.controller_kind = controller_kind
         self.optimizer = BotorchBayesianOptimizer(
             [
                 ("kp", kp_bounds),
@@ -91,6 +99,8 @@ class BotorchPidOptimizer:
         validated = list(results)
         observations: list[OptimizationObservation] = []
         for result in validated:
+            if result.controller_kind != self.controller_kind:
+                raise ValueError("Cannot mix conventional and NLA observations")
             values = (
                 result.candidate.kp,
                 result.candidate.ki,
@@ -109,6 +119,9 @@ class BotorchPidOptimizer:
                     score=result.score,
                     safe=result.safe,
                     metadata={
+                        "controller_kind": result.controller_kind,
+                        "metrics": asdict(result.metrics) if result.metrics else None,
+                        "termination_reason": result.termination_reason,
                         "settling_time": result.settling_time,
                         "overshoot": result.overshoot,
                         "steady_state_error": result.steady_state_error,
@@ -134,6 +147,10 @@ class BotorchPidOptimizer:
             fixed_values=fixed_values,
             grid_size=grid_size,
         )
+
+    def surrogate_slice(self, *, axis_x: str = "kp", point_count: int = 160) -> dict:
+        # The other two gains are fixed at the best safe trial, or bound midpoints.
+        return self.optimizer.surrogate_slice(axis_x=axis_x, point_count=point_count)
 
     @staticmethod
     def _from_pid_candidate(candidate: PidGainCandidate) -> OptimizationCandidate:

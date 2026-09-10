@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Controls/ControlSystem/NLAPID.hpp"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -85,7 +87,13 @@ using ControlScaling = std::array<LinearChannelScaling, ChannelCount>;
 
 // Configuration for a bounded PID field trial. Allocation coefficients map the
 // scalar PID output onto hardware channels; zero leaves a channel untouched.
+enum class PidControllerKind { Conventional, NLA };
+
 struct PidTrialConfig {
+    PidControllerKind controllerKind = PidControllerKind::Conventional;
+    NLAPIDSettings nlaSettings{};
+    NLAPIDLimits nlaLimits{};
+    bool continuous = false;
     ChannelId measurementChannel = 0;
     double setpoint = 0.0;
     double kp = 0.0;
@@ -109,6 +117,12 @@ struct PidTrialConfig {
 };
 
 struct PidTrialStatus {
+    PidControllerKind controllerKind = PidControllerKind::Conventional;
+    NLAPIDResult nla{};
+    double commandTarget = 0.0;
+    double commandDelta = 0.0;
+    double controlRate = 0.0;
+    double calculationMicroseconds = 0.0;
     PidTrialState state = PidTrialState::Idle;
     std::string message = "Idle";
     double elapsedSeconds = 0.0;

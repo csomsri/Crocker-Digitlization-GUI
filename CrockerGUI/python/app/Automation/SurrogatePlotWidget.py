@@ -1,245 +1,155 @@
 from __future__ import annotations
 
+import math
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
-from source.Python.Optimization.pid_gain_adapter import (
-    PidGainCandidate,
-    PidTrialResult,
-)
+from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
 
 
 class SurrogatePlotWidget(QWidget):
+    """Cost versus one gain, with a posterior band from the full 3D GP."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._grid: dict | None = None
         self._results: list[PidTrialResult] = []
         self._candidate: PidGainCandidate | None = None
         self._best: PidTrialResult | None = None
+        self._axis = "kp"
         self.setObjectName("pidSurrogatePlot")
-        self.setMinimumHeight(280)
+        self.setMinimumHeight(300)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setAccessibleName("Gaussian process cost mean and 95 percent posterior interval")
+        self.setToolTip('The curve holds the other gains fixed. Filled points share those fixed gains; '
+                        'hollow points come from other gain combinations. The band is uncertainty in mean cost, '
+                        'not a guarantee of the next trial result. The dashed line projects the next candidate onto this gain.')
 
-    def set_state(
-        self,
-        *,
-        grid: dict | None,
-        results: list[PidTrialResult],
-        candidate: PidGainCandidate | None,
-        best: PidTrialResult | None,
-    ) -> None:
-        self._grid = grid
+    def set_state(self, *, grid: dict | None, results: list[PidTrialResult],
+                  candidate: PidGainCandidate | None, best: PidTrialResult | None,
+                  axis_x: str = "kp") -> None:
+        self._axis = axis_x
+        self._grid = grid if grid and grid.get("axis_x") == axis_x else None
         self._results = list(results)
-        self._candidate = candidate
-        self._best = best
+        self._candidate, self._best = candidate, best
         self.update()
 
-    def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
-        del event
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#0f172a"))
-
-        plot = QRectF(self.rect()).adjusted(58.0, 42.0, -24.0, -48.0)
-        self._draw_title(painter)
-        if plot.width() <= 8 or plot.height() <= 8:
-            return
-
-        grid = self._grid
-        if grid and grid.get("ready"):
-            self._draw_heatmap(painter, plot, grid)
-            x_values = grid["x_values"]
-            y_values = grid["y_values"]
-            x_bounds = (float(x_values[0]), float(x_values[-1]))
-            y_bounds = (float(y_values[0]), float(y_values[-1]))
-        else:
-            self._draw_empty_surface(painter, plot)
-            x_bounds, y_bounds = self._bounds_from_results()
-            message = "Waiting for safe observations"
-            if grid and grid.get("message"):
-                message = str(grid["message"])
-            painter.setPen(QColor("#94a3b8"))
-            painter.drawText(plot, Qt.AlignCenter, message)
-
-        self._draw_axes(painter, plot, x_bounds, y_bounds)
-        self._draw_trials(painter, plot, x_bounds, y_bounds)
-        self._draw_marker(painter, plot, x_bounds, y_bounds, self._candidate, QColor("#f59e0b"), 7.0)
-        if self._best is not None:
-            self._draw_marker(painter, plot, x_bounds, y_bounds, self._best.candidate, QColor("#22c55e"), 8.5)
-        self._draw_legend(painter, plot)
-
-    def _draw_title(self, painter: QPainter) -> None:
-        font = QFont(self.font())
-        point_size = font.pointSize()
-        font.setPointSize(point_size if point_size > 0 else 9)
-        font.setBold(True)
-        painter.setFont(font)
-        painter.setPen(QColor("#e5e7eb"))
-        painter.drawText(
-            QRectF(16.0, 10.0, self.width() - 32.0, 22.0),
-            Qt.AlignLeft | Qt.AlignVCenter,
-            "Surrogate Model: Kp / Ki Cost Slice",
-        )
-
-    def _draw_heatmap(self, painter: QPainter, plot: QRectF, grid: dict) -> None:
-        mean = grid["mean"]
-        stddev = grid["stddev"]
-        flat_mean = [float(value) for row in mean for value in row]
-        flat_stddev = [float(value) for row in stddev for value in row]
-        low = min(flat_mean)
-        high = max(flat_mean)
-        uncertainty_high = max(flat_stddev) if flat_stddev else 0.0
-        rows = len(mean)
-        columns = len(mean[0]) if rows else 0
-        if rows <= 0 or columns <= 0:
-            return
-        cell_width = plot.width() / columns
-        cell_height = plot.height() / rows
-        for row_index, row in enumerate(mean):
-            for column_index, value in enumerate(row):
-                uncertainty = float(stddev[row_index][column_index])
-                color = self._cost_color(float(value), low, high)
-                if uncertainty_high > 0.0:
-                    color = self._mix(color, QColor("#e5e7eb"), min(0.32, 0.24 * uncertainty / uncertainty_high))
-                rect = QRectF(
-                    plot.left() + column_index * cell_width,
-                    plot.bottom() - (row_index + 1) * cell_height,
-                    cell_width + 0.6,
-                    cell_height + 0.6,
-                )
-                painter.fillRect(rect, color)
-
-    def _draw_empty_surface(self, painter: QPainter, plot: QRectF) -> None:
-        painter.fillRect(plot, QColor("#111827"))
-        painter.setPen(QPen(QColor(51, 65, 85, 120), 1.0))
-        for step in range(6):
-            x = plot.left() + plot.width() * step / 5
-            y = plot.top() + plot.height() * step / 5
-            painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-            painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-
-    def _draw_axes(
-        self,
-        painter: QPainter,
-        plot: QRectF,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-    ) -> None:
-        painter.setPen(QPen(QColor("#475569"), 1.0))
-        painter.drawRect(plot)
-        painter.setPen(QColor("#cbd5e1"))
-        for step in range(4):
-            amount = step / 3
-            x = plot.left() + plot.width() * amount
-            y = plot.bottom() - plot.height() * amount
-            kp = x_bounds[0] + (x_bounds[1] - x_bounds[0]) * amount
-            ki = y_bounds[0] + (y_bounds[1] - y_bounds[0]) * amount
-            painter.drawText(QRectF(x - 34.0, plot.bottom() + 8.0, 68.0, 18.0), Qt.AlignCenter, f"{kp:.2g}")
-            painter.drawText(QRectF(plot.left() - 52.0, y - 9.0, 44.0, 18.0), Qt.AlignRight | Qt.AlignVCenter, f"{ki:.2g}")
-        painter.drawText(QRectF(plot.left(), plot.bottom() + 28.0, plot.width(), 18.0), Qt.AlignCenter, "Kp")
-        painter.drawText(QRectF(plot.left() - 56.0, plot.center().y() - 24.0, 18.0, 48.0), Qt.AlignCenter, "Ki")
-
-    def _draw_trials(
-        self,
-        painter: QPainter,
-        plot: QRectF,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-    ) -> None:
-        safe_scores = [result.score for result in self._results if result.safe]
-        low = min(safe_scores) if safe_scores else 0.0
-        high = max(safe_scores) if safe_scores else 1.0
-        for result in self._results:
-            point = self._point(plot, x_bounds, y_bounds, result.candidate)
-            color = self._cost_color(result.score, low, high) if result.safe else QColor("#ef4444")
-            painter.setPen(QPen(QColor("#0f172a"), 1.5))
-            painter.setBrush(color)
-            painter.drawEllipse(point, 5.2, 5.2)
-
-    def _draw_marker(
-        self,
-        painter: QPainter,
-        plot: QRectF,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-        candidate: PidGainCandidate | None,
-        color: QColor,
-        radius: float,
-    ) -> None:
-        if candidate is None:
-            return
-        point = self._point(plot, x_bounds, y_bounds, candidate)
-        painter.setPen(QPen(color, 2.0))
-        painter.setBrush(Qt.NoBrush)
-        painter.drawEllipse(point, radius, radius)
-        painter.drawLine(QPointF(point.x() - radius - 3, point.y()), QPointF(point.x() + radius + 3, point.y()))
-        painter.drawLine(QPointF(point.x(), point.y() - radius - 3), QPointF(point.x(), point.y() + radius + 3))
-
-    def _draw_legend(self, painter: QPainter, plot: QRectF) -> None:
-        best_text = "Best: none" if self._best is None else f"Best: {self._best.score:.3g}"
-        candidate_text = "Candidate: none" if self._candidate is None else (
-            f"Candidate: Kp {self._candidate.kp:.3g}, Ki {self._candidate.ki:.3g}, Kd {self._candidate.kd:.3g}"
-        )
-        painter.setPen(QColor("#cbd5e1"))
-        painter.drawText(
-            QRectF(plot.left(), 16.0, plot.width(), 18.0),
-            Qt.AlignRight | Qt.AlignVCenter,
-            f"{best_text}    {candidate_text}",
-        )
-
-    def _bounds_from_results(self) -> tuple[tuple[float, float], tuple[float, float]]:
-        kp_values = [result.candidate.kp for result in self._results]
-        ki_values = [result.candidate.ki for result in self._results]
-        if self._candidate is not None:
-            kp_values.append(self._candidate.kp)
-            ki_values.append(self._candidate.ki)
-        return self._padded_bounds(kp_values, 0.0, 5.0), self._padded_bounds(ki_values, 0.0, 2.0)
-
-    def _point(
-        self,
-        plot: QRectF,
-        x_bounds: tuple[float, float],
-        y_bounds: tuple[float, float],
-        candidate: PidGainCandidate,
-    ) -> QPointF:
-        x_ratio = (candidate.kp - x_bounds[0]) / max(1.0e-9, x_bounds[1] - x_bounds[0])
-        y_ratio = (candidate.ki - y_bounds[0]) / max(1.0e-9, y_bounds[1] - y_bounds[0])
-        return QPointF(
-            plot.left() + plot.width() * max(0.0, min(1.0, x_ratio)),
-            plot.bottom() - plot.height() * max(0.0, min(1.0, y_ratio)),
-        )
+    def _on_slice(self, candidate: PidGainCandidate) -> bool:
+        fixed = (self._grid or {}).get("fixed_values", {})
+        return bool(fixed) and all(math.isclose(getattr(candidate, name), value,
+                                               rel_tol=1e-7, abs_tol=1e-9)
+                                   for name, value in fixed.items())
 
     @staticmethod
-    def _padded_bounds(values: list[float], default_low: float, default_high: float) -> tuple[float, float]:
-        if not values:
-            return default_low, default_high
-        low = min(values)
-        high = max(values)
-        if abs(high - low) < 1.0e-9:
-            return low - 0.5, high + 0.5
-        padding = (high - low) * 0.18
+    def _bounds(values, default=(0.0, 1.0)):
+        finite = [float(v) for v in values if math.isfinite(v)]
+        if not finite:
+            return default
+        low, high = min(finite), max(finite)
+        padding = max((high - low) * 0.08, 0.1 if low == high else 1e-9)
         return low - padding, high + padding
 
-    @staticmethod
-    def _cost_color(value: float, low: float, high: float) -> QColor:
-        ratio = 0.0 if high <= low else max(0.0, min(1.0, (value - low) / (high - low)))
-        stops = (
-            QColor("#22c55e"),
-            QColor("#60a5fa"),
-            QColor("#f59e0b"),
-            QColor("#ef4444"),
-        )
-        scaled = ratio * (len(stops) - 1)
-        left = int(scaled)
-        right = min(left + 1, len(stops) - 1)
-        return SurrogatePlotWidget._mix(stops[left], stops[right], scaled - left)
+    def paintEvent(self, event) -> None:  # noqa: N802
+        del event
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setFont(QFont('Segoe UI', 9))
+        p.fillRect(self.rect(), QColor("#0f172a"))
+        p.setPen(QColor("#e5e7eb"))
+        p.drawText(QRectF(16, 8, self.width()-32, 22), Qt.AlignLeft | Qt.AlignVCenter,
+                   f"Gaussian process: cost vs {self._axis.capitalize()}")
+        grid = self._grid or {}
+        fixed = grid.get("fixed_values", {})
+        fixed_text = "  |  ".join(f"{name.capitalize()} = {value:.4g}" for name, value in fixed.items())
+        p.setPen(QColor("#94a3b8"))
+        p.drawText(QRectF(16, 31, self.width()-32, 20), Qt.AlignLeft | Qt.AlignVCenter,
+                   f"Fixed at best safe trial (or midpoints): {fixed_text}" if fixed else "Preparing slice; other gains will be held fixed")
+        x, y = 16, 62
+        for kind, label, color in [('line', 'Predicted mean', '#fb923c'),
+                                   ('band', '95% posterior interval', '#fb923c'),
+                                   ('filled', 'Trials on slice', '#60a5fa'),
+                                   ('hollow', 'Other trials (projected)', '#60a5fa'),
+                                   ('dash', 'Next candidate', '#c4b5fd')]:
+            width = p.fontMetrics().horizontalAdvance(label) + 58
+            if x + width > self.width()-16 and x > 16:
+                x, y = 16, y+28
+            p.setPen(QPen(QColor(color), 2, Qt.DashLine if kind == 'dash' else Qt.SolidLine))
+            p.setBrush(Qt.NoBrush)
+            if kind in ('line', 'dash'):
+                p.drawLine(QPointF(x, y+8), QPointF(x+24, y+8))
+            elif kind == 'band':
+                p.fillRect(QRectF(x, y+1, 24, 14), QColor(251, 146, 60, 70))
+            else:
+                p.setBrush(QColor(color) if kind == 'filled' else Qt.NoBrush)
+                p.drawEllipse(QPointF(x+12, y+8), 4.5, 4.5)
+            p.setPen(QColor('#cbd5e1'))
+            p.drawText(QRectF(x+32, y-2, width-32, 22), Qt.AlignVCenter, label)
+            x += width
+        plot = QRectF(self.rect()).adjusted(82, y+36, -24, -66)
+        if plot.width() < 20 or plot.height() < 20:
+            return
+        safe = [r for r in self._results if r.safe and math.isfinite(r.score)
+                and math.isfinite(getattr(r.candidate, self._axis))]
+        xs = grid.get("x_values", [])
+        ready = bool(grid.get("ready"))
+        x_bounds = (xs[0], xs[-1]) if len(xs) >= 2 else self._bounds(
+            [getattr(r.candidate, self._axis) for r in safe]
+            + ([getattr(self._candidate, self._axis)] if self._candidate else []))
+        y_bounds = self._bounds([r.score for r in safe]
+                                + (grid["lower"] + grid["upper"] if ready else []))
 
-    @staticmethod
-    def _mix(left: QColor, right: QColor, amount: float) -> QColor:
-        amount = max(0.0, min(1.0, amount))
-        return QColor(
-            round(left.red() + (right.red() - left.red()) * amount),
-            round(left.green() + (right.green() - left.green()) * amount),
-            round(left.blue() + (right.blue() - left.blue()) * amount),
-        )
+        def point(x, y):
+            return QPointF(plot.left() + (x-x_bounds[0]) / max(1e-12, x_bounds[1]-x_bounds[0]) * plot.width(),
+                           plot.bottom() - (y-y_bounds[0]) / max(1e-12, y_bounds[1]-y_bounds[0]) * plot.height())
+
+        p.fillRect(plot, QColor("#111827"))
+        for i in range(5):
+            ratio = i/4
+            x = x_bounds[0] + ratio * (x_bounds[1]-x_bounds[0])
+            y = y_bounds[0] + ratio * (y_bounds[1]-y_bounds[0])
+            px, py = point(x, y_bounds[0]).x(), point(x_bounds[0], y).y()
+            p.setPen(QPen(QColor("#273449"), 1))
+            p.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()))
+            p.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py))
+            p.setPen(QColor("#cbd5e1"))
+            p.drawText(QRectF(px-40, plot.bottom()+7, 80, 18), Qt.AlignCenter, f"{x:.3g}")
+            p.drawText(QRectF(12, py-9, 62, 18), Qt.AlignRight | Qt.AlignVCenter, f"{y:.3g}")
+        p.drawText(QRectF(plot.left(), plot.bottom()+28, plot.width(), 18), Qt.AlignCenter, self._axis.capitalize())
+        p.save()
+        p.translate(12, plot.center().y())
+        p.rotate(-90)
+        p.drawText(QRectF(-plot.height()/2, -10, plot.height(), 18), Qt.AlignCenter, "Cost (lower is better)")
+        p.restore()
+        p.save()
+        p.setClipRect(plot)
+        if ready:
+            band = QPainterPath(point(xs[0], grid["upper"][0]))
+            for x, y in zip(xs[1:], grid["upper"][1:]): band.lineTo(point(x, y))
+            for x, y in zip(reversed(xs), reversed(grid["lower"])): band.lineTo(point(x, y))
+            band.closeSubpath()
+            p.fillPath(band, QColor(251, 146, 60, 70))
+            curve = QPainterPath(point(xs[0], grid["mean"][0]))
+            for x, y in zip(xs[1:], grid["mean"][1:]): curve.lineTo(point(x, y))
+            p.setPen(QPen(QColor("#fb923c"), 2.2))
+            p.drawPath(curve)
+        for result in safe:
+            xy = point(getattr(result.candidate, self._axis), result.score)
+            p.setPen(QPen(QColor("#60a5fa"), 1.7))
+            p.setBrush(QColor("#60a5fa") if self._on_slice(result.candidate) else Qt.NoBrush)
+            p.drawEllipse(xy, 4.5, 4.5)
+        if self._candidate is not None:
+            px = point(getattr(self._candidate, self._axis), y_bounds[0]).x()
+            p.setPen(QPen(QColor("#c4b5fd"), 1.3, Qt.DashLine))
+            p.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()))
+        if not ready:
+            p.setPen(QColor("#e5e7eb"))
+            p.drawText(plot.adjusted(10, 5, -10, -5), Qt.AlignCenter,
+                       grid.get("message", "Waiting for safe trials to fit the Gaussian process"))
+        p.restore()
+        p.setPen(QPen(QColor("#475569"), 1))
+        p.drawRect(plot)
+        p.setPen(QColor("#94a3b8"))
+        excluded = len(self._results) - len(safe)
+        p.drawText(QRectF(16, self.height()-21, self.width()-32, 18), Qt.AlignLeft,
+                   f"Excluded trials: {excluded}   ·   Hover for interpretation")

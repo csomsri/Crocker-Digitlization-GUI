@@ -254,6 +254,24 @@ Controls::ControlScaling ScalingFromDict(const py::dict& source)
 Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
 {
     Controls::PidTrialConfig config;
+    const std::string kind = source.contains("controller_kind") ? source["controller_kind"].cast<std::string>() : "conventional";
+    if (kind != "conventional" && kind != "nla") throw py::value_error("Unknown controller_kind");
+    config.controllerKind = kind == "nla" ? Controls::PidControllerKind::NLA : Controls::PidControllerKind::Conventional;
+    if (source.contains("continuous")) config.continuous = source["continuous"].cast<bool>();
+    if (source.contains("nla_deadband")) config.nlaSettings.deadband = source["nla_deadband"].cast<double>();
+    if (source.contains("nla_trend_tolerance")) config.nlaSettings.trendTolerance = source["nla_trend_tolerance"].cast<double>();
+    if (source.contains("nla_direction_check_interval")) config.nlaSettings.directionCheckInterval = source["nla_direction_check_interval"].cast<double>();
+    if (source.contains("nla_initial_direction")) config.nlaSettings.initialDirection = source["nla_initial_direction"].cast<int>();
+    if (source.contains("nla_reset_integral_in_deadband")) config.nlaSettings.resetIntegralInDeadband = source["nla_reset_integral_in_deadband"].cast<bool>();
+    if (source.contains("nla_direction_confirmations")) config.nlaSettings.directionConfirmations = source["nla_direction_confirmations"].cast<int>();
+    if (source.contains("nla_minimum_direction_samples")) config.nlaSettings.minimumDirectionSamples = source["nla_minimum_direction_samples"].cast<int>();
+    if (source.contains("nla_integral_window_multiplier")) config.nlaSettings.integralWindowMultiplier = source["nla_integral_window_multiplier"].cast<double>();
+    if (source.contains("nla_max_control_dt")) config.nlaSettings.maxControlDt = source["nla_max_control_dt"].cast<double>();
+    if (source.contains("nla_integral_memory_s")) config.nlaSettings.integralMemorySeconds = source["nla_integral_memory_s"].cast<double>();
+    if (source.contains("nla_output_max")) config.nlaLimits.outputMax = source["nla_output_max"].cast<double>();
+    if (source.contains("nla_integral_max")) config.nlaLimits.integralMax = source["nla_integral_max"].cast<double>();
+    if (source.contains("nla_derivative_filter_tau")) config.nlaLimits.derivativeFilterTau = source["nla_derivative_filter_tau"].cast<double>();
+
     config.measurementChannel = source["measurement_channel"].cast<Controls::ChannelId>();
     config.setpoint = source["setpoint"].cast<double>();
     config.kp = source["kp"].cast<double>();
@@ -327,6 +345,23 @@ Controls::SequenceRunConfig SequenceRunConfigFromDict(const py::dict& source)
     return config;
 }
 
+py::dict NLAResultToDict(const Controls::NLAPIDResult& result) {
+    py::dict out;
+    out["output"] = result.output;
+    out["error"] = result.error;
+    out["proportional"] = result.proportional;
+    out["integral"] = result.integral;
+    out["derivative"] = result.derivative;
+    out["saturated"] = result.saturated;
+    out["error_magnitude"] = result.errorMagnitude;
+    out["pid_magnitude"] = result.pidMagnitude;
+    out["direction"] = result.direction;
+    out["error_trend"] = result.errorTrend;
+    out["direction_changed"] = result.directionChanged;
+    out["in_deadband"] = result.inDeadband;
+    return out;
+}
+
 py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
 {
     py::dict out;
@@ -336,6 +371,13 @@ py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
     out["measured_field"] = status.measuredField;
     out["error"] = status.error;
     out["control_output"] = status.controlOutput;
+    out["controller_kind"] = status.controllerKind == Controls::PidControllerKind::NLA ? "nla" : "conventional";
+    out["nla"] = NLAResultToDict(status.nla);
+    out["command_target"] = status.commandTarget;
+    out["command_delta"] = status.commandDelta;
+    out["control_rate"] = status.controlRate;
+    out["calculation_us"] = status.calculationMicroseconds;
+
     out["iterations"] = status.iterations;
     out["saturated"] = status.saturated;
     out["rate_limited"] = status.rateLimited;
@@ -444,6 +486,46 @@ py::list CommandToList(const Controls::ControlCommand& command)
 
 void BindControlService(py::module_& module)
 {
+    py::class_<Controls::NLAPIDGains>(module, "NLAPIDGains")
+        .def(py::init<>())
+        .def_readwrite("kp", &Controls::NLAPIDGains::kp)
+        .def_readwrite("ki", &Controls::NLAPIDGains::ki)
+        .def_readwrite("kd", &Controls::NLAPIDGains::kd);
+
+    py::class_<Controls::NLAPIDLimits>(module, "NLAPIDLimits")
+        .def(py::init<>())
+        .def_readwrite("output_max", &Controls::NLAPIDLimits::outputMax)
+        .def_readwrite("integral_max", &Controls::NLAPIDLimits::integralMax)
+        .def_readwrite("derivative_filter_tau", &Controls::NLAPIDLimits::derivativeFilterTau);
+
+    py::class_<Controls::NLAPIDSettings>(module, "NLAPIDSettings")
+        .def(py::init<>())
+        .def_readwrite("deadband", &Controls::NLAPIDSettings::deadband)
+        .def_readwrite("trend_tolerance", &Controls::NLAPIDSettings::trendTolerance)
+        .def_readwrite("direction_check_interval", &Controls::NLAPIDSettings::directionCheckInterval)
+        .def_readwrite("initial_direction", &Controls::NLAPIDSettings::initialDirection)
+        .def_readwrite("reset_integral_in_deadband", &Controls::NLAPIDSettings::resetIntegralInDeadband)
+        .def_readwrite("direction_confirmations", &Controls::NLAPIDSettings::directionConfirmations)
+        .def_readwrite("minimum_direction_samples", &Controls::NLAPIDSettings::minimumDirectionSamples)
+        .def_readwrite("integral_window_multiplier", &Controls::NLAPIDSettings::integralWindowMultiplier)
+        .def_readwrite("max_control_dt", &Controls::NLAPIDSettings::maxControlDt)
+        .def_readwrite("integral_memory_s", &Controls::NLAPIDSettings::integralMemorySeconds);
+
+    py::class_<Controls::NLAPID>(module, "NLAPID")
+        .def(py::init<Controls::NLAPIDGains, Controls::NLAPIDLimits, Controls::NLAPIDSettings>(),
+             py::arg("gains") = Controls::NLAPIDGains{}, py::arg("limits") = Controls::NLAPIDLimits{},
+             py::arg("settings") = Controls::NLAPIDSettings{})
+        .def("set_gains", &Controls::NLAPID::setGains)
+        .def("set_limits", &Controls::NLAPID::setLimits)
+        .def("set_settings", &Controls::NLAPID::setSettings)
+        .def("reset", &Controls::NLAPID::reset, py::arg("setpoint") = py::none(),
+             py::arg("measurement") = py::none(), py::arg("direction") = py::none())
+        .def("update", [](Controls::NLAPID& pid, double setpoint, double measurement, double dt, bool hold) {
+            return NLAResultToDict(pid.update(setpoint, measurement, dt, hold));
+        }, py::arg("setpoint"), py::arg("measurement"), py::arg("dt"), py::arg("hold_integrator") = false)
+        .def_property_readonly("last_result", [](const Controls::NLAPID& pid) { return NLAResultToDict(pid.lastResult()); })
+        .def_property_readonly("direction", &Controls::NLAPID::direction);
+
     py::class_<Controls::ControlService>(module, "ControlService")
         .def(py::init<>())
         .def("StartSimulator", &Controls::ControlService::StartSimulator, py::arg("update_rate_hz") = 60.0)

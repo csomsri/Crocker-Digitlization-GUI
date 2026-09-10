@@ -72,6 +72,7 @@ private:
     std::thread pidTrialWorker_;
     std::atomic_bool pidTrialRunning_{false};
     PidTrialStatus pidTrialStatus_{};
+    bool pidTrialDryRun_ = true; // Protected by pidTrialMutex_.
     std::array<bool, ChannelCount> pidAllocatedChannels_{};
 
     mutable std::mutex sequenceMutex_;

@@ -9,6 +9,7 @@ from PySide6.QtGui import QFont
 from python.app.theme import load_app_font, load_stylesheet
 from pathlib import Path
 import socket
+import json
 from threading import Event, Thread
 
 from python.app.Automation.AutomationPage import AutomationPage
@@ -141,21 +142,22 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title in {"Field Ctrl", "PID Control"}:
+            if title in {"Field Ctrl", "PID Control", "PythonPID"}:
                 field_backend_mode = self.backend_mode
                 if title == "Field Ctrl" and self.simulation_mode in {"cyclotron", "smoke2"}:
                     field_backend_mode = "zmq"
-                elif title == "PID Control" and self.simulation_mode == "cyclotron":
+                elif title in {"PID Control", "PythonPID"} and self.simulation_mode in {"cyclotron", "smoke2"}:
                     field_backend_mode = "zmq"
                 page_kwargs = {
                     "backend_mode": field_backend_mode,
                     "zmq_endpoint": self.zmq_endpoint,
                 }
-                if title == "PID Control":
+                if title in {"PID Control", "PythonPID"}:
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
@@ -273,6 +275,8 @@ class MainWindow(QMainWindow):
         self.motion = UIAnimationController(self.stack, self)
         self.motion.attach_to(self)
         if self.simulation_mode in {"cyclotron", "smoke2"}:
+            if self.simulation_mode == "smoke2":
+                self.apply_live_scaling({})
             self._start_zmq_simulation_plant(self.simulation_mode)
         if self.enable_data_pipeline:
             self._start_data_pipeline()
@@ -449,21 +453,22 @@ class MainWindow(QMainWindow):
         if page_name in DETAIL_BUILDERS:
             parent_category, builder = DETAIL_BUILDERS[page_name]
             go_back = lambda checked=False: host.set_page(parent_category)
-            if page_name in {"Field Ctrl", "PID Control"}:
+            if page_name in {"Field Ctrl", "PID Control", "PythonPID"}:
                 field_backend_mode = (
                     "zmq"
-                    if self.simulation_mode == "cyclotron"
+                    if self.simulation_mode in {"cyclotron", "smoke2"}
                     else self.backend_mode
                 )
                 page_kwargs = {
                     "backend_mode": field_backend_mode,
                     "zmq_endpoint": self.zmq_endpoint,
                 }
-                if page_name == "PID Control":
+                if page_name in {"PID Control", "PythonPID"}:
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
@@ -533,6 +538,10 @@ class MainWindow(QMainWindow):
     def apply_live_scaling(self, scaling: dict[str, list[float] | list[bool]]) -> bool:
         field_page = self.pages.get("Field Ctrl")
         if isinstance(field_page, FieldCtrlPage):
+            if self.simulation_mode == "smoke2":
+                # Smoke2 speaks a fixed raw protocol, independent of saved hardware calibration.
+                with (self._crocker_root / "config" / "trim_coil_scaling.simulation-1e-8.json").open(encoding="utf-8") as handle:
+                    scaling = json.load(handle)
             return field_page.apply_scaling(scaling)
         return False
 

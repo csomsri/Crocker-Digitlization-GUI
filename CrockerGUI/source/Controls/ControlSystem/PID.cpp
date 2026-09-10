@@ -57,4 +57,20 @@ void PID::reset() noexcept {
     _prevError = 0.0;
     _integral = 0.0;
     _hasPreviousError = false;
+    _candidateIntegral = 0.0;
+}
+
+double PID::propose(double error, double dt) {
+    if (!std::isfinite(error) || !std::isfinite(dt) || dt <= 0.0) {
+        throw std::invalid_argument("PID inputs must be finite and dt positive");
+    }
+    const double derivative = _hasPreviousError ? (error - _prevError) / dt : 0.0;
+    _candidateIntegral = _integral + error * dt;
+    _prevError = error;
+    _hasPreviousError = true;
+    return _kp * error + _ki * _candidateIntegral + _kd * derivative;
+}
+
+void PID::acceptIntegral(bool accept) noexcept {
+    if (accept) _integral = _candidateIntegral;
 }

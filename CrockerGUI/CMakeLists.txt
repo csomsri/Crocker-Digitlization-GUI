@@ -34,6 +34,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cppzmq/CMakeLists.txt")
 endif()
 
 add_library(crocker_engine STATIC
+    source/Controls/ControlSystem/NLAPID.cpp
     source/Controls/ControlSystem/PID.cpp
     source/Simulation/CyclotronModel.cpp
     source/Engine/Engine.cpp

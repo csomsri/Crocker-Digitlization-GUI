@@ -6,6 +6,9 @@ public:
         double minOutput = -100.0, double maxOutput = 100.0);
 
     double update(double error);
+    // Service trial API: evaluate first, then accept integral after actuator bounds.
+    double propose(double error, double dt);
+    void acceptIntegral(bool accept) noexcept;
     void reset() noexcept;
 
 private:
@@ -18,4 +21,5 @@ private:
     double _min;
     double _max;
     bool _hasPreviousError;
+    double _candidateIntegral = 0.0;
 };

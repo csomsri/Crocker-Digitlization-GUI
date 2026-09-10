@@ -177,6 +177,52 @@ class BotorchBayesianOptimizer:
             "initial_safe_trials": self.initial_safe_trials,
         }
 
+    def surrogate_slice(
+        self, *, axis_x: str = "kp", fixed_values: dict[str, float] | None = None,
+        point_count: int = 160,
+    ) -> dict[str, Any]:
+        """One-dimensional posterior cost slice through the full parameter model.
+
+        The band describes uncertainty in the latent mean cost, not a prediction
+        interval for future noisy trials. All training dimensions are retained.
+        """
+        if axis_x not in self.parameter_names:
+            raise ValueError("Slice axis must be an optimization parameter")
+        if point_count < 2:
+            raise ValueError("point_count must be at least 2")
+        fixed = self._fixed_grid_values(fixed_values or {}, {axis_x})
+        x_values = self._axis_values(axis_x, point_count)
+        safe = self.safe_observations
+        result = {
+            "ready": False, "axis_x": axis_x, "fixed_values": fixed,
+            "x_values": x_values, "safe_observation_count": len(safe),
+            "initial_safe_trials": self.initial_safe_trials,
+        }
+        if len(safe) < self.initial_safe_trials:
+            result["message"] = f"Need {self.initial_safe_trials} safe observations; have {len(safe)}."
+            return result
+        self._require_botorch()
+        train_x, train_y = build_training_tensors(
+            observations=safe, parameter_space=self.parameter_space,
+            torch=self._torch, tensor_options=self._tensor_options(),
+        )
+        model = fit_single_task_gp(
+            train_x=train_x, train_y=train_y, bounds=self._bounds_tensor(),
+            dimension=self.parameter_space.dimension,
+        )
+        rows = [[x if name == axis_x else fixed[name] for name in self.parameter_names] for x in x_values]
+        means, variances = predict_posterior_mean_variance(
+            model=model, query_x=self._torch.tensor(rows, **self._tensor_options()), torch=self._torch,
+        )
+        mean = [-value for value in means]
+        stddev = [max(0.0, value) ** 0.5 for value in variances]
+        result.update(
+            ready=True, mean=mean, stddev=stddev,
+            lower=[m - 1.96 * sd for m, sd in zip(mean, stddev)],
+            upper=[m + 1.96 * sd for m, sd in zip(mean, stddev)],
+        )
+        return result
+
     def _propose_sobol_batch(self, batch_size: int) -> list[OptimizationCandidate]:
         unit_candidates = self._sobol.draw(batch_size).to(**self._tensor_options())
         bounds = self._bounds_tensor()
