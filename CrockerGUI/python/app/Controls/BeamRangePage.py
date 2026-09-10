@@ -3,11 +3,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QPushButton,
     QSpacerItem,
@@ -43,7 +44,7 @@ class BeamRangePage(DetailPage):
 
         _, workspace = self.add_workspace()
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         self.range_select = QComboBox()
         self.range_select.setObjectName("pidTunerProfile")
         self.range_select.setMinimumWidth(240)

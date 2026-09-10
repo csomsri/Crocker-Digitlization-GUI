@@ -3,13 +3,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
     QFrame,
-    QGridLayout,
-    QHBoxLayout,
+    QFormLayout,
+    QVBoxLayout,
+    QWidget,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -46,7 +49,7 @@ class AlarmPage(DetailPage):
 
         _, workspace = self.add_workspace()
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         self.acknowledge_button = QPushButton("Acknowledge")
         self.acknowledge_button.setCursor(Qt.PointingHandCursor)
         self.acknowledge_button.clicked.connect(self._acknowledge_alarms)
@@ -83,15 +86,16 @@ class AlarmPage(DetailPage):
     def _build_settings_panel(self) -> QFrame:
         panel = QFrame()
         panel.setObjectName("displayModePanel")
-        layout = QGridLayout(panel)
+        layout = QVBoxLayout(panel)
         layout.setContentsMargins(14, 10, 14, 10)
-        layout.setHorizontalSpacing(10)
-        layout.setVerticalSpacing(8)
+        layout.setSpacing(8)
 
         self.enabled_box = QCheckBox("Alarm engine")
         self.log_events_box = QCheckBox("Log events")
-        layout.addWidget(self.enabled_box, 0, 0)
-        layout.addWidget(self.log_events_box, 0, 1)
+        toggles = ResponsiveRow()
+        toggles.addWidget(self.enabled_box)
+        toggles.addWidget(self.log_events_box)
+        layout.addLayout(toggles)
 
         self.rf_channel_edit = QLineEdit()
         self.rf_delta_spin = self._make_spinbox(0.0, 1000000.0, 1.0)
@@ -108,13 +112,15 @@ class AlarmPage(DetailPage):
             ("Vac factor", self.vac_factor_spin),
             ("Vac window s", self.vac_window_spin),
         )
-        for index, (label, widget) in enumerate(fields, start=1):
-            row = 1 + ((index - 1) // 3)
-            column = ((index - 1) % 3) * 2
-            field_label = QLabel(label)
-            field_label.setObjectName("settingsDescription")
-            layout.addWidget(field_label, row, column)
-            layout.addWidget(widget, row, column + 1)
+        for start in range(0, len(fields), 3):
+            row = ResponsiveRow()
+            for label, widget in fields[start:start + 3]:
+                field = QWidget()
+                form = QFormLayout(field)
+                form.setContentsMargins(0, 0, 0, 0)
+                form.addRow(label, widget)
+                row.addWidget(field, 1)
+            layout.addLayout(row)
         return panel
 
     def _make_spinbox(self, minimum: float, maximum: float, value: float) -> QDoubleSpinBox:

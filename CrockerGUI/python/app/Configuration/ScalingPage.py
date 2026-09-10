@@ -6,6 +6,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QAbstractItemView,
@@ -15,7 +17,6 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QPushButton,
@@ -39,7 +40,7 @@ class ScalingPage(DetailPage):
     CONFIG_RELATIVE_PATH = Path("config") / "trim_coil_scaling.json"
     CHANNEL_KEYS = [f"ch{index}" for index in range(1, 13)] + ["main_magnet", "centering_beam"]
     POINT_COLUMNS = ("Input", "Output")
-    TABLE_ROW_HEIGHT = 40
+    TABLE_ROW_HEIGHT = 100
     SUMMARY_ROW_HEIGHT = 68
     EDITOR_CONTROL_WIDTH = 450
     EDITOR_TABLE_GAP = 48
@@ -118,19 +119,19 @@ class ScalingPage(DetailPage):
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.table.verticalHeader().setDefaultSectionSize(self.TABLE_ROW_HEIGHT)
-        self.table.setMinimumWidth(860)
+        self.table.setMinimumWidth(280)
         self.table.itemSelectionChanged.connect(self._select_table_row)
 
         self._build_rows()
 
         editor = self._build_transform_editor()
-        calibration_workspace = QHBoxLayout()
+        calibration_workspace = ResponsiveRow()
         calibration_workspace.setSpacing(12)
         calibration_workspace.addWidget(self.table, 7)
         calibration_workspace.addWidget(editor, 4, alignment=Qt.AlignmentFlag.AlignTop)
         workspace.addLayout(calibration_workspace, 1)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label, handler in (
             ("Reload Saved", self._load_scaling),
             ("Import Curves", self._import_scaling_file),
@@ -183,39 +184,35 @@ class ScalingPage(DetailPage):
         height: int | None = None,
         widths: tuple[int, int, int] | None = None,
     ) -> tuple[QFrame, TransformSummary]:
-        summary_height = height if height is not None else self.TABLE_ROW_HEIGHT - 6
-        compact = height is None or summary_height <= self.TABLE_ROW_HEIGHT
-        kind_width, primary_width, secondary_width = widths or (
-            62 if compact else 88,
-            114 if compact else 138,
-            114 if compact else 138,
-        )
+        # Three readable lines also fit narrow table columns without clipping.
+        summary_height = max(94, height or 0)
+        compact = height is None
         frame = QFrame()
         frame.setObjectName("scalingTransformSummary")
         frame.setFixedHeight(summary_height)
         frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        layout = QHBoxLayout(frame)
+        layout = QVBoxLayout(frame)
         layout.setContentsMargins(8 if compact else 12, 2 if compact else 6, 8 if compact else 12, 2 if compact else 6)
-        layout.setSpacing(8 if compact else 12)
+        layout.setSpacing(2)
 
         summary_object_prefix = "scalingEditorTransform" if widths is not None else "scalingTransform"
 
         kind = QLabel()
         kind.setObjectName(f"{summary_object_prefix}Kind")
         kind.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        kind.setFixedWidth(kind_width)
+        kind.setMinimumWidth(60)
         layout.addWidget(kind)
 
         primary = QLabel()
         primary.setObjectName(f"{summary_object_prefix}Value")
         primary.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        primary.setFixedWidth(primary_width)
+        primary.setMinimumWidth(60)
         layout.addWidget(primary)
 
         secondary = QLabel()
         secondary.setObjectName(f"{summary_object_prefix}Value")
         secondary.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        secondary.setFixedWidth(secondary_width)
+        secondary.setMinimumWidth(60)
         layout.addWidget(secondary)
         layout.addStretch(1)
 
@@ -225,9 +222,8 @@ class ScalingPage(DetailPage):
         editor = QFrame()
         editor.setObjectName("displayModePanel")
         editor.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        editor.setMinimumWidth(760)
-        editor.setMaximumWidth(980)
-        editor.setMinimumHeight((self.TABLE_ROW_HEIGHT * len(CHANNEL_NAMES)) + 72)
+        editor.setMinimumWidth(0)
+        editor.setMinimumHeight(0)
         editor_layout = QGridLayout(editor)
         editor_layout.setContentsMargins(14, 10, 14, 10)
         editor_layout.setHorizontalSpacing(12)
@@ -262,28 +258,22 @@ class ScalingPage(DetailPage):
         section.setObjectName("scalingConversionCard")
         section.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
         section.setMinimumHeight(self.EDITOR_SECTION_HEIGHT)
-        section.setMaximumHeight(self.EDITOR_SECTION_HEIGHT)
-        section_layout = QGridLayout(section)
+        section.setMaximumHeight(16777215)
+        section_layout = QVBoxLayout(section)
         section_layout.setContentsMargins(12, 10, 12, 10)
-        section_layout.setHorizontalSpacing(10)
-        section_layout.setVerticalSpacing(8)
-        section_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
-        section_layout.setColumnMinimumWidth(0, self.EDITOR_CONTROL_WIDTH)
-        section_layout.setColumnMinimumWidth(1, self.EDITOR_TABLE_GAP)
-        section_layout.setColumnMinimumWidth(2, self.EDITOR_TABLE_WIDTH)
-        section_layout.setColumnStretch(0, 0)
-        section_layout.setColumnStretch(1, 0)
-        section_layout.setColumnStretch(2, 0)
-        section_layout.setColumnStretch(3, 1)
+        section_layout.setSpacing(8)
+        body = ResponsiveRow()
+        body.setSpacing(16)
 
         heading = QLabel(title)
         heading.setObjectName("scalingSectionTitle")
         heading.setFixedHeight(30)
-        section_layout.addWidget(heading, 0, 0, 1, 4)
+        section_layout.addWidget(heading)
+        section_layout.addLayout(body)
 
         left_panel = QFrame()
         left_panel.setObjectName("scalingCalibrationStack")
-        left_panel.setFixedSize(self.EDITOR_CONTROL_WIDTH, self.EDITOR_BODY_HEIGHT)
+        left_panel.setMinimumHeight(self.EDITOR_BODY_HEIGHT)
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(8)
@@ -293,12 +283,12 @@ class ScalingPage(DetailPage):
             self.EDITOR_SUMMARY_WIDTHS,
         )
         formula_frame.setObjectName("scalingFormula")
-        formula_frame.setFixedWidth(350)
-        left_layout.addWidget(formula_frame, alignment=Qt.AlignmentFlag.AlignLeft)
+        formula_frame.setMinimumWidth(60)
+        left_layout.addWidget(formula_frame)
 
         controls_panel = QFrame()
         controls_panel.setObjectName("scalingControlsPanel")
-        controls_panel.setFixedWidth(self.EDITOR_CONTROL_WIDTH)
+        controls_panel.setMinimumWidth(60)
         controls_layout = QGridLayout(controls_panel)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         controls_layout.setHorizontalSpacing(8)
@@ -312,8 +302,8 @@ class ScalingPage(DetailPage):
         controls_layout.addWidget(type_label, 0, 0)
         type_toggle = QFrame()
         type_toggle.setObjectName("scalingTypeToggle")
-        type_toggle.setFixedWidth(170)
-        type_toggle_layout = QHBoxLayout(type_toggle)
+        type_toggle.setMinimumWidth(60)
+        type_toggle_layout = ResponsiveRow(type_toggle)
         type_toggle_layout.setContentsMargins(2, 2, 2, 2)
         type_toggle_layout.setSpacing(2)
 
@@ -329,11 +319,11 @@ class ScalingPage(DetailPage):
             )
             type_group.addButton(button)
             type_toggle_layout.addWidget(button)
-        controls_layout.addWidget(type_toggle, 0, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        controls_layout.addWidget(type_toggle, 0, 1)
 
         linear_panel = QFrame()
         linear_panel.setObjectName("scalingLinearPanel")
-        linear_panel.setFixedWidth(356)
+        linear_panel.setMinimumWidth(60)
         linear_layout = QGridLayout(linear_panel)
         linear_layout.setContentsMargins(0, 0, 0, 0)
         linear_layout.setHorizontalSpacing(14)
@@ -344,7 +334,7 @@ class ScalingPage(DetailPage):
         linear_layout.addWidget(gain_label, 0, 0)
         gain_spin = self._make_transform_spinbox()
         gain_spin.setObjectName("scalingInput")
-        gain_spin.setFixedWidth(170)
+        gain_spin.setMinimumWidth(60)
         gain_spin.valueChanged.connect(
             lambda _value, selected_direction=direction: self._commit_editor_transform(selected_direction)
         )
@@ -355,38 +345,38 @@ class ScalingPage(DetailPage):
         linear_layout.addWidget(offset_label, 0, 1)
         offset_spin = self._make_transform_spinbox()
         offset_spin.setObjectName("scalingInput")
-        offset_spin.setFixedWidth(170)
+        offset_spin.setMinimumWidth(60)
         offset_spin.valueChanged.connect(
             lambda _value, selected_direction=direction: self._commit_editor_transform(selected_direction)
         )
         linear_layout.addWidget(offset_spin, 1, 1)
-        controls_layout.addWidget(linear_panel, 1, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        controls_layout.addWidget(linear_panel, 1, 1)
 
         sample_label = QLabel("CHECK")
         sample_label.setObjectName("scalingFieldLabel")
         controls_layout.addWidget(sample_label, 2, 0)
         check_panel = QFrame()
         check_panel.setObjectName("scalingCheckPanel")
-        check_panel.setFixedWidth(354)
-        check_layout = QHBoxLayout(check_panel)
+        check_panel.setMinimumWidth(60)
+        check_layout = ResponsiveRow(check_panel)
         check_layout.setContentsMargins(0, 0, 0, 0)
         check_layout.setSpacing(14)
         sample_spin = self._make_transform_spinbox()
         sample_spin.setObjectName("scalingInput")
-        sample_spin.setFixedWidth(170)
+        sample_spin.setMinimumWidth(60)
         sample_spin.valueChanged.connect(
             lambda _value, selected_direction=direction: self._refresh_preview(selected_direction)
         )
         check_layout.addWidget(sample_spin)
         result_label = QLabel("-> 0")
         result_label.setObjectName("scalingResult")
-        result_label.setFixedWidth(170)
+        result_label.setMinimumWidth(60)
         check_layout.addWidget(result_label)
-        controls_layout.addWidget(check_panel, 2, 1, alignment=Qt.AlignmentFlag.AlignLeft)
+        controls_layout.addWidget(check_panel, 2, 1)
 
         linear_preview_panel = QFrame()
         linear_preview_panel.setObjectName("scalingLinearPreviewPanel")
-        linear_preview_panel.setFixedSize(self.EDITOR_TABLE_WIDTH, self.EDITOR_BODY_HEIGHT)
+        linear_preview_panel.setMinimumHeight(self.EDITOR_BODY_HEIGHT)
         linear_preview_layout = QVBoxLayout(linear_preview_panel)
         linear_preview_layout.setContentsMargins(12, 12, 12, 12)
         linear_preview_layout.setSpacing(8)
@@ -400,7 +390,7 @@ class ScalingPage(DetailPage):
         preview_input = QLabel("0")
         preview_input.setObjectName("scalingPreviewValue")
         preview_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_input.setFixedSize(216, 58)
+        preview_input.setMinimumSize(100, 58)
         linear_preview_layout.addWidget(preview_input)
 
         preview_arrow = QLabel("v")
@@ -417,12 +407,12 @@ class ScalingPage(DetailPage):
         preview_output = QLabel("0")
         preview_output.setObjectName("scalingPreviewValue")
         preview_output.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        preview_output.setFixedSize(216, 58)
+        preview_output.setMinimumSize(100, 58)
         linear_preview_layout.addWidget(preview_output)
 
         curve_panel = QFrame()
         curve_panel.setObjectName("scalingCurvePanel")
-        curve_panel.setFixedSize(self.EDITOR_TABLE_WIDTH, self.EDITOR_BODY_HEIGHT)
+        curve_panel.setMinimumHeight(self.EDITOR_BODY_HEIGHT)
         curve_layout = QVBoxLayout(curve_panel)
         curve_layout.setContentsMargins(0, 0, 0, 0)
         curve_layout.setSpacing(8)
@@ -434,7 +424,7 @@ class ScalingPage(DetailPage):
         points_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         points_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         points_table.verticalHeader().setDefaultSectionSize(32)
-        points_table.setFixedWidth(self.EDITOR_TABLE_WIDTH)
+        points_table.setMinimumWidth(60)
         points_table.setFixedHeight(self.EDITOR_BODY_HEIGHT)
         points_table.itemChanged.connect(
             lambda _item, selected_direction=direction: self._commit_editor_transform(selected_direction)
@@ -443,8 +433,8 @@ class ScalingPage(DetailPage):
 
         point_actions_frame = QFrame()
         point_actions_frame.setObjectName("scalingPointActions")
-        point_actions_frame.setFixedWidth(356)
-        point_actions = QHBoxLayout(point_actions_frame)
+        point_actions_frame.setMinimumWidth(60)
+        point_actions = ResponsiveRow(point_actions_frame)
         point_actions.setContentsMargins(0, 0, 0, 0)
         point_actions.setSpacing(8)
         for label, width, handler in (
@@ -454,17 +444,17 @@ class ScalingPage(DetailPage):
         ):
             button = QPushButton(label)
             button.setObjectName("scalingPointButton")
-            button.setFixedWidth(width)
+            button.setMinimumWidth(60)
             button.clicked.connect(lambda checked=False, selected_direction=direction, selected_handler=handler: selected_handler(selected_direction))
             point_actions.addWidget(button)
         point_actions.addStretch(1)
-        controls_layout.addWidget(point_actions_frame, 3, 1, alignment=Qt.AlignmentFlag.AlignLeft)
-        left_layout.addWidget(controls_panel, alignment=Qt.AlignmentFlag.AlignLeft)
+        controls_layout.addWidget(point_actions_frame, 3, 1)
+        left_layout.addWidget(controls_panel)
         left_layout.addStretch(1)
 
-        section_layout.addWidget(left_panel, 1, 0, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        section_layout.addWidget(linear_preview_panel, 1, 2, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        section_layout.addWidget(curve_panel, 1, 2, alignment=Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        body.addWidget(left_panel, 3)
+        body.addWidget(linear_preview_panel, 2)
+        body.addWidget(curve_panel, 2)
 
         self.direction_widgets[direction] = {
             "type_group": type_group,
@@ -497,7 +487,7 @@ class ScalingPage(DetailPage):
 
     def _centered_widget(self, child: QWidget) -> QWidget:
         frame = QFrame()
-        layout = QHBoxLayout(frame)
+        layout = ResponsiveRow(frame)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addStretch(1)
         layout.addWidget(child)

@@ -1,7 +1,8 @@
 from collections.abc import Callable
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtWidgets import (
-    QHBoxLayout,
     QPushButton,
     QVBoxLayout,
 )
@@ -30,9 +31,9 @@ class HomePage(PageShell):
         ) -> None:
         super().__init__("Crocker Nuclear Lab Digital Control", "")
 
-        outer = QHBoxLayout()
-        outer.setContentsMargins(64, 78, 88, 72)
-        outer.setSpacing(46)
+        outer = ResponsiveRow()
+        outer.setContentsMargins(20, 20, 20, 20)
+        outer.setSpacing(20)
 
         button_stack = QVBoxLayout()
         button_stack.setContentsMargins(0, 0, 0, 0)
@@ -40,8 +41,7 @@ class HomePage(PageShell):
 
         for category in categories:
             button = CnlPanelButton(HOME_LABELS.get(category, category))
-            button.setMinimumSize(330, 118)
-            button.setMaximumSize(380, 138)
+            button.setMinimumSize(160, 80)
             button.setProperty("corner", "bottom-right")
             button.clicked.connect(
                 lambda checked=False, name=category: show_category(name)
@@ -50,13 +50,12 @@ class HomePage(PageShell):
 
         exit_button = QPushButton("EXIT")
         exit_button.setObjectName("homeExitButton")
-        exit_button.setMinimumSize(330, 64)
-        exit_button.setMaximumSize(380, 76)
+        exit_button.setMinimumSize(160, 40)
         exit_button.clicked.connect(lambda checked=False: exit_app())
         button_stack.addWidget(exit_button)
 
         viewport = CnlViewportPlaceholder()
 
-        outer.addLayout(button_stack, 0)
-        outer.addWidget(viewport, 1)
+        outer.addLayout(button_stack, 2)
+        outer.addWidget(viewport, 5)
         self.layout.addLayout(outer, 1)
