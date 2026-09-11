@@ -7,6 +7,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from collections.abc import Callable
 from pathlib import Path
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QApplication,
@@ -20,7 +22,6 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QScrollArea,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -60,6 +61,13 @@ except Exception:
 
 PID_OUTPUT_LIMIT = MAX_GAUGE_VALUE
 UNSAFE_STATUSES = {"Fault", "Interlocked"}
+
+
+class FullRowCheckBox(QCheckBox):
+    """Keep the checkbox appearance while accepting clicks across its full row."""
+
+    def hitButton(self, pos) -> bool:
+        return self.rect().contains(pos)
 
 
 class PidControlPage(DetailPage):
@@ -196,12 +204,12 @@ class PidControlPage(DetailPage):
         title_layout.addWidget(subtitle)
         controller_status = QFrame()
         controller_status.setObjectName("pidControllerState")
-        controller_status_layout = QHBoxLayout(controller_status)
+        controller_status_layout = ResponsiveRow(controller_status)
         controller_status_layout.setContentsMargins(6, 4, 6, 4)
         controller_status_layout.setSpacing(6)
         self.pid_status_values: dict[str, QLabel] = {}
         for name in ("Channel", "State", "Error", "Actual"):
-            value = QLabel(f"{name}\n—")
+            value = QLabel(f"{name}\nâ€”")
             value.setObjectName("pidControllerMetric")
             value.setAlignment(Qt.AlignCenter)
             self.pid_status_values[name] = value
@@ -276,21 +284,21 @@ class PidControlPage(DetailPage):
             layout.addWidget(label, 4, column)
             layout.addWidget(widget, 5, column)
 
-        self.output_on_check = QCheckBox("Output On")
+        self.output_on_check = FullRowCheckBox("Output On")
         self.output_on_check.setObjectName("toggleRow")
         self.output_on_check.toggled.connect(self._set_output_on)
-        self.control_enabled_check = QCheckBox("Control Enabled")
+        self.control_enabled_check = FullRowCheckBox("Control Enabled")
         self.control_enabled_check.setObjectName("toggleRow")
         self.control_enabled_check.toggled.connect(self._set_control_enabled)
-        self.dry_run_check = QCheckBox("Dry Run")
+        self.dry_run_check = FullRowCheckBox("Dry Run")
         self.dry_run_check.setObjectName("toggleRow")
         self.dry_run_check.setChecked(True)
-        self.dry_run_check.toggled.connect(lambda checked=False: self._refresh_status())
+        self.dry_run_check.toggled.connect(self._set_dry_run)
         layout.addWidget(self.output_on_check, 4, 3)
         layout.addWidget(self.control_enabled_check, 5, 3)
         layout.addWidget(self.dry_run_check, 6, 3)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         self.hold_button = QPushButton("Hold Actual")
         self.hold_button.setObjectName("fieldAction")
         self.hold_button.clicked.connect(self._hold_actual)
@@ -400,7 +408,7 @@ class PidControlPage(DetailPage):
         close.setFixedSize(100, 36)
         close.clicked.connect(self.settings_dialog.close)
         dialog_layout.addWidget(close, 0, Qt.AlignRight)
-        outputs = QHBoxLayout()
+        outputs = ResponsiveRow()
         for widget in (self.output_on_check, self.control_enabled_check, self.dry_run_check):
             grid.removeWidget(widget)
             outputs.addWidget(widget)
@@ -411,7 +419,8 @@ class PidControlPage(DetailPage):
                 item = grid.takeAt(index)
                 grid.addLayout(item.layout(), 5, 0, 1, 4)
                 break
-        toggle = QPushButton('Controller settings and output limits…')
+        toggle = QPushButton('Control Settings and Output Limits')
+        toggle.setStyleSheet('text-align: center;')
         def open_settings():
             available = self.screen().availableGeometry()
             self.settings_dialog.resize(min(680, available.width()-40), min(650, available.height()-80))
@@ -543,11 +552,11 @@ class PidControlPage(DetailPage):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.setSpacing(12)
 
-        heading = QHBoxLayout()
+        heading = ResponsiveRow()
         title_box = QVBoxLayout()
         title = QLabel("PID Gain Tuning")
         title.setObjectName("pidTitle")
-        subtitle = QLabel("Bayesian optimization-assisted commissioning — Conventional PID")
+        subtitle = QLabel("Bayesian optimization-assisted commissioning â€” Conventional PID")
         self.tuner_engine_label = subtitle
         subtitle.setObjectName("pidTunerSubtitle")
         title_box.addWidget(title)
@@ -647,7 +656,7 @@ class PidControlPage(DetailPage):
             summary.setAlignment(Qt.AlignCenter)
             self.tuner_bound_summaries[gain] = summary
             summary.hide()
-            range_row = QHBoxLayout()
+            range_row = ResponsiveRow()
             range_row.setSpacing(6)
             for text, control in (("Minimum", minimum), ("Maximum", maximum)):
                 field = QVBoxLayout()
@@ -677,7 +686,7 @@ class PidControlPage(DetailPage):
         candidate_layout = QVBoxLayout(candidate_panel)
         candidate_layout.setContentsMargins(10, 8, 10, 8)
         candidate_layout.setSpacing(6)
-        safety_row = QHBoxLayout()
+        safety_row = ResponsiveRow()
         safety_label = QLabel("Control mode")
         safety_label.setObjectName("pidSectionTitle")
         safety_row.addWidget(safety_label)
@@ -687,22 +696,22 @@ class PidControlPage(DetailPage):
         self.tuner_status.setObjectName("pidTunerStatus")
         self.tuner_status.setWordWrap(True)
         candidate_layout.addWidget(self.tuner_status)
-        progress_row = QHBoxLayout()
+        progress_row = ResponsiveRow()
         progress_row.setSpacing(8)
         self.tuner_progress_values: dict[str, QLabel] = {}
         for name in ("Trial", "State", "Time", "Error"):
-            value = QLabel(f"{name}\n—")
+            value = QLabel(f"{name}\nâ€”")
             value.setObjectName("pidStatusValue")
             value.setAlignment(Qt.AlignCenter)
             value.setMinimumWidth(82)
             self.tuner_progress_values[name] = value
             progress_row.addWidget(value)
         candidate_layout.addLayout(progress_row)
-        gain_row = QHBoxLayout()
+        gain_row = ResponsiveRow()
         gain_row.setSpacing(8)
         self.tuner_candidate_values: dict[str, QLabel] = {}
         for gain in ("Kp", "Ki", "Kd"):
-            value = QLabel(f"{gain}\n—")
+            value = QLabel(f"{gain}\nâ€”")
             value.setObjectName("pidCandidateValue")
             value.setAlignment(Qt.AlignCenter)
             value.setMinimumWidth(82)
@@ -719,8 +728,8 @@ class PidControlPage(DetailPage):
         self.tuner_viewport.setAccessibleName("Optimized tuner visualization viewport")
         tuner_viewport_layout = QVBoxLayout(self.tuner_viewport)
         tuner_viewport_layout.setContentsMargins(0, 0, 0, 0)
-        slice_controls = QHBoxLayout()
-        slice_label = QLabel("Cost model · Gain axis")
+        slice_controls = ResponsiveRow()
+        slice_label = QLabel("Cost model Â· Gain axis")
         slice_label.setObjectName("pidFieldLabel")
         slice_controls.addWidget(slice_label)
         self.surrogate_axis = QComboBox()
@@ -738,7 +747,7 @@ class PidControlPage(DetailPage):
         tuner_viewport_layout.addWidget(self.surrogate_plot)
         outer.addWidget(self.tuner_viewport, 1)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         self.prepare_tuning_button = QPushButton("Prepare session")
         self.prepare_tuning_button.setObjectName("fieldAction")
         self.prepare_tuning_button.clicked.connect(self._prepare_tuning_session)
@@ -791,7 +800,7 @@ class PidControlPage(DetailPage):
 
     def _show_tuner(self) -> None:
         kind = self._tuning_controller_config["controller_kind"] if self.tuning_session_active else self._controller_config()["controller_kind"]
-        self.tuner_engine_label.setText(f"Bayesian optimization — {'Python NLAPID' if kind == 'python_nla' else 'C++ NLAPID' if kind == 'nla' else 'Conventional C++ PID trials'}")
+        self.tuner_engine_label.setText(f"Bayesian optimization â€” {'Python NLAPID' if kind == 'python_nla' else 'C++ NLAPID' if kind == 'nla' else 'Conventional C++ PID trials'}")
         if self.tuning_session_active:
             self.page_stack.setCurrentWidget(self.tuner_page)
             return
@@ -830,7 +839,7 @@ class PidControlPage(DetailPage):
             upper.setValue(limits[1])
         self.dry_run_check.setChecked(False)
         self.tuner_status.setText(
-            "Smoke2 preset: TC1 → 250 A, 20 × 10 s trials. Arm PID on the control page, "
+            "Smoke2 preset: TC1 â†’ 250 A, 20 Ã— 10 s trials. Arm PID on the control page, "
             "then run automatic tuning. The first six safe trials explore the gain bounds."
         )
 
@@ -845,7 +854,7 @@ class PidControlPage(DetailPage):
         for gain, (minimum, maximum) in self.tuner_gain_bounds.items():
             summary = self.tuner_bound_summaries.get(gain)
             if summary is not None:
-                summary.setText(f"{minimum.value():.3f}  ≤  {gain}  ≤  {maximum.value():.3f}")
+                summary.setText(f"{minimum.value():.3f}  â‰¤  {gain}  â‰¤  {maximum.value():.3f}")
 
     def _set_candidate_values(self, candidate: PidGainCandidate | None) -> None:
         values = None if candidate is None else {
@@ -854,15 +863,15 @@ class PidControlPage(DetailPage):
             "Kd": candidate.kd,
         }
         for gain, label in self.tuner_candidate_values.items():
-            label.setText(f"{gain}\n—" if values is None else f"{gain}\n{values[gain]:.4f}")
+            label.setText(f"{gain}\nâ€”" if values is None else f"{gain}\n{values[gain]:.4f}")
 
     def _set_tuning_progress(
         self,
         *,
-        trial: str = "—",
-        state: str = "—",
-        elapsed: str = "—",
-        error: str = "—",
+        trial: str = "â€”",
+        state: str = "â€”",
+        elapsed: str = "â€”",
+        error: str = "â€”",
     ) -> None:
         values = {"Trial": trial, "State": state, "Time": elapsed, "Error": error}
         for name, value in values.items():
@@ -950,7 +959,7 @@ class PidControlPage(DetailPage):
         safe_count = len(self.tuning_optimizer.safe_results)
         initial = self.tuning_optimizer.optimizer.initial_safe_trials
         phase = 'Sobol exploration' if safe_count < initial else 'Fitting GP and optimizing next gains'
-        self.tuner_status.setText(f'{phase} · {safe_count} usable observations')
+        self.tuner_status.setText(f'{phase} Â· {safe_count} usable observations')
         self._set_tuning_progress(state='Proposing')
         self.tuning_proposal = self.tuning_executor.submit(
             self.tuning_optimizer.propose_batch, 1
@@ -1300,15 +1309,15 @@ class PidControlPage(DetailPage):
         safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)]
         best = min(safe, key=lambda r: r.score) if safe else None
         summary = QLabel(
-            f"{len(self.tuning_results)} trials  ·  {len(safe)} safe  ·  "
+            f"{len(self.tuning_results)} trials  Â·  {len(safe)} safe  Â·  "
             + (f"Best cost: {best.score:.4f}" if best else "No safe result yet")
         )
         summary.setObjectName("pidSectionTitle")
         layout.addWidget(summary)
-        hint = QLabel("Lower cost is better · Current BO session · Select trial numbers to export")
+        hint = QLabel("Lower cost is better Â· Current BO session Â· Select trial numbers to export")
         hint.setWordWrap(True)
         layout.addWidget(hint)
-        filters = QHBoxLayout()
+        filters = ResponsiveRow()
         first, last = QSpinBox(), QSpinBox()
         for spin in (first, last):
             spin.setRange(1, max(1, len(self.tuning_results)))
@@ -1334,7 +1343,7 @@ class PidControlPage(DetailPage):
         table.horizontalHeader().setStretchLastSection(True)
         table.setHorizontalHeaderLabels(
             [
-                "Trial", "Kp", "Ki", "Kd", "Cost ↓", "Settling (s)",
+                "Trial", "Kp", "Ki", "Kd", "Cost â†“", "Settling (s)",
                 "Overshoot (A)", "Steady error (A)", "Effort", "Result", "Controller",
             ]
         )
@@ -1443,7 +1452,7 @@ class PidControlPage(DetailPage):
         panel = QFrame()
         panel.setObjectName("fieldBackendStatus")
         panel.setFixedHeight(64)
-        layout = QHBoxLayout(panel)
+        layout = ResponsiveRow(panel)
         layout.setContentsMargins(10, 5, 10, 5)
         layout.setSpacing(12)
 
@@ -1546,8 +1555,15 @@ class PidControlPage(DetailPage):
         self._refresh_status()
 
     def _set_control_enabled(self, checked: bool) -> None:
+        if checked:
+            self.dry_run_check.setChecked(False)
         self.channel_enabled[self.selected_index] = checked
         self.desired_state_initialized[self.selected_index] = True
+        self._refresh_status()
+
+    def _set_dry_run(self, checked: bool) -> None:
+        if checked:
+            self.control_enabled_check.setChecked(False)
         self._refresh_status()
 
     def _sync_channel_toggles(self) -> None:

@@ -8,11 +8,12 @@ from dataclasses import asdict
 from uuid import uuid4
 from itertools import islice
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import (QWidget, QFrame, QSizePolicy, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
+from PySide6.QtWidgets import (QWidget, QFrame, QSizePolicy, QVBoxLayout, QHBoxLayout, QLabel,
                               QPushButton, QSpinBox, QDialog, QTableWidget, QTableWidgetItem,
                               QDateEdit, QFileDialog, QHeaderView)
 from source.Python.Optimization.trial_metrics import evaluate_trial
 from python.app.widgets.PidDialog import setup_pid_dialog
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 
 
 class RunMetrics(QFrame):
@@ -54,7 +55,7 @@ class RunMetrics(QFrame):
         self.method.setObjectName('recordingMethod')
         self.method.setMinimumWidth(190)
         self.method.setToolTip('Tuning method used for this recording')
-        self.method.addItems(['Manual / baseline', 'Bayesian optimization', 'Random search', 'Ziegler–Nichols'])
+        self.method.addItems(['Manual / baseline', 'Bayesian optimization', 'Random search', 'Zieglerâ€“Nichols'])
         row.addWidget(self.method)
         self.duration = QSpinBox()
         self.duration.setObjectName('recordingDuration')
@@ -82,7 +83,7 @@ class RunMetrics(QFrame):
         status.setObjectName('recordingStatus')
         status_layout = QHBoxLayout(status)
         status_layout.setContentsMargins(10, 6, 10, 6)
-        self.display = QLabel('Ready · Enable PID to record')
+        self.display = QLabel('Ready Â· Enable PID to record')
         self.display.setWordWrap(True)
         status_layout.addWidget(self.display, 3)
         self.note = QLabel('Settling is provisional while running. Steady error/RMS use the latest 20% of the interval. '
@@ -90,7 +91,7 @@ class RunMetrics(QFrame):
         self.note.setWordWrap(True)
         self.note.setObjectName('recordingNote')
         self.note.setToolTip(self.note.text())
-        self.note.setText('CSV autosave · Metric details on hover')
+        self.note.setText('CSV autosave Â· Metric details on hover')
         status_layout.addWidget(self.note, 1)
         layout.addWidget(status)
 
@@ -106,7 +107,7 @@ class RunMetrics(QFrame):
         self.method.setEnabled(False)
         self.duration.setEnabled(False)
         self.record_button.setEnabled(False)
-        self.display.setText('Running — waiting for fresh response samples')
+        self.display.setText('Running â€” waiting for fresh response samples')
         self._stem = None
         try:
             self.directory.mkdir(parents=True, exist_ok=True)
@@ -169,9 +170,9 @@ class RunMetrics(QFrame):
         self.display.setText('<table width="100%" cellspacing="6"><tr>' + ''.join(
             f'<td width="16%"><span style="color:#91a6bf;font-size:11px">{name}</span><br>'
             f'<b>{value}</b></td>' for name, value in cells) + '</tr></table>')
-        self.note.setText(f"{'Final' if final else 'Live'} · " +
+        self.note.setText(f"{'Final' if final else 'Live'} Â· " +
                           ('Sustained oscillation' if m.sustained_oscillation else 'No sustained oscillation') +
-                          f'\n{m.oscillation_cycles:g} cycles · Tolerance ±{m.tolerance:.4g}')
+                          f'\n{m.oscillation_cycles:g} cycles Â· Tolerance Â±{m.tolerance:.4g}')
 
     def finish(self, reason):
         self.record_button.setEnabled(False)
@@ -204,7 +205,7 @@ class RunMetrics(QFrame):
                     writer.writerow(['elapsed_seconds', 'measurement', 'error'])
                     writer.writerows(row[:3] for row in self.samples)
             stem.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
-            self.note.setText('Recording saved · Open Run History / CSV')
+            self.note.setText('Recording saved Â· Open Run History / CSV')
             self.note.setToolTip(str(stem))
         except OSError as exc:
             self.note.setText(f'Could not save run: {exc}. Results remain in memory.')
@@ -254,7 +255,7 @@ class RunMetrics(QFrame):
             table.insertRow(row)
             valid.append(path.with_suffix('.csv'))
             for col, key in enumerate(['started_utc', 'method', 'controller_kind', 'sample_count', 'reason']):
-                raw = str(data.get(key, '—'))
+                raw = str(data.get(key, 'â€”'))
                 value = raw
                 if key == 'started_utc':
                     value = raw[:19].replace('T', ' ')
@@ -267,9 +268,9 @@ class RunMetrics(QFrame):
             metrics = data.get('metrics') or {}
             values = [metrics.get('settling_time') if metrics.get('settled') else 'Not settled',
                       metrics.get('transient_time') if metrics.get('entered_tolerance') else 'Not reached',
-                      metrics.get('steady_state_error', '—'), metrics.get('sustained_oscillation', '—')]
+                      metrics.get('steady_state_error', 'â€”'), metrics.get('sustained_oscillation', 'â€”')]
             if not metrics:
-                values = ['—'] * 4
+                values = ['â€”'] * 4
             for col, value in enumerate(values, 5):
                 table.setItem(row, col, QTableWidgetItem(f'{value:.4g}' if isinstance(value, float) else str(value)))
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
@@ -298,7 +299,7 @@ class RunMetrics(QFrame):
                     for row in range(table.rowCount()):
                         if not table.isRowHidden(row):
                             writer.writerow(table.item(row, col).data(Qt.UserRole) or table.item(row, col).text() for col in range(table.columnCount()))
-                export.setText('Exported ✓')
+                export.setText('Exported âœ“')
             except OSError as exc:
                 export.setText('Export failed')
                 export.setToolTip(str(exc))
@@ -396,7 +397,7 @@ class RunMetrics(QFrame):
                 return
             try:
                 count = export_sample_range(path, Path(destination), first.value(), last.value())
-                label.setText(f'Exported {count} samples · {destination}')
+                label.setText(f'Exported {count} samples Â· {destination}')
             except (OSError, ValueError, csv.Error) as exc:
                 label.setText(f'Export failed: {exc}')
         export.clicked.connect(export_range)

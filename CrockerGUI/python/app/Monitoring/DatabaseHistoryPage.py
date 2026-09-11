@@ -10,6 +10,8 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import (
     QPointF,
     QRectF,
@@ -40,7 +42,6 @@ from PySide6.QtWidgets import (
     QCalendarWidget,
     QFileDialog,
     QFrame,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
@@ -598,10 +599,10 @@ class DatabaseHistoryPage(DetailPage):
         toolbar_layout = QVBoxLayout(toolbar)
         toolbar_layout.setContentsMargins(8, 8, 8, 8)
         toolbar_layout.setSpacing(7)
-        top = QHBoxLayout()
+        top = ResponsiveRow()
         top.setContentsMargins(0, 0, 0, 0)
         top.setSpacing(8)
-        controls = QHBoxLayout()
+        controls = ResponsiveRow()
         controls.setContentsMargins(0, 0, 0, 0)
         controls.setSpacing(8)
         self.path_label = QLabel(str(self.db_path))
@@ -624,7 +625,7 @@ class DatabaseHistoryPage(DetailPage):
         self.summary_tab_button = QPushButton("Summary")
         tab_cluster = QFrame()
         tab_cluster.setObjectName("historySegment")
-        tab_layout = QHBoxLayout(tab_cluster)
+        tab_layout = ResponsiveRow(tab_cluster)
         tab_layout.setContentsMargins(3, 3, 3, 3)
         tab_layout.setSpacing(3)
         for index, button in enumerate((self.plots_tab_button, self.summary_tab_button)):
@@ -638,7 +639,7 @@ class DatabaseHistoryPage(DetailPage):
 
         db_group = QFrame()
         db_group.setObjectName("historyToolbarGroup")
-        db_layout = QHBoxLayout(db_group)
+        db_layout = ResponsiveRow(db_group)
         db_layout.setContentsMargins(9, 5, 9, 5)
         db_layout.setSpacing(8)
         database_label = QLabel("Database")
@@ -678,7 +679,7 @@ class DatabaseHistoryPage(DetailPage):
         self.pdf_color_group.setExclusive(True)
         pdf_color_segment = QFrame()
         pdf_color_segment.setObjectName("historySegment")
-        pdf_color_layout = QHBoxLayout(pdf_color_segment)
+        pdf_color_layout = ResponsiveRow(pdf_color_segment)
         pdf_color_layout.setContentsMargins(3, 3, 3, 3)
         pdf_color_layout.setSpacing(3)
         for index, (label, mode) in enumerate(
@@ -702,7 +703,7 @@ class DatabaseHistoryPage(DetailPage):
 
         filters_group = QFrame()
         filters_group.setObjectName("historyToolbarGroup")
-        filters_layout = QHBoxLayout(filters_group)
+        filters_layout = ResponsiveRow(filters_group)
         filters_layout.setContentsMargins(9, 5, 9, 5)
         filters_layout.setSpacing(8)
         date_label = QLabel("Date")
@@ -728,7 +729,7 @@ class DatabaseHistoryPage(DetailPage):
         plot_button.clicked.connect(self.plot)
         actions_group = QFrame()
         actions_group.setObjectName("historyToolbarActions")
-        actions_layout = QHBoxLayout(actions_group)
+        actions_layout = ResponsiveRow(actions_group)
         actions_layout.setContentsMargins(0, 0, 0, 0)
         actions_layout.setSpacing(7)
         for button in (first_date, latest, plot_button):
@@ -749,7 +750,7 @@ class DatabaseHistoryPage(DetailPage):
 
         file_actions = QFrame()
         file_actions.setObjectName("historyToolbarActions")
-        file_actions_layout = QHBoxLayout(file_actions)
+        file_actions_layout = ResponsiveRow(file_actions)
         file_actions_layout.setContentsMargins(0, 0, 0, 0)
         file_actions_layout.setSpacing(7)
         file_actions_layout.addWidget(self.export_csv_button)
@@ -766,7 +767,7 @@ class DatabaseHistoryPage(DetailPage):
         plots_tab_layout.setContentsMargins(0, 0, 0, 0)
         plots_tab_layout.setSpacing(12)
 
-        body = QHBoxLayout()
+        body = ResponsiveRow()
         left = QFrame()
         left.setObjectName("workspace")
         left_layout = QVBoxLayout(left)
@@ -776,7 +777,7 @@ class DatabaseHistoryPage(DetailPage):
         self.channel_list.setDragEnabled(True)
         self.channel_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         left_layout.addWidget(self.channel_list, 1)
-        channel_actions = QHBoxLayout()
+        channel_actions = ResponsiveRow()
         select_all = QPushButton("All")
         clear = QPushButton("Clear")
         select_all.clicked.connect(self.channel_list.selectAll)
@@ -791,7 +792,7 @@ class DatabaseHistoryPage(DetailPage):
 
         self.plot_widgets: list[HistoryPlotWidget] = []
         for index in range(3):
-            plot_row = QHBoxLayout()
+            plot_row = ResponsiveRow()
             plot_row.setContentsMargins(0, 0, 0, 0)
             plot_row.setSpacing(8)
             plot_widget = HistoryPlotWidget(
@@ -831,7 +832,7 @@ class DatabaseHistoryPage(DetailPage):
         summary_layout.setSpacing(10)
         summary_header = QFrame()
         summary_header.setObjectName("historySummaryHeader")
-        summary_actions = QHBoxLayout(summary_header)
+        summary_actions = ResponsiveRow(summary_header)
         summary_actions.setContentsMargins(12, 10, 12, 10)
         summary_actions.setSpacing(10)
         summary_text = QVBoxLayout()
@@ -989,7 +990,7 @@ class DatabaseHistoryPage(DetailPage):
                 self.date_edit.setDate(data_end_date)
             start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
             end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
-            self.status_label.setText(f"{count:,} readings · {start_text} to {end_text}")
+            self.status_label.setText(f"{count:,} readings Â· {start_text} to {end_text}")
         else:
             self.status_label.setText("No readings")
         self.plot()
@@ -1097,7 +1098,7 @@ class DatabaseHistoryPage(DetailPage):
         self._last_plot_time_range = (
             (min(plotted_times), max(plotted_times)) if plotted_times else None
         )
-        self.status_label.setText(f"{plotted_samples:,} plotted samples · {day_text}")
+        self.status_label.setText(f"{plotted_samples:,} plotted samples Â· {day_text}")
 
     def _limit_points(
         self,
@@ -1118,7 +1119,7 @@ class DatabaseHistoryPage(DetailPage):
             sample_count = sum(len(points) for points in series.values())
             if channel_count:
                 self.summary_meta_label.setText(
-                    f"{channel_count:,} channels · {sample_count:,} plotted samples"
+                    f"{channel_count:,} channels Â· {sample_count:,} plotted samples"
                 )
             else:
                 self.summary_meta_label.setText("No plotted channels")

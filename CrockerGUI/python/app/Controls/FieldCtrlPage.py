@@ -5,6 +5,8 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
@@ -13,7 +15,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QHeaderView,
     QLabel,
     QMessageBox,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QSlider,
     QSizePolicy,
     QSplitter,
+    QStyle,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -158,7 +160,8 @@ class FieldCtrlPage(DetailPage):
     def _build_control_tabs(self) -> QWidget:
         tab_bar = QFrame()
         tab_bar.setObjectName("fieldControlTabs")
-        layout = QHBoxLayout(tab_bar)
+        tab_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        layout = ResponsiveRow(tab_bar)
         layout.setContentsMargins(12, 0, 0, 0)
         layout.setSpacing(0)
 
@@ -195,7 +198,7 @@ class FieldCtrlPage(DetailPage):
         heading.setObjectName("fieldMonitorTitle")
         layout.addWidget(heading)
 
-        button_row = QHBoxLayout()
+        button_row = ResponsiveRow()
         for label, enabled in (("All Plot", True), ("Clear Plot", False)):
             button = QPushButton(label)
             button.setObjectName("fieldBulk")
@@ -218,7 +221,7 @@ class FieldCtrlPage(DetailPage):
             column = index % 2
             card = QFrame()
             card.setObjectName("fieldRow")
-            card_layout = QHBoxLayout(card)
+            card_layout = ResponsiveRow(card)
             card_layout.setContentsMargins(10, 8, 10, 8)
             card_layout.setSpacing(10)
 
@@ -266,7 +269,7 @@ class FieldCtrlPage(DetailPage):
         self.sequence_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         layout.addWidget(self.sequence_table, 1)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label, handler in (
             ("Add Step", self._add_sequence_step),
             ("Remove Selected", self._remove_sequence_steps),
@@ -459,7 +462,6 @@ class FieldCtrlPage(DetailPage):
         if back_button is not None:
             nav_layout.addWidget(back_button)
         nav_layout.addWidget(self._build_control_tabs(), 1)
-        nav_layout.addStretch(1)
 
     def _build_channel_matrix(self) -> QWidget:
         body = QWidget()
@@ -478,7 +480,7 @@ class FieldCtrlPage(DetailPage):
         layout.setRowMinimumHeight(0, 34)
         layout.setRowMinimumHeight(1, 24)
 
-        bulk_controls = QHBoxLayout()
+        bulk_controls = ResponsiveRow()
         for label, handler in (
             ("All On", lambda: self._set_all_toggles(self.on_buttons, True)),
             ("Clear On", lambda: self._set_all_toggles(self.on_buttons, False)),
@@ -574,7 +576,7 @@ class FieldCtrlPage(DetailPage):
         panel = QFrame()
         panel.setObjectName("fieldBackendStatus")
         panel.setFixedHeight(58)
-        layout = QHBoxLayout(panel)
+        layout = ResponsiveRow(panel)
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(12)
 
@@ -638,7 +640,7 @@ class FieldCtrlPage(DetailPage):
         self.target_slider.setRange(0, int(MAX_GAUGE_VALUE * 10))
         self.target_slider.valueChanged.connect(lambda value: self._set_selected_target(value / 10.0))
 
-        target_row = QHBoxLayout()
+        target_row = ResponsiveRow()
         target_title = QLabel("Target Current")
         target_title.setObjectName("fieldEditorTitle")
         target_row.addWidget(target_title)
@@ -647,7 +649,7 @@ class FieldCtrlPage(DetailPage):
         editor_layout.addWidget(self.target_slider)
         editor_layout.addWidget(self._build_digit_adjuster())
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         actions.setContentsMargins(0, 18, 0, 0)
         actions.setSpacing(10)
         for label in ("Apply", "Hold", "Zero"):
@@ -684,7 +686,9 @@ class FieldCtrlPage(DetailPage):
 
         columns = (0, 1, 2, 3, 5, 6)
         for step, column in zip(self.digit_steps, columns):
-            up = QPushButton("▲")
+            up = QPushButton()
+            up.setIcon(up.style().standardIcon(QStyle.SP_ArrowUp))
+            up.setAccessibleName("Increase digit")
             up.setObjectName("fieldDigitArrow")
             up.setToolTip(f"Increase by {step:g} A")
             up.clicked.connect(lambda checked=False, amount=step: self._nudge_selected(amount))
@@ -693,7 +697,9 @@ class FieldCtrlPage(DetailPage):
             digit.setObjectName("fieldDigit")
             digit.setAlignment(Qt.AlignCenter)
 
-            down = QPushButton("▼")
+            down = QPushButton()
+            down.setIcon(down.style().standardIcon(QStyle.SP_ArrowDown))
+            down.setAccessibleName("Decrease digit")
             down.setObjectName("fieldDigitArrow")
             down.setToolTip(f"Decrease by {step:g} A")
             down.clicked.connect(lambda checked=False, amount=step: self._nudge_selected(-amount))
@@ -1079,12 +1085,12 @@ class FieldCtrlPage(DetailPage):
             return True
 
         details = "\n".join(
-            f"{CHANNEL_NAMES[index]}: {previous:.2f} A → {requested:.2f} A "
+            f"{CHANNEL_NAMES[index]}: {previous:.2f} A â†’ {requested:.2f} A "
             f"(change {change:.2f} A)"
             for index, previous, requested, change in large_changes[:8]
         )
         if len(large_changes) > 8:
-            details += f"\n…and {len(large_changes) - 8} more channels"
+            details += f"\nâ€¦and {len(large_changes) - 8} more channels"
         answer = QMessageBox.warning(
             self,
             "Confirm large field-control change",

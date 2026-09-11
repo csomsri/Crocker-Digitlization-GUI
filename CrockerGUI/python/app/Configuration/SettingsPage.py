@@ -1,5 +1,7 @@
 from collections.abc import Callable
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QButtonGroup,
@@ -7,7 +9,6 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QLayout,
@@ -104,7 +105,7 @@ class SettingsPage(DetailPage):
 
         mode_panel = QFrame()
         mode_panel.setObjectName("displayModePanel")
-        mode_layout = QHBoxLayout(mode_panel)
+        mode_layout = ResponsiveRow(mode_panel)
         mode_layout.setContentsMargins(12, 12, 12, 12)
         mode_layout.setSpacing(10)
 
@@ -135,7 +136,7 @@ class SettingsPage(DetailPage):
         resolution_description.setWordWrap(True)
         panel_layout.addWidget(resolution_description)
 
-        resolution_row = QHBoxLayout()
+        resolution_row = ResponsiveRow()
         resolution_label = QLabel("RESOLUTION")
         resolution_label.setObjectName("monitorAssignmentLabel")
         self.resolution_select = QComboBox()
@@ -172,7 +173,7 @@ class SettingsPage(DetailPage):
         assignment_panel_layout.setContentsMargins(12, 10, 12, 12)
         assignment_panel_layout.setSpacing(8)
 
-        assignment_row = QHBoxLayout()
+        assignment_row = ResponsiveRow()
         self.assignment_label = QLabel("PAGE ASSIGNMENT")
         self.assignment_label.setObjectName("monitorAssignmentLabel")
         self.page_search = QLineEdit()
@@ -208,7 +209,7 @@ class SettingsPage(DetailPage):
         self.controller_access.setObjectName("toggleRow")
         self.controller_access.toggled.connect(self._toggle_controller_access)
         panel_layout.addWidget(self.controller_access)
-        controller_layout_row = QHBoxLayout()
+        controller_layout_row = ResponsiveRow()
         controller_layout_label = QLabel("CONTROLLER LAYOUT")
         controller_layout_label.setObjectName("monitorAssignmentLabel")
         self.controller_layout_select = QComboBox()

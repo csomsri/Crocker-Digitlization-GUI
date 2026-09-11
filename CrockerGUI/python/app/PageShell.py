@@ -1,5 +1,7 @@
 from collections.abc import Callable
 
+from python.app.ResponsiveLayout import ResponsiveRow
+
 from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
@@ -20,11 +22,11 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QGridLayout,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QProgressBar,
     QPushButton,
+    QScrollArea,
     QSlider,
     QSizePolicy,
     QSpacerItem,
@@ -68,7 +70,7 @@ class CnlPanelButton(QPushButton):
     def __init__(self, text: str, parent: QWidget | None = None) -> None:
         super().__init__(text, parent)
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumSize(320, 220)
+        self.setMinimumSize(160, 80)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setFlat(True)
         self.setStyleSheet("background: transparent; border: 0; color: transparent;")
@@ -194,7 +196,7 @@ class CnlBackButton(QPushButton):
 class CnlViewportPlaceholder(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumSize(560, 440)
+        self.setMinimumSize(240, 200)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
@@ -314,7 +316,7 @@ class CnlMonitorSelectionButton(QPushButton):
         selected = bool(self.property("selected"))
         circle_size = min(78, self.height() - 12)
         circle = QRectF(4, (self.height() - circle_size) / 2, circle_size, circle_size)
-        box = QRectF(circle.right() + 24, 8, max(260.0, self.width() - circle.right() - 30), 96)
+        box = QRectF(circle.right() + 24, 8, max(1.0, self.width() - circle.right() - 30), 96)
 
         fill = QColor(17, 24, 39, 238)
         if selected:
@@ -359,54 +361,27 @@ class CnlRadialMonitorArena(QWidget):
         self.preview.setParent(self)
         for button in buttons:
             button.setParent(self)
-        self.setMinimumSize(1050, 680)
+        self.setMinimumSize(280, max(200, len(buttons) * 120))
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.preview.setMinimumSize(0, 0)
 
-    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+    def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
         count = len(self.buttons)
         if not count:
             return
-
-        width = self.width()
-        height = self.height()
-        button_width = min(760, max(520, int(width * 0.38)))
-        separation = 68
-        dial_room = width - button_width - separation - 54
-        dial_size = min(860, height - 24, max(430, dial_room))
-        composition_width = dial_size + separation + button_width
-        dial_left = max(18, int((width - composition_width) / 2))
-        vertical_lift = min(38, max(18, int(height * 0.035)))
-        minimum_top = max(4, int(56 - dial_size * 0.04))
-        dial_top = max(minimum_top, int((height - dial_size) / 2 - vertical_lift))
-        self.preview.setGeometry(dial_left, dial_top, dial_size, dial_size)
-
-        center_y = dial_top + dial_size / 2
-        radius = dial_size / 2 - 12
-        span = min(height - 92, dial_size * 0.92)
-        step = span / max(1, count - 1)
-        first_y = center_y - span / 2
-
+        width, height = self.width(), self.height()
+        # On narrow pages the menu takes the full width. The decorative preview
+        # returns automatically when there is room for both columns.
+        wide = width >= 800
+        self.preview.setVisible(wide)
+        dial_size = min(int(width * 0.43), height - 24)
+        self.preview.setGeometry(12, (height - dial_size) // 2, dial_size, dial_size)
+        left = int(width * 0.48) if wide else 0
+        step = height / count
         for index, button in enumerate(self.buttons):
-            marker_y = first_y + index * step
-            delta_y = marker_y - center_y
-            arc_x = (
-                dial_left
-                + dial_size / 2
-                + max(0.0, radius * radius - delta_y * delta_y) ** 0.5
-            )
-            # Keep the selector orb visibly separate from the dial rim. The
-            # varying arc_x preserves the radial fan while the whole dial/menu
-            # composition remains centered as a single unit.
-            button_x = int(arc_x + separation)
-            button_y = int(marker_y - 56)
-            button.setGeometry(
-                button_x,
-                button_y,
-                max(350, min(button_width, width - button_x - 18)),
-                112,
-            )
-            button.raise_()
+            button.setGeometry(left, int(index * step + (step - 112) / 2),
+                               width - left - 8, 112)
 
 
 class CnlTitleBar(QWidget):
@@ -414,7 +389,7 @@ class CnlTitleBar(QWidget):
         super().__init__(parent)
         self.title = title.upper()
         self.setMinimumHeight(58)
-        self.setMaximumWidth(1160)
+        self.setMinimumWidth(0)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
@@ -445,7 +420,16 @@ class PageShell(QWidget):
         super().__init__()
         self.setObjectName("page")
 
-        self.layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.NoFrame)
+        self.scroll_area.setStyleSheet("QScrollArea { background: transparent; } QScrollArea > QWidget > QWidget { background: transparent; }")
+        content = QWidget()
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area)
+        self.layout = QVBoxLayout(content)
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.setSpacing(0)
 
@@ -456,8 +440,17 @@ class PageShell(QWidget):
         subheader.hide()
 
         self.layout.addSpacing(2)
-        self.layout.addWidget(self.header, 0, Qt.AlignHCenter)
+        self.layout.addWidget(self.header)
         self.layout.addWidget(subheader)
+
+    def showEvent(self, event) -> None:  # noqa: N802
+        # Long status strings must not impose a desktop-sized minimum width.
+        for label in self.findChildren(QLabel):
+            label.setWordWrap(True)
+        for form in self.findChildren(QFormLayout):
+            form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+            form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        super().showEvent(event)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -482,19 +475,19 @@ class CategoryPage(PageShell):
     ) -> None:
         super().__init__(title, "Select a UI page")
 
-        nav = QHBoxLayout()
+        nav = ResponsiveRow()
         back_button = CnlBackButton("Back Home")
         back_button.clicked.connect(lambda checked=False: show_home())
         nav.addWidget(back_button)
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        nav.setContentsMargins(52, 10, 52, 10)
+        nav.setContentsMargins(12, 10, 12, 10)
         nav.setSpacing(14)
         self.layout.addLayout(nav)
 
         panel = QFrame()
         panel.setObjectName("workspace")
         grid = QGridLayout(panel)
-        grid.setContentsMargins(54, 34, 54, 46)
+        grid.setContentsMargins(12, 12, 12, 12)
         grid.setHorizontalSpacing(22)
         grid.setVerticalSpacing(22)
         for column in range(columns):
@@ -523,12 +516,12 @@ class DetailPage(PageShell):
     ) -> None:
         super().__init__(title, subtitle)
 
-        nav = QHBoxLayout()
+        nav = ResponsiveRow()
         back_button = CnlBackButton(back_label)
         back_button.clicked.connect(lambda checked=False: go_back())
         nav.addWidget(back_button)
         nav.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        nav.setContentsMargins(52, 8, 52, 8)
+        nav.setContentsMargins(12, 8, 12, 8)
         nav.setSpacing(14)
         self.layout.addLayout(nav)
 
@@ -558,7 +551,7 @@ class MonitoringDetailPage(DetailPage):
         self.metric_cards: list[QLabel] = []
         panel, panel_layout = self.add_workspace()
 
-        controls = QHBoxLayout()
+        controls = ResponsiveRow()
         self.connect_button = QPushButton("Connect")
         self.pause_button = QPushButton("Pause")
         self.export_button = QPushButton("Export CSV")
@@ -662,8 +655,8 @@ class MonitorMockupPage(PageShell):
         self.selection_buttons: list[CnlMonitorSelectionButton] = []
         self.setFocusPolicy(Qt.StrongFocus)
 
-        nav = QHBoxLayout()
-        nav.setContentsMargins(52, 10, 52, 10)
+        nav = ResponsiveRow()
+        nav.setContentsMargins(12, 10, 12, 10)
         nav.setSpacing(14)
         back_button = CnlBackButton("Back Home")
         back_button.clicked.connect(lambda checked=False: show_home())
@@ -736,7 +729,7 @@ class ControlDetailPage(DetailPage):
         form.setSpacing(12)
         self.inputs: dict[str, QDoubleSpinBox] = {}
         for label in controls:
-            row = QHBoxLayout()
+            row = ResponsiveRow()
             slider = QSlider(Qt.Horizontal)
             slider.setRange(0, 100)
             spin = QDoubleSpinBox()
@@ -750,7 +743,7 @@ class ControlDetailPage(DetailPage):
             self.inputs[label] = spin
         panel_layout.addLayout(form)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label in ("Apply", "Reset", "Save Preset"):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)
@@ -784,7 +777,7 @@ class ToggleDetailPage(DetailPage):
             QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding)
         )
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label in ("Apply", "Clear", "Log Event"):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)
@@ -819,7 +812,7 @@ class ConfigDetailPage(DetailPage):
             self.table.setItem(row, 2, QTableWidgetItem(""))
         panel_layout.addWidget(self.table, 1)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label in ("Load", "Save", "Validate"):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)
@@ -849,7 +842,7 @@ class SnapshotDetailPage(DetailPage):
         self.progress.setValue(0)
         panel_layout.addWidget(self.progress)
 
-        actions = QHBoxLayout()
+        actions = ResponsiveRow()
         for label in ("Capture", "Preview", "Open Folder"):
             button = QPushButton(label)
             button.setCursor(Qt.PointingHandCursor)

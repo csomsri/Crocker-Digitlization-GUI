@@ -114,15 +114,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(
             f"Crocker Digitalization GUI - {mode_title.upper()}"
         )
-        self.setMinimumSize(1280, 820)
+        self.setMinimumSize(320, 240)
         screen = QApplication.primaryScreen()
         if screen is not None:
             available = screen.availableGeometry()
             # Leave room for the Windows frame and taskbar. At non-100% display
             # scaling, requesting a 1500x900 client area can exceed a 1500x900
             # logical desktop once native frame margins are added.
-            initial_width = max(1280, min(1500, available.width() - 32))
-            initial_height = max(820, min(900, available.height() - 64))
+            initial_width = max(320, min(1500, available.width() - 32))
+            initial_height = max(240, min(900, available.height() - 64))
             self.resize(initial_width, initial_height)
         else:
             self.resize(1500, 900)
