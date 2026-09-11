@@ -786,6 +786,10 @@ def run_app(
     enable_data_pipeline: bool = False,
     db_path: str | Path = DEFAULT_DB_PATH,
 ) -> int:
+    # The native font atlas, shader and buffer are shared process-wide. Assigned
+    # monitor pages live in separate top-level windows, whose OpenGL contexts
+    # otherwise do not share those objects. Set this before creating the app.
+    QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication([])
     # Use Qt's own popup implementation consistently across Windows displays.
     # The native Windows style can open a menu without committing mouse clicks
