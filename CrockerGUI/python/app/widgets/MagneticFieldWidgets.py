@@ -305,16 +305,25 @@ class TimeDomainPlot(QOpenGLWidget):
                 return int(address) if address else 0
 
             CycloViz.load_opengl(get_proc)
-            self._native = CycloViz.TimeDomainLinePlot()
+            self._native = CycloViz.TimeDomainLinePlot(getattr(self, "coil_response", False))
             self._native.set_samples(self._samples)
             self._ready = True
         except Exception as exc:
             self._ready = False
             self._native = None
             print(f"[FieldCtrl] Native OpenGL time-domain plot unavailable: {exc}")
+            self._initialization_error = str(exc)
 
     def paintGL(self) -> None:
         if not self._ready or self._native is None:
+            painter = QPainter(self)
+            painter.fillRect(self.rect(), QColor('#0f172a'))
+            painter.setPen(QColor('#cbd5e1'))
+            painter.drawText(self.rect().adjusted(20, 20, -20, -20),
+                             Qt.AlignCenter | Qt.TextWordWrap,
+                             'OpenGL plot unavailable. Rebuild CycloViz and restart the app.\n'
+                             + getattr(self, '_initialization_error', 'Waiting for an OpenGL context.'))
+            painter.end()
             return
         pixel_ratio = self.devicePixelRatio()
         self._native.render(

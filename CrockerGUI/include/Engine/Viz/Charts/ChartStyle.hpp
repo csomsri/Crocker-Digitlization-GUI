@@ -44,6 +44,7 @@ struct ChartStyle {
     float titleMargin = 30.0f;
     int gridDivisions = 5;
 
+    bool smoothLines = true;
     bool showAxes = true;
     bool showGrid = true;
     bool showPoints = true;

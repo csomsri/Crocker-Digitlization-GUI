@@ -84,13 +84,14 @@ void PrepareViewport(int width, int height)
 
 class TimeDomainLinePlot {
 public:
-    TimeDomainLinePlot()
+    TimeDomainLinePlot(bool coilResponse = false) : coilResponse_(coilResponse)
     {
         ChartStyle style;
+        style.smoothLines = !coilResponse;
         style.lineColors = {
             { 53.0f / 255.0f, 244.0f / 255.0f, 1.0f },
-            { 143.0f / 255.0f, 1.0f, 210.0f / 255.0f },
-            { 1.0f, 81.0f / 255.0f, 105.0f / 255.0f },
+            { 100.0f / 255.0f, 220.0f / 255.0f, 100.0f / 255.0f },
+            { 1.0f, 190.0f / 255.0f, 50.0f / 255.0f },
         };
         style.axisColor = { 87.0f / 255.0f, 157.0f / 255.0f, 163.0f / 255.0f };
         style.gridColor = { 36.0f / 255.0f, 72.0f / 255.0f, 76.0f / 255.0f };
@@ -110,7 +111,8 @@ public:
     void SetSamples(const std::vector<std::vector<float>>& samples)
     {
         DataTable data;
-        data.columnNames = { "Time", "Actual", "Target", "Error" };
+        data.columnNames = coilResponse_ ? std::vector<std::string>{ "Time", "Actual (A)", "Target (A)", "Command (A)" }
+                                       : std::vector<std::string>{ "Time", "Actual", "Target", "Error" };
         data.rows = samples;
         if (!data.rows.empty()) {
             const float start = data.rows.front().front();
@@ -138,6 +140,7 @@ public:
     }
 
 private:
+    bool coilResponse_ = false;
     TimeSeriesChart chart;
 };
 
@@ -287,7 +290,7 @@ void BindEngine(py::module_& module)
              py::arg("width"), py::arg("height"));
 
     py::class_<TimeDomainLinePlot>(module, "TimeDomainLinePlot")
-        .def(py::init<>())
+        .def(py::init<bool>(), py::arg("coil_response") = false)
         .def("set_samples", &TimeDomainLinePlot::SetSamples, py::arg("samples"))
         .def("render", &TimeDomainLinePlot::Render, py::arg("width"), py::arg("height"));
 

@@ -81,14 +81,9 @@ def main() -> int:
             raise RuntimeError(f"BoTorch UI trial did not complete: {page.tuner_status.text()}")
         page.stop_tuning_button.click()
         page.approve_gains_button.click()
-        if not page.apply_tuned_gains_button.isEnabled():
-            raise RuntimeError("Validated best tuner gains were not made available to PID Control")
-        expected = page.tuning_optimizer.best_result.candidate
-        page.apply_tuned_gains_button.click()
-        if page.pid_enabled:
-            raise RuntimeError("Applying tuned gains must not enable PID automatically")
-        if abs(page.kp_input.value() - expected.kp) > 0.011:
-            raise RuntimeError("Best BoTorch gains were not transferred to PID Control")
+        if page.apply_tuned_gains_button.isEnabled() or not page._validating_gains:
+            raise RuntimeError("Gains must pass a separate long validation before application")
+        page._stop_tuning_session()
 
         page.close_tuner_button.click()
         if page.page_stack.currentIndex() != 0:

@@ -40,7 +40,7 @@ class PidTrialResult:
     steady_state_error: float
     control_effort: float
     safe: bool
-    controller_kind: str = "conventional"
+    controller_kind: str = "nla"
     metrics: TrialMetrics | None = None
     termination_reason: str = "Completed"
 
@@ -55,14 +55,14 @@ class BotorchPidOptimizer:
         kd_bounds: tuple[float, float],
         use_cuda: bool = True,
         *,
-        controller_kind: str = "conventional",
+        controller_kind: str = "nla",
         initial_safe_trials: int = 6,
         seed: int = 1729,
         mc_samples: int = 256,
         num_restarts: int = 10,
         raw_samples: int = 256,
     ) -> None:
-        if controller_kind not in {"conventional", "nla", "python_nla"}:
+        if controller_kind not in {"nla", "python_nla"}:
             raise ValueError("Unknown PID controller kind")
         self.controller_kind = controller_kind
         self.optimizer = BotorchBayesianOptimizer(
@@ -79,6 +79,7 @@ class BotorchPidOptimizer:
             raw_samples=raw_samples,
         )
         self.results: list[PidTrialResult] = []
+        self.rejected_validation_candidates = set()
 
     @property
     def safe_results(self) -> list[PidTrialResult]:
@@ -86,7 +87,8 @@ class BotorchPidOptimizer:
 
     @property
     def best_result(self) -> PidTrialResult | None:
-        safe = self.safe_results
+        safe = [r for r in self.safe_results if r.candidate not in self.rejected_validation_candidates
+                and not (r.metrics and r.metrics.sustained_oscillation)]
         return min(safe, key=lambda result: result.score) if safe else None
 
     def propose_batch(self, batch_size: int) -> list[PidGainCandidate]:
@@ -100,7 +102,7 @@ class BotorchPidOptimizer:
         observations: list[OptimizationObservation] = []
         for result in validated:
             if result.controller_kind != self.controller_kind:
-                raise ValueError("Cannot mix conventional and NLA observations")
+                raise ValueError("Cannot mix C++ and Python NLA observations")
             values = (
                 result.candidate.kp,
                 result.candidate.ki,
@@ -147,6 +149,13 @@ class BotorchPidOptimizer:
             fixed_values=fixed_values,
             grid_size=grid_size,
         )
+
+    def surrogate_volume(self, *, grid_size: int = 16) -> dict:
+        grid = self.optimizer.surrogate_volume(grid_size=grid_size)
+        grid['trials'] = [(r.candidate.kp, r.candidate.ki, r.candidate.kd) for r in self.results]
+        best = self.best_result
+        grid['best'] = (best.candidate.kp, best.candidate.ki, best.candidate.kd) if best else None
+        return grid
 
     def surrogate_slice(self, *, axis_x: str = "kp", point_count: int = 160) -> dict:
         # The other two gains are fixed at the best safe trial, or bound midpoints.

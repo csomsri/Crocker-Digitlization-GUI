@@ -79,7 +79,12 @@ class ContinuousMetricsTest(unittest.TestCase):
                 page.timer.stop()
                 if page_type is PidControlPage:
                     self.assertTrue(page._cpp_nla_selected())
-                    page.controller_kind_input.setCurrentIndex(0)
+                    # Isolate recorder boundaries from the service worker here.
+                    # Actual C++ start/stop is covered by CppNLAPIDIntegrationTest.
+                    def start_recording():
+                        page.pid_enabled = True
+                        page.run_metrics.start(page._run_metrics_config())
+                    page._start_service_nla = start_recording
                 page.run_metrics.directory = Path(directory)
                 page._is_safe_to_run = lambda: True
                 page._tick_pid_controller = lambda: None

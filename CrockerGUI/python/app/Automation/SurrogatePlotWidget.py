@@ -22,7 +22,7 @@ class SurrogatePlotWidget(QWidget):
         self.setMinimumHeight(300)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setAccessibleName("Gaussian process cost mean and 95 percent posterior interval")
-        self.setToolTip('The curve holds the other gains fixed. Filled points share those fixed gains; '
+        self.setToolTip('The curve holds the other gains fixed. Stars share those fixed gains; '
                         'hollow points come from other gain combinations. The band is uncertainty in mean cost, '
                         'not a guarantee of the next trial result. The dashed line projects the next candidate onto this gain.')
 
@@ -34,6 +34,20 @@ class SurrogatePlotWidget(QWidget):
         self._results = list(results)
         self._candidate, self._best = candidate, best
         self.update()
+
+    @staticmethod
+    def _star(center: QPointF, radius: float = 7.0) -> QPainterPath:
+        path = QPainterPath()
+        for index in range(10):
+            angle = -math.pi / 2 + index * math.pi / 5
+            distance = radius if index % 2 == 0 else radius * 0.45
+            vertex = center + QPointF(math.cos(angle) * distance, math.sin(angle) * distance)
+            if index == 0:
+                path.moveTo(vertex)
+            else:
+                path.lineTo(vertex)
+        path.closeSubpath()
+        return path
 
     def _on_slice(self, candidate: PidGainCandidate) -> bool:
         fixed = (self._grid or {}).get("fixed_values", {})
@@ -68,7 +82,7 @@ class SurrogatePlotWidget(QWidget):
         x, y = 16, 62
         for kind, label, color in [('line', 'Predicted mean', '#fb923c'),
                                    ('band', '95% posterior interval', '#fb923c'),
-                                   ('filled', 'Trials on slice', '#60a5fa'),
+                                   ('star', 'Trials on slice', '#60a5fa'),
                                    ('hollow', 'Other trials (projected)', '#60a5fa'),
                                    ('dash', 'Next candidate', '#c4b5fd')]:
             width = p.fontMetrics().horizontalAdvance(label) + 58
@@ -80,8 +94,11 @@ class SurrogatePlotWidget(QWidget):
                 p.drawLine(QPointF(x, y+8), QPointF(x+24, y+8))
             elif kind == 'band':
                 p.fillRect(QRectF(x, y+1, 24, 14), QColor(251, 146, 60, 70))
+            elif kind == 'star':
+                p.setBrush(QColor(color))
+                p.drawPath(self._star(QPointF(x+12, y+8)))
             else:
-                p.setBrush(QColor(color) if kind == 'filled' else Qt.NoBrush)
+                p.setBrush(Qt.NoBrush)
                 p.drawEllipse(QPointF(x+12, y+8), 4.5, 4.5)
             p.setPen(QColor('#cbd5e1'))
             p.drawText(QRectF(x+32, y-2, width-32, 22), Qt.AlignVCenter, label)
@@ -89,14 +106,15 @@ class SurrogatePlotWidget(QWidget):
         plot = QRectF(self.rect()).adjusted(82, y+36, -24, -66)
         if plot.width() < 20 or plot.height() < 20:
             return
-        safe = [r for r in self._results if r.safe and math.isfinite(r.score)
+        safe = [r for r in self._results if math.isfinite(r.score)
                 and math.isfinite(getattr(r.candidate, self._axis))]
         xs = grid.get("x_values", [])
         ready = bool(grid.get("ready"))
         x_bounds = (xs[0], xs[-1]) if len(xs) >= 2 else self._bounds(
             [getattr(r.candidate, self._axis) for r in safe]
             + ([getattr(self._candidate, self._axis)] if self._candidate else []))
-        y_bounds = self._bounds([r.score for r in safe]
+        visible = safe
+        y_bounds = self._bounds([r.score for r in visible]
                                 + (grid["lower"] + grid["upper"] if ready else []))
 
         def point(x, y):
@@ -133,11 +151,15 @@ class SurrogatePlotWidget(QWidget):
             for x, y in zip(xs[1:], grid["mean"][1:]): curve.lineTo(point(x, y))
             p.setPen(QPen(QColor("#fb923c"), 2.2))
             p.drawPath(curve)
-        for result in safe:
+        for result in visible:
             xy = point(getattr(result.candidate, self._axis), result.score)
             p.setPen(QPen(QColor("#60a5fa"), 1.7))
-            p.setBrush(QColor("#60a5fa") if self._on_slice(result.candidate) else Qt.NoBrush)
-            p.drawEllipse(xy, 4.5, 4.5)
+            if self._on_slice(result.candidate):
+                p.setBrush(QColor("#60a5fa"))
+                p.drawPath(self._star(xy))
+            else:
+                p.setBrush(Qt.NoBrush)
+                p.drawEllipse(xy, 4.5, 4.5)
         if self._candidate is not None:
             px = point(getattr(self._candidate, self._axis), y_bounds[0]).x()
             p.setPen(QPen(QColor("#c4b5fd"), 1.3, Qt.DashLine))
@@ -152,4 +174,4 @@ class SurrogatePlotWidget(QWidget):
         p.setPen(QColor("#94a3b8"))
         excluded = len(self._results) - len(safe)
         p.drawText(QRectF(16, self.height()-21, self.width()-32, 18), Qt.AlignLeft,
-                   f"Excluded trials: {excluded}   ·   Hover for interpretation")
+                   f"Trials without plottable values: {excluded}   ·   Hover for interpretation")

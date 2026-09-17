@@ -18,14 +18,26 @@ class TrialMetrics:
     entered_tolerance: bool
     control_effort: float
     tolerance: float
+    tracking_error: float
+    command_movement: float | None
+    saturation_time: float | None
 
 
 def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
+    """Rows: (seconds, measurement, error, effort[, command, saturated]).
+
+    Four-column response recordings lack actuator data and cannot be scored.
+    Integrals use right-endpoint samples; movement is sampled total variation.
+    """
     # Reject invalid samples; never let a missing response become a good trial.
     rows = []
     for row in samples:
-        if len(row) != 4 or not all(math.isfinite(v) for v in row):
+        if len(row) not in (4, 6) or not all(math.isfinite(v) for v in row):
             raise ValueError("Nonfinite trial sample")
+        if rows and len(row) != len(rows[0]):
+            raise ValueError("Inconsistent trial sample columns")
+        if len(row) == 6 and row[5] not in (0, 1):
+            raise ValueError("Saturation flag must be boolean")
         if rows and row[0] < rows[-1][0]:
             raise ValueError("Out-of-order trial samples")
         if rows and row[0] == rows[-1][0]:
@@ -52,6 +64,11 @@ def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
     direction = 1 if rows[0][2] >= 0 else -1
     overshoot = max(0.0, max(direction * (row[1]-target) for row in rows))
     effort = sum(abs(row[3]) * (row[0]-prev[0]) for prev, row in zip(rows, rows[1:]))
+    tracking = sum(abs(row[2]) * (row[0]-prev[0]) for prev, row in zip(rows, rows[1:]))
+    movement = (sum(abs(row[4]-prev[4]) for prev, row in zip(rows, rows[1:]))
+                if len(rows[0]) == 6 else None)
+    saturation = (sum(row[5] * (row[0]-prev[0]) for prev, row in zip(rows, rows[1:]))
+                  if len(rows[0]) == 6 else None)
     # Hysteretic turning points detect oscillations even away from the setpoint.
     extrema = [rows[0][2]]
     extreme = rows[0][2]
@@ -79,17 +96,20 @@ def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
         penalty += 100.0 * (1 + amplitude/tolerance)
     return TrialMetrics(settling, transient, mean_error, rms, overshoot,
                         amplitude, cycles, penalty, sustained, settled, first is not None,
-                        effort, tolerance)
+                        effort, tolerance, tracking, movement, saturation)
 
 
 def trial_cost(metrics, profile="Balanced"):
-    # Overshoot is diagnostic only. Oscillation is penalized in every profile.
-    time_weight = 3.0 if profile == "Fast response" else 1.0
+    """Five-term PID objective; weights are engineering defaults, not paper values."""
+    if metrics.command_movement is None or metrics.saturation_time is None:
+        raise ValueError("PID cost requires command and saturation telemetry")
+    tracking_weight = 3.0 if profile == "Fast response" else 1.0
     precision_weight = 8.0 if profile == "High precision" else 4.0
-    effort_weight = 0.08 if profile == "Low control effort" else 0.01
+    movement_weight = 0.08 if profile in {"Low control movement", "Low control effort"} else 0.01
+    saturation_weight = 10.0
     oscillation_weight = 2.0 if profile == "Suppress oscillation" else 1.0
-    return (time_weight * (metrics.settling_time + 0.25*metrics.transient_time)
+    return (tracking_weight * metrics.tracking_error
             + precision_weight * metrics.steady_state_error
-            + effort_weight * metrics.control_effort
-            + oscillation_weight * metrics.oscillation_penalty
-            + (0.0 if metrics.settled else 25.0))
+            + movement_weight * metrics.command_movement
+            + saturation_weight * metrics.saturation_time
+            + oscillation_weight * metrics.oscillation_penalty)
