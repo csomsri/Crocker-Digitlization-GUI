@@ -13,7 +13,6 @@
  */
 #include "Controls/Service/ControlService.hpp"
 
-#include "Controls/ControlSystem/PID.hpp"
 #include "Controls/ControlSystem/NLAPID.hpp"
 #include "Controls/Transport/ServerTransport.hpp"
 #include "Controls/Transport/SimulatorTransport.hpp"
@@ -400,9 +399,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
         const auto started = clock::now();
         auto previous = started;
         auto nextTick = started;
-        PID conventional(config.kp, config.ki, config.kd, 1.0 / config.updateRateHz);
         NLAPID nla({config.kp, config.ki, config.kd}, config.nlaLimits, config.nlaSettings);
-        const bool adaptive = config.controllerKind == PidControllerKind::NLA;
         std::optional<double> lastSampleTime;
         bool holdIntegral = false;
         double saturationSeconds = 0.0;
@@ -441,7 +438,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
 
             // The adaptive reference consumes each fresh measurement once. Watchdogs
             // above continue to run even while a held snapshot is skipped.
-            if (adaptive) {
+            {
                 const double stamp = snapshot.timestampUnixSeconds;
                 if (!std::isfinite(stamp) || (lastSampleTime && stamp < *lastSampleTime)) {
                     throw std::runtime_error("Invalid or out-of-order NLA telemetry timestamp");
@@ -475,10 +472,8 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 break;
             }
             const auto calculationStarted = clock::now();
-            NLAPIDResult nlaResult;
-            const double output = adaptive
-                ? (nlaResult = nla.update(config.setpoint, measurement.actual, dt, holdIntegral)).output
-                : conventional.propose(error, dt);
+            const NLAPIDResult nlaResult = nla.update(config.setpoint, measurement.actual, dt, holdIntegral);
+            const double output = nlaResult.output;
             const double calculationMicroseconds =
                 std::chrono::duration<double, std::micro>(clock::now() - calculationStarted).count();
             if (!std::isfinite(output)) throw std::runtime_error("Nonfinite PID output");
@@ -496,7 +491,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 if (std::abs(config.allocation[channel]) <= 0.0) {
                     continue;
                 }
-                const double base = adaptive ? lastCommand[channel].target : config.commandBias[channel];
+                const double base = lastCommand[channel].target;
                 const double requested = base + config.allocation[channel] * output;
                 const double bounded = std::clamp(requested, config.minimumCommand[channel], config.maximumCommand[channel]);
                 saturated = saturated || bounded != requested;
@@ -512,7 +507,6 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 command[channel] = ChannelCommand{slewed, true, true};
             }
 
-            conventional.acceptIntegral(!saturated);
             // External actuator constraints are separate from the NLA engine limits.
             // Age its integral on the next update when the actuator cannot follow.
             holdIntegral = saturated || rateLimited;
@@ -545,7 +539,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 pidTrialStatus_.nla = nlaResult;
                 pidTrialStatus_.commandTarget = target;
                 pidTrialStatus_.commandDelta = commandDelta;
-                pidTrialStatus_.controlRate = adaptive ? output / std::min(dt, std::max(1.0e-4, config.nlaSettings.maxControlDt)) : output;
+                pidTrialStatus_.controlRate = output / std::min(dt, std::max(1.0e-4, config.nlaSettings.maxControlDt));
                 pidTrialStatus_.calculationMicroseconds = calculationMicroseconds;
                 pidTrialStatus_.elapsedSeconds = elapsed;
                 pidTrialStatus_.measuredField = measurement.actual;
@@ -602,7 +596,7 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
         || config.maxSaturationSeconds <= 0.0) {
         throw std::invalid_argument("PID timing values must be positive");
     }
-    if (config.controllerKind == PidControllerKind::NLA) {
+    {
         // Validate before starting the noexcept worker and limit NLA to the
         // direct-channel mapping used by the Python reference page.
         NLAPID check({config.kp, config.ki, config.kd}, config.nlaLimits, config.nlaSettings);

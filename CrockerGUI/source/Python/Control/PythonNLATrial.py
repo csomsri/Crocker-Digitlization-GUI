@@ -40,7 +40,8 @@ class PythonNLATrial:
         with self._lock:
             self._status = dict(state="Running", message="Python NLAPID running", iterations=0,
                                 elapsed_seconds=0.0, measured_field=0.0, error=0.0,
-                                control_output=0.0, control_rate=0.0, controller_kind="python_nla")
+                                control_output=0.0, control_rate=0.0, controller_kind="python_nla",
+                                command_target=self._target, saturated=False)
         self._thread = threading.Thread(target=self._run, name="python-nlapid-trial", daemon=True)
         self._thread.start()
 
@@ -125,7 +126,8 @@ class PythonNLATrial:
                     iterations += 1
                     self._update(iterations=iterations, elapsed_seconds=now-start,
                                  measured_field=measurement, error=error,
-                                 control_output=result.output, control_rate=result.output/min(dt,.25))
+                                 control_output=result.output, control_rate=result.output/min(dt,.25),
+                                 command_target=target, saturated=bounded != requested)
                 self._stop.wait(1/c['update_rate_hz'])
         except Exception as exc:
             self._update(state='Faulted', message=str(exc))

@@ -254,9 +254,9 @@ Controls::ControlScaling ScalingFromDict(const py::dict& source)
 Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
 {
     Controls::PidTrialConfig config;
-    const std::string kind = source.contains("controller_kind") ? source["controller_kind"].cast<std::string>() : "conventional";
-    if (kind != "conventional" && kind != "nla") throw py::value_error("Unknown controller_kind");
-    config.controllerKind = kind == "nla" ? Controls::PidControllerKind::NLA : Controls::PidControllerKind::Conventional;
+    const std::string kind = source.contains("controller_kind") ? source["controller_kind"].cast<std::string>() : "nla";
+    if (kind != "nla") throw py::value_error("Only C++ NLAPID (controller_kind=nla) is supported");
+    config.controllerKind = Controls::PidControllerKind::NLA;
     if (source.contains("continuous")) config.continuous = source["continuous"].cast<bool>();
     if (source.contains("nla_deadband")) config.nlaSettings.deadband = source["nla_deadband"].cast<double>();
     if (source.contains("nla_trend_tolerance")) config.nlaSettings.trendTolerance = source["nla_trend_tolerance"].cast<double>();
@@ -371,7 +371,7 @@ py::dict PidTrialStatusToDict(const Controls::PidTrialStatus& status)
     out["measured_field"] = status.measuredField;
     out["error"] = status.error;
     out["control_output"] = status.controlOutput;
-    out["controller_kind"] = status.controllerKind == Controls::PidControllerKind::NLA ? "nla" : "conventional";
+    out["controller_kind"] = "nla";
     out["nla"] = NLAResultToDict(status.nla);
     out["command_target"] = status.commandTarget;
     out["command_delta"] = status.commandDelta;

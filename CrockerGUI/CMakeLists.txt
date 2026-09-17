@@ -35,7 +35,6 @@ endif()
 
 add_library(crocker_engine STATIC
     source/Controls/ControlSystem/NLAPID.cpp
-    source/Controls/ControlSystem/PID.cpp
     source/Simulation/CyclotronModel.cpp
     source/Engine/Engine.cpp
     source/Engine/Render/Camera.cpp
@@ -89,13 +88,6 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
-    add_executable(PIDTest
-        tests/PIDTest.cpp
-        source/Controls/ControlSystem/PID.cpp
-    )
-    target_include_directories(PIDTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    add_test(NAME PIDTest COMMAND PIDTest)
-
     add_executable(CyclotronModelTest
         tests/CyclotronModelTest.cpp
         source/Simulation/CyclotronModel.cpp

@@ -87,10 +87,10 @@ using ControlScaling = std::array<LinearChannelScaling, ChannelCount>;
 
 // Configuration for a bounded PID field trial. Allocation coefficients map the
 // scalar PID output onto hardware channels; zero leaves a channel untouched.
-enum class PidControllerKind { Conventional, NLA };
+enum class PidControllerKind { NLA };
 
 struct PidTrialConfig {
-    PidControllerKind controllerKind = PidControllerKind::Conventional;
+    PidControllerKind controllerKind = PidControllerKind::NLA;
     NLAPIDSettings nlaSettings{};
     NLAPIDLimits nlaLimits{};
     bool continuous = false;
@@ -117,7 +117,7 @@ struct PidTrialConfig {
 };
 
 struct PidTrialStatus {
-    PidControllerKind controllerKind = PidControllerKind::Conventional;
+    PidControllerKind controllerKind = PidControllerKind::NLA;
     NLAPIDResult nla{};
     double commandTarget = 0.0;
     double commandDelta = 0.0;

@@ -51,6 +51,9 @@ class SliceTest(unittest.TestCase):
         widget.set_state(grid=data, results=opt.results, candidate=None, best=opt.best_result)
         self.assertTrue(widget._on_slice(opt.results[0].candidate))
         self.assertFalse(widget._on_slice(PidGainCandidate(3, .7, .2)))
+        off_slice = PidTrialResult(PidGainCandidate(3, .7, .2), 10000, 0, 0, 0, 0, True)
+        all_results = opt.results + [off_slice]
+        widget.set_state(grid=data, results=all_results, candidate=None, best=opt.best_result)
         widget.show()
         app.processEvents()
         output = Path(__file__).resolve().parents[1] / 'build' / 'gp-slice-preview.png'

@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
     QSizePolicy,
     QSpinBox,
     QStackedWidget,
+    QTabWidget,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -39,6 +40,8 @@ from python.app.PageShell import DetailPage
 from python.app.widgets.DialogTitleBar import DialogTitleBar
 from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
+from python.app.Automation.GainSurfaceWidget import GainSurfaceWidget
+from python.app.Automation.CoilResponsePlot import CoilResponsePlot
 from python.app.Automation.SurrogatePlotWidget import SurrogatePlotWidget
 from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
@@ -116,7 +119,7 @@ class PidControlPage(DetailPage):
         self.armed = False
         self.pid_enabled = False
         self._service_pid_active = False
-        self._tuning_controller_config = {"controller_kind": "conventional"}
+        self._tuning_controller_config = {"controller_kind": "nla"}
         self.pid_integral = 0.0
         self.pid_previous_error: float | None = None
         self.pid_previous_time: float | None = None
@@ -132,12 +135,15 @@ class PidControlPage(DetailPage):
         self.tuning_optimizer: BotorchPidOptimizer | None = None
         self.tuning_candidate: PidGainCandidate | None = None
         self.tuning_trial_candidate: PidGainCandidate | None = None
-        self.tuning_samples: list[tuple[float, float, float, float]] = []
+        self.tuning_samples: list[tuple[float, ...]] = []
         self._oscillation_stopped = False
         self.tuning_results: list[PidTrialResult] = []
         self.tuning_session_active = False
         self.tuning_auto_run = False
         self.tuning_proposal: Future[list[PidGainCandidate]] | None = None
+        self._validating_gains = False
+        self._tuning_output_held = False
+        self.tuning_surface_proposal = None
         self.tuning_surrogate_grid: dict | None = None
         self.tuning_surrogate_proposal: Future[dict] | None = None
         self.tuning_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pid-bo")
@@ -145,8 +151,15 @@ class PidControlPage(DetailPage):
 
         self._start_backend()
 
+        # Remove the page scroll container: the workspace fits the available window.
+        shell_content = self.scroll_area.takeWidget()
+        shell_layout = QWidget.layout(self)
+        shell_layout.removeWidget(self.scroll_area)
+        self.scroll_area.hide()
+        shell_layout.addWidget(shell_content)
         _, workspace = self.add_workspace()
         workspace.setContentsMargins(12, 4, 12, 6)
+        self.header.setFixedHeight(40)
 
         self.page_stack = QStackedWidget()
         self.page_stack.setObjectName("pidPageStack")
@@ -156,16 +169,16 @@ class PidControlPage(DetailPage):
         control_page.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout = QVBoxLayout(control_page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(12)
+        layout.setSpacing(6)
 
         self.control_panel = self._build_control_panel()
         self._organize_control_panel()
         layout.addWidget(self.control_panel, 0, Qt.AlignTop)
         self.run_metrics = RunMetrics(self.log_path.parent / 'pid_runs')
         layout.addWidget(self.run_metrics)
-        self.time_plot = make_time_domain_plot()
+        self.time_plot = CoilResponsePlot()
         self.time_plot.setObjectName("pidVisualizationViewport")
-        self.time_plot.setMinimumHeight(260)
+        self.time_plot.setMinimumHeight(100)
         self.time_plot.setMaximumHeight(16777215)
         self.time_plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.time_plot, 1)
@@ -209,7 +222,7 @@ class PidControlPage(DetailPage):
         controller_status_layout.setSpacing(6)
         self.pid_status_values: dict[str, QLabel] = {}
         for name in ("Channel", "State", "Error", "Actual"):
-            value = QLabel(f"{name}\nâ€”")
+            value = QLabel(f"{name}\n\u2014")
             value.setObjectName("pidControllerMetric")
             value.setAlignment(Qt.AlignCenter)
             self.pid_status_values[name] = value
@@ -250,6 +263,8 @@ class PidControlPage(DetailPage):
         self.kp_input = self._make_spinbox(0.0, 100.0, 0.1)
         self.ki_input = self._make_spinbox(0.0, 100.0, 0.01)
         self.kd_input = self._make_spinbox(0.0, 100.0, 0.01)
+        for gain_input in (self.kp_input, self.ki_input, self.kd_input):
+            gain_input.setDecimals(12)
         self.kp_input.setValue(0.8)
         self.ki_input.setValue(0.05)
 
@@ -316,9 +331,8 @@ class PidControlPage(DetailPage):
         nla_layout = QGridLayout(self.cpp_nla_panel)
         nla_layout.setContentsMargins(0, 0, 0, 0)
         self.controller_kind_input = QComboBox()
-        self.controller_kind_input.addItem("Conventional PID", "conventional")
         self.controller_kind_input.addItem("C++ NLAPID", "nla")
-        self.controller_kind_input.setCurrentIndex(1)
+        self.controller_kind_input.setCurrentIndex(0)
         self.nla_deadband_input = self._make_spinbox(0, 100, 0.01, " A")
         self.nla_deadband_input.setValue(0.05)
         self.nla_direction_input = QComboBox()
@@ -453,7 +467,6 @@ class PidControlPage(DetailPage):
         self.apply_tuned_gains_button.setProperty("approvedCandidate", None)
         self.cpp_nla_status.setText(
             "C++ NLAPID selected. Optimized Tuner will tune this controller."
-            if self._cpp_nla_selected() else "Conventional PID selected."
         )
 
     def _lock_controller_inputs(self, locked: bool) -> None:
@@ -500,7 +513,7 @@ class PidControlPage(DetailPage):
             "dry_run": self.dry_run_check.isChecked(),
         }
         try:
-            # Reject an older extension rather than silently running conventional PID.
+            # Require an extension exposing the NLAPID engine.
             if not hasattr(CycloViz, "NLAPID"):
                 raise RuntimeError("Rebuild CycloViz to enable C++ NLAPID")
             self.command_values[index] = float(self.backend.PendingCommand()[index]["target"])
@@ -537,28 +550,22 @@ class PidControlPage(DetailPage):
         page.setObjectName("pidTunerPage")
         page_layout = QVBoxLayout(page)
         page_layout.setContentsMargins(0, 0, 0, 8)
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-        scroll.setObjectName('pidTunerScroll')
-        scroll.setStyleSheet('QScrollArea#pidTunerScroll { background: #0f172a; border: none; }')
-        scroll.viewport().setStyleSheet('background: #0f172a;')
         content = QWidget()
-        content.setObjectName('pidTunerScrollContents')
-        content.setStyleSheet('QWidget#pidTunerScrollContents { background: #0f172a; }')
-        scroll.setWidget(content)
-        page_layout.addWidget(scroll, 1)
+        page_layout.addWidget(content, 1)
         outer = QVBoxLayout(content)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(12)
+        outer.setSpacing(6)
 
         heading = ResponsiveRow()
         title_box = QVBoxLayout()
         title = QLabel("PID Gain Tuning")
         title.setObjectName("pidTitle")
-        subtitle = QLabel("Bayesian optimization-assisted commissioning â€” Conventional PID")
+        title.setStyleSheet("font-family: Segoe UI; font-size: 18px; font-weight: 600; color: #e5edf7;")
+        subtitle = QLabel("Bayesian optimization-assisted commissioning \u2014 C++ NLAPID")
         self.tuner_engine_label = subtitle
         subtitle.setObjectName("pidTunerSubtitle")
+        subtitle.setMinimumWidth(340)
+        subtitle.setStyleSheet("font-family: Segoe UI; font-size: 13px; color: #a9b9ce;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
         heading.addLayout(title_box)
@@ -596,14 +603,14 @@ class PidControlPage(DetailPage):
         self.tuner_trials.setRange(3, 200)
         self.tuner_trials.setValue(20)
         self.tuner_duration = self._make_spinbox(0.5, 300.0, 0.5, " s")
-        self.tuner_duration.setValue(10.0)
+        self.tuner_duration.setValue(60.0)
         self.tuner_profile = QComboBox()
         self.tuner_profile.setObjectName("pidTunerProfile")
         # Keep Qt's native popup. Replacing the view while this stacked page is
         # being attached can produce a popup that paints but ignores clicks.
         self.tuner_profile.setProperty("stablePopup", True)
         self.tuner_profile.addItems(
-            ["Balanced", "Fast response", "Suppress oscillation", "High precision", "Low control effort"]
+            ["Balanced", "Fast response", "Suppress oscillation", "High precision", "Low control movement"]
         )
 
         primary_fields = (
@@ -700,7 +707,7 @@ class PidControlPage(DetailPage):
         progress_row.setSpacing(8)
         self.tuner_progress_values: dict[str, QLabel] = {}
         for name in ("Trial", "State", "Time", "Error"):
-            value = QLabel(f"{name}\nâ€”")
+            value = QLabel(f"{name}\n\u2014")
             value.setObjectName("pidStatusValue")
             value.setAlignment(Qt.AlignCenter)
             value.setMinimumWidth(82)
@@ -711,7 +718,7 @@ class PidControlPage(DetailPage):
         gain_row.setSpacing(8)
         self.tuner_candidate_values: dict[str, QLabel] = {}
         for gain in ("Kp", "Ki", "Kd"):
-            value = QLabel(f"{gain}\nâ€”")
+            value = QLabel(f"{gain}\n\u2014")
             value.setObjectName("pidCandidateValue")
             value.setAlignment(Qt.AlignCenter)
             value.setMinimumWidth(82)
@@ -723,13 +730,37 @@ class PidControlPage(DetailPage):
 
         self.tuner_viewport = QFrame()
         self.tuner_viewport.setObjectName("pidTunerViewport")
-        self.tuner_viewport.setMinimumHeight(280)
+        self.tuner_viewport.setMinimumHeight(210)
         self.tuner_viewport.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.tuner_viewport.setAccessibleName("Optimized tuner visualization viewport")
         tuner_viewport_layout = QVBoxLayout(self.tuner_viewport)
         tuner_viewport_layout.setContentsMargins(0, 0, 0, 0)
+        self.coil_status = QLabel("Trim coil response | Waiting for a trial")
+        self.coil_status.setStyleSheet('color: #cbd5e1; padding: 8px 12px;')
+        self.coil_status.setWordWrap(True)
+        tuner_viewport_layout.addWidget(self.coil_status)
+        self.coil_plot = CoilResponsePlot(self.tuner_viewport)
+        tuner_viewport_layout.addWidget(self.coil_plot, 1)
+        self.gain_model_button = QPushButton("Gain model")
+        self.gain_model_button.setObjectName("fieldAction")
+        self.gain_model_button.clicked.connect(self._show_gain_model)
+        heading.addWidget(self.gain_model_button)
+        for button in (self.gain_model_button, self.close_tuner_button, self.smoke2_preset_button):
+            button.setObjectName('pidCompactAction')
+            button.setFixedSize(200, 38)
+        self.gain_model_dialog = QDialog(self)
+        self.gain_model_dialog.resize(960, 580)
+        gain_layout = setup_pid_dialog(self.gain_model_dialog, 'BO Gain Model', window_controls=False)
+        self.response_tabs = QTabWidget(self.gain_model_dialog)
+        slice_page = QWidget()
+        slice_layout = QVBoxLayout(slice_page)
+        self.response_tabs.addTab(slice_page, "Gain slice")
+        self.gain_surface = GainSurfaceWidget()
+        self.response_tabs.addTab(self.gain_surface, "3D gain space")
+        self.response_tabs.currentChanged.connect(self._surface_tab_changed)
+        gain_layout.addWidget(self.response_tabs, 1)
         slice_controls = ResponsiveRow()
-        slice_label = QLabel("Cost model Â· Gain axis")
+        slice_label = QLabel("Cost model \xb7 Gain axis")
         slice_label.setObjectName("pidFieldLabel")
         slice_controls.addWidget(slice_label)
         self.surrogate_axis = QComboBox()
@@ -742,9 +773,12 @@ class PidControlPage(DetailPage):
         self.surrogate_axis.setMinimumWidth(160)
         self.surrogate_axis.setFixedHeight(40)
         slice_controls.addStretch(1)
-        tuner_viewport_layout.addLayout(slice_controls)
-        self.surrogate_plot = SurrogatePlotWidget(self.tuner_viewport)
-        tuner_viewport_layout.addWidget(self.surrogate_plot)
+        slice_layout.addLayout(slice_controls)
+        self.surrogate_plot = SurrogatePlotWidget(self.gain_model_dialog)
+        slice_layout.addWidget(self.surrogate_plot, 1)
+        close_model = QPushButton("Close")
+        close_model.clicked.connect(self.gain_model_dialog.close)
+        gain_layout.addWidget(close_model, 0, Qt.AlignRight)
         outer.addWidget(self.tuner_viewport, 1)
 
         actions = ResponsiveRow()
@@ -767,8 +801,8 @@ class PidControlPage(DetailPage):
         self.review_history_button.setObjectName("fieldAction")
         self.review_history_button.setEnabled(False)
         self.review_history_button.clicked.connect(self._show_tuning_history)
-        self.approve_gains_button = QPushButton("Approve best gains")
-        self.approve_gains_button.setToolTip('Approve the best observed gains; no separate validation run is performed.')
+        self.approve_gains_button = QPushButton("Validate best gains")
+        self.approve_gains_button.setToolTip('Run the best gains for at least 60 seconds before allowing application.')
         self.approve_gains_button.setObjectName("fieldAction")
         self.approve_gains_button.setEnabled(False)
         self.approve_gains_button.clicked.connect(self._validate_best_gains)
@@ -800,7 +834,7 @@ class PidControlPage(DetailPage):
 
     def _show_tuner(self) -> None:
         kind = self._tuning_controller_config["controller_kind"] if self.tuning_session_active else self._controller_config()["controller_kind"]
-        self.tuner_engine_label.setText(f"Bayesian optimization â€” {'Python NLAPID' if kind == 'python_nla' else 'C++ NLAPID' if kind == 'nla' else 'Conventional C++ PID trials'}")
+        self.tuner_engine_label.setText(f"Bayesian optimization \u2014 {'Python NLAPID' if kind == 'python_nla' else 'C++ NLAPID'}")
         if self.tuning_session_active:
             self.page_stack.setCurrentWidget(self.tuner_page)
             return
@@ -828,7 +862,7 @@ class PidControlPage(DetailPage):
         self.tuner_channel.setCurrentIndex(0)
         self.tuner_target.setValue(250.0)
         self.tuner_trials.setValue(20)
-        self.tuner_duration.setValue(10.0)
+        self.tuner_duration.setValue(60.0)
         self.tuner_profile.setCurrentText("Balanced")
         self.min_output_input.setValue(0.0)
         self.max_output_input.setValue(400.0)
@@ -839,7 +873,7 @@ class PidControlPage(DetailPage):
             upper.setValue(limits[1])
         self.dry_run_check.setChecked(False)
         self.tuner_status.setText(
-            "Smoke2 preset: TC1 â†’ 250 A, 20 Ã— 10 s trials. Arm PID on the control page, "
+            "Smoke2 preset: TC1 \u2192 250 A, 20 \xd7 60 s trials. Arm PID on the control page, "
             "then run automatic tuning. The first six safe trials explore the gain bounds."
         )
 
@@ -854,7 +888,7 @@ class PidControlPage(DetailPage):
         for gain, (minimum, maximum) in self.tuner_gain_bounds.items():
             summary = self.tuner_bound_summaries.get(gain)
             if summary is not None:
-                summary.setText(f"{minimum.value():.3f}  â‰¤  {gain}  â‰¤  {maximum.value():.3f}")
+                summary.setText(f"{minimum.value():.3f}  \u2264  {gain}  \u2264  {maximum.value():.3f}")
 
     def _set_candidate_values(self, candidate: PidGainCandidate | None) -> None:
         values = None if candidate is None else {
@@ -863,15 +897,15 @@ class PidControlPage(DetailPage):
             "Kd": candidate.kd,
         }
         for gain, label in self.tuner_candidate_values.items():
-            label.setText(f"{gain}\nâ€”" if values is None else f"{gain}\n{values[gain]:.4f}")
+            label.setText(f"{gain}\n\u2014" if values is None else f"{gain}\n{values[gain]:.4f}")
 
     def _set_tuning_progress(
         self,
         *,
-        trial: str = "â€”",
-        state: str = "â€”",
-        elapsed: str = "â€”",
-        error: str = "â€”",
+        trial: str = "\u2014",
+        state: str = "\u2014",
+        elapsed: str = "\u2014",
+        error: str = "\u2014",
     ) -> None:
         values = {"Trial": trial, "State": state, "Time": elapsed, "Error": error}
         for name, value in values.items():
@@ -933,8 +967,17 @@ class PidControlPage(DetailPage):
         self.tuning_candidate = None
         self._set_candidate_values(None)
         self.tuning_trial_candidate = None
+        self.coil_session_samples = []
+        self.coil_session_started = time.perf_counter()
+        self.coil_session_stamp = None
+        self.coil_plot.trial_markers = []
+        self.coil_plot.set_samples([], self.tuner_target.value())
         self.tuning_samples.clear()
         self.tuning_results.clear()
+        if self.tuning_surface_proposal is not None:
+            self.tuning_surface_proposal.cancel()
+            self.tuning_surface_proposal = None
+        self.gain_surface.set_grid(None)
         self.tuning_surrogate_grid = None
         self._refresh_surrogate_plot()
         self.review_history_button.setEnabled(False)
@@ -959,13 +1002,32 @@ class PidControlPage(DetailPage):
         safe_count = len(self.tuning_optimizer.safe_results)
         initial = self.tuning_optimizer.optimizer.initial_safe_trials
         phase = 'Sobol exploration' if safe_count < initial else 'Fitting GP and optimizing next gains'
-        self.tuner_status.setText(f'{phase} Â· {safe_count} usable observations')
+        self.tuner_status.setText(f'{phase} \xb7 {safe_count} usable observations')
         self._set_tuning_progress(state='Proposing')
         self.tuning_proposal = self.tuning_executor.submit(
             self.tuning_optimizer.propose_batch, 1
         )
 
+    def _check_tuning_hold(self):
+        if not self._tuning_output_held:
+            return True
+        try:
+            health = self.backend.Health()
+            channel = self.backend.LatestSnapshot()['channels'][self.tuner_channel.currentIndex()]
+            if (str(health['connection']).lower() != 'connected'
+                    or float(health['packet_age_ms']) > 1000
+                    or channel.get('interlocked') or channel.get('status') in UNSAFE_STATUSES
+                    or (self.backend_mode != 'simulation' and not self.arm_button.isChecked())):
+                raise RuntimeError('Telemetry, arming, or interlock check failed')
+        except Exception as exc:
+            self._stop_tuning_session()
+            self.tuner_status.setText(f'Tuning stopped while holding between trials: {exc}')
+            return False
+        return True
+
     def _poll_tuning_workflow(self) -> None:
+        if not self._check_tuning_hold():
+            return
         proposal = self.tuning_proposal
         if proposal is not None and proposal.done():
             self.tuning_proposal = None
@@ -991,6 +1053,13 @@ class PidControlPage(DetailPage):
             if self.tuning_auto_run:
                 self._run_tuning_trial()
 
+        surface_proposal = self.tuning_surface_proposal
+        if surface_proposal is not None and surface_proposal.done():
+            self.tuning_surface_proposal = None
+            try:
+                self.gain_surface.set_grid(surface_proposal.result())
+            except Exception as exc:
+                self.gain_surface.set_grid(dict(ready=False, message=f"Surface unavailable: {exc}"))
         surrogate_proposal = self.tuning_surrogate_proposal
         if surrogate_proposal is not None and surrogate_proposal.done():
             self.tuning_surrogate_proposal = None
@@ -1021,12 +1090,16 @@ class PidControlPage(DetailPage):
         # Polling may repeat an iteration; only score each completed update once.
         iteration = int(status.get("iterations", 0))
         if iteration and (not self.tuning_samples or elapsed > self.tuning_samples[-1][0]):
-            self.tuning_samples.append((elapsed, measured, error, effort))
+            # Missing actuator telemetry must not silently yield a cheap trial.
+            command = float(status.get("command_target", float("nan")))
+            saturated = float(status.get("saturated", float("nan")))
+            self.tuning_samples.append((elapsed, measured, error, effort, command, saturated))
+        self._refresh_coil_response(status)
         self.tuner_status.setText("PID response trial in progress.")
         self._set_tuning_progress(
-            trial=f"{len(self.tuning_results) + 1} of {self.tuner_trials.value()}",
+            trial="Validation" if self._validating_gains else f"{len(self.tuning_results) + 1} of {self.tuner_trials.value()}",
             state=state,
-            elapsed=f"{elapsed:.1f} / {self.tuner_duration.value():.1f} s",
+            elapsed=f"{elapsed:.1f} / {max(60.0, self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value():.1f} s",
             error=f"{error:+.3f}",
         )
         if state == "Running" and elapsed >= 1.0 and len(self.tuning_samples) >= 6:
@@ -1080,7 +1153,7 @@ class PidControlPage(DetailPage):
             "ki": candidate.ki,
             "kd": candidate.kd,
             "update_rate_hz": 20.0,
-            "duration_seconds": self.tuner_duration.value(),
+            "duration_seconds": max(60.0, self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value(),
             "telemetry_timeout_seconds": 1.0,
             "allocation": allocation,
             "command_bias": list(self.command_values),
@@ -1098,12 +1171,18 @@ class PidControlPage(DetailPage):
         try:
             if config["controller_kind"] == "nla" and not hasattr(CycloViz, "NLAPID"):
                 raise RuntimeError("Rebuild CycloViz to enable C++ NLAPID trials")
+            self._coil_trial_mode = "Dry run (virtual command)" if config["dry_run"] else "Simulation" if self.backend_mode == "simulation" else "Smoke2 simulation" if self.simulation_mode == "smoke2" else "Hardware"
+            self._coil_trial_limits = (minimum, maximum)
             self._start_trial(config)
+            self._tuning_output_held = False
         except Exception as exc:
             if self.tuning_auto_run:
                 self._stop_tuning_session()
             self.tuner_status.setText(f"The trial could not be started: {exc}")
             return
+        self.coil_plot.trial_markers.append((time.perf_counter()-self.coil_session_started,
+            f"{'Validation' if self._validating_gains else 'Trial '+str(len(self.tuning_results)+1)}: Kp={candidate.kp:g}, Ki={candidate.ki:g}, Kd={candidate.kd:g}"))
+        self.coil_status.setText("Waiting for fresh trial telemetry")
         self.tuning_trial_candidate = candidate
         self._oscillation_stopped = False
         self.tuning_candidate = None
@@ -1118,14 +1197,14 @@ class PidControlPage(DetailPage):
         if candidate is None or self.tuning_optimizer is None:
             return
         if self.backend is not None:
-            self._stop_trial(True)
+            self._stop_trial(not safe or self._oscillation_stopped)
+        self._tuning_output_held = bool(safe and not self._oscillation_stopped)
         target = self.tuner_target.value()
         samples = self.tuning_samples
         metrics = None
         try:
             metrics = evaluate_trial(samples, target,
-                                     deadband=self._tuning_controller_config.get("nla_deadband", 0)
-                                     if self._tuning_controller_config["controller_kind"] != "conventional" else 0)
+                                     deadband=self._tuning_controller_config.get("nla_deadband", 0))
             score = trial_cost(metrics, self.tuner_profile.currentText())
         except ValueError:
             safe = False
@@ -1133,6 +1212,12 @@ class PidControlPage(DetailPage):
         if not safe or not math.isfinite(score):
             safe = False
             score = 1.0e12
+        if not safe or self._oscillation_stopped:
+            self._stop_trial(True)
+            self._tuning_output_held = False
+        if self._validating_gains:
+            self._finish_gain_validation(candidate, metrics, safe)
+            return
         settling_time = metrics.settling_time if metrics else 0.0
         steady_state_error = metrics.steady_state_error if metrics else 0.0
         result = PidTrialResult(
@@ -1146,6 +1231,7 @@ class PidControlPage(DetailPage):
         self.review_history_button.setEnabled(True)
         self.tuning_trial_candidate = None
         self._request_surrogate_grid()
+        self._request_cost_surface()
         self._refresh_surrogate_plot()
         best = self.tuning_optimizer.best_result
         best_text = "none" if best is None else f"{best.score:.4f}"
@@ -1165,6 +1251,9 @@ class PidControlPage(DetailPage):
         self._request_tuning_candidate()
 
     def _finish_tuning_session(self) -> None:
+        if self._tuning_output_held:
+            self._stop_trial(True)
+            self._tuning_output_held = False
         self._lock_controller_inputs(False)
         self.tuning_session_active = False
         self._set_auto_tuning(False)
@@ -1186,18 +1275,122 @@ class PidControlPage(DetailPage):
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
         if best is None:
             return
-        if best.metrics and best.metrics.sustained_oscillation:
-            self.tuner_status.setText("Cannot approve gains with sustained oscillation. Review Response Metrics.")
-            self.apply_tuned_gains_button.setEnabled(False)
+        if self.tuning_session_active:
+            self.tuner_status.setText('Finish or stop the search before validating gains.')
             return
-        self.apply_tuned_gains_button.setProperty("approvedCandidate", best.candidate)
-        self._approved_controller_config = dict(self._tuning_controller_config)
-        self.apply_tuned_gains_button.setEnabled(True)
-        self.tuner_status.setText(
-            "Best observed gains approved for application; no separate validation run was performed."
-        )
-        self._set_candidate_values(best.candidate)
+        self._validating_gains = True
+        self._set_auto_tuning(False)
+        self.apply_tuned_gains_button.setEnabled(False)
+        self.apply_tuned_gains_button.setProperty('approvedCandidate', None)
+        self.tuning_session_active = True
+        self._lock_controller_inputs(True)
+        self.tuning_candidate = best.candidate
+        self._run_tuning_trial()
+        if self.tuning_trial_candidate is None:
+            self._validating_gains = False
+            self._stop_tuning_session()
+        else:
+            self.tuner_status.setText('Validation running for at least 60 seconds. Apply remains disabled until settled without sustained oscillation.')
+
+    def _finish_gain_validation(self, candidate, metrics, safe):
+        self._stop_trial(True)
+        self._tuning_output_held = False
+        self._validating_gains = False
+        self.tuning_trial_candidate = None
+        self._finish_tuning_session()
+        valid = (safe and not self._oscillation_stopped and metrics is not None
+                 and metrics.settled and not metrics.sustained_oscillation
+                 and self.tuning_samples[-1][0] >= max(60.0, self.tuner_duration.value()) - 0.5)
+        self.apply_tuned_gains_button.setEnabled(valid)
+        self.apply_tuned_gains_button.setProperty('approvedCandidate', candidate if valid else None)
+        if valid:
+            self._approved_controller_config = dict(self._tuning_controller_config)
+            self._approved_run_settings = (self.tuner_channel.currentIndex(), self.tuner_target.value(),
+                                           self.min_output_input.value(), self.max_output_input.value())
+        if not valid and self.tuning_optimizer is not None:
+            self.tuning_optimizer.rejected_validation_candidates.add(candidate)
+        reasons = []
+        if not safe: reasons.append('trial fault or invalid telemetry')
+        if self._oscillation_stopped or (metrics and metrics.sustained_oscillation):
+            reasons.append('sustained oscillation detected')
+        if metrics and not metrics.settled: reasons.append('response did not settle within tolerance')
+        elapsed = self.tuning_samples[-1][0] if self.tuning_samples else 0
+        if elapsed < max(60.0, self.tuner_duration.value())-.5:
+            reasons.append(f'stopped after {elapsed:.1f} s')
+        message = 'Validation passed. Settings are ready to apply.' if valid else 'Validation failed: '+ '; '.join(reasons or ['insufficient samples'])+'. Settings were not approved.'
+        if not valid:
+            message += ' Validate another observed candidate or run a longer search.'
+        self.tuner_status.setText(message)
+        self.coil_status.setText(message + ' Last recorded response; output disabled.')
+        self._set_tuning_progress(trial='Validation', state='Passed' if valid else 'Failed',
+                                  elapsed=f'{elapsed:.1f} s',
+                                  error=f'{metrics.steady_state_error:.3f} A' if metrics else 'Unavailable')
+
+
+    def _surface_tab_changed(self, index):
+        if index == 1:
+            self._request_cost_surface()
+
+    def _request_cost_surface(self):
+        if self.tuning_optimizer is None or self.response_tabs.currentIndex() != 1:
+            return
+        if self.tuning_surface_proposal is not None:
+            self.tuning_surface_proposal.cancel()
+        best = self.tuning_optimizer.best_result
+        self.tuning_surface_proposal = self.tuning_executor.submit(
+            self.tuning_optimizer.surrogate_volume,
+            grid_size=16)
+
+    def _show_gain_model(self):
         self._refresh_surrogate_plot()
+        self.gain_model_dialog.show()
+        self.gain_model_dialog.raise_()
+        self.gain_model_dialog.activateWindow()
+
+    def _sample_coil_session(self, stamp):
+        if not self.tuning_session_active or not hasattr(self, 'coil_session_started'):
+            return
+        if stamp is None or not math.isfinite(stamp) or (self.coil_session_stamp is not None and stamp <= self.coil_session_stamp):
+            return
+        channel = self.tuner_channel.currentIndex()
+        try:
+            status = self._trial_status()
+            virtual = getattr(self, '_coil_trial_mode', '').startswith('Dry run')
+            if (self.tuning_trial_candidate is not None or virtual) and status.get('iterations', 0) > 0:
+                command = float(status['command_target'])
+            else:
+                command = float(self.backend.PendingCommand()[channel]['target'])
+            measured = self.actual_values[channel]
+            if not all(math.isfinite(v) for v in (command, measured)):
+                return
+        except (KeyError, TypeError, ValueError, RuntimeError, AttributeError):
+            return
+        self.coil_session_stamp = stamp
+        elapsed = time.perf_counter()-self.coil_session_started
+        target = self.tuner_target.value()
+        self.coil_session_samples.append((elapsed, measured, target-measured, 0, command, 0))
+        visible = [r for r in self.coil_session_samples if r[0] >= elapsed-120]
+        self.coil_plot.set_samples(visible, target)
+        if self.tuning_trial_candidate is None:
+            self.coil_status.setText(f"{self.tuner_channel.currentText()} | Between trials | "
+                                    f"Actual {measured:.4g} A | Command {command:.4g} A | Target {target:.4g} A")
+
+    def _refresh_coil_response(self, status):
+        self.coil_plot.target = self.tuner_target.value()
+        command = status.get('command_target', float('nan'))
+        rate = 'N/A'
+        if len(self.tuning_samples) >= 2:
+            a, b = self.tuning_samples[-2:]
+            if b[0] > a[0]:
+                rate = f'{(b[4]-a[4])/(b[0]-a[0]):+.3g} A/s'
+        mode = self._coil_trial_mode
+        limits = self._coil_trial_limits
+        self.coil_status.setText(
+            f"{self.tuner_channel.currentText()} | {mode} | {status['state']}\n"
+            f"Actual {status['measured_field']:.4g} A | Command {command:.4g} A | "
+            f"Target {self.coil_plot.target:.4g} A | Error {status['error']:+.4g} A | Ramp {rate}\n"
+            f"Limits {limits[0]:g} to {limits[1]:g} A | "
+            f"Saturation: {'YES' if status.get('saturated') else 'No'}")
 
     def _surrogate_axis_changed(self, _index: int) -> None:
         self.tuning_surrogate_grid = None
@@ -1234,6 +1427,8 @@ class PidControlPage(DetailPage):
         dialog.resize(1200, 540)
         layout = setup_pid_dialog(dialog, 'BO Response Metrics', window_controls=False)
         explanation = QLabel(
+            "Cost = w1 tracking IAE + w2 steady error + w3 command movement + w4 saturation time + w5 oscillation. "
+            "Balanced weights: (1, 4, 0.01, 10, 1). "
             "Settling: enter tolerance and remain there through trial end for at least 0.5 s. "
             "Transient: first entry into tolerance. Steady-state values estimate the final 20% of the run.\n"
             "Tolerance = max(0.1 A, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
@@ -1243,17 +1438,18 @@ class PidControlPage(DetailPage):
         )
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
-        table = QTableWidget(len(self.tuning_results), 11)
+        table = QTableWidget(len(self.tuning_results), 14)
         table.setObjectName("pidResponseMetrics")
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setAlternatingRowColors(True)
         table.setHorizontalHeaderLabels(["Trial", "Controller", "Settling (s)", "Transient (s)",
             "Steady |error| (A)", "Steady RMS (A)", "Osc. amplitude (A)", "Osc. cycles",
-            "Osc. penalty", "Overshoot (A)", "Response"])
+            "Osc. penalty", "Overshoot (A)", "Tracking IAE (A s)", "Command movement (A)",
+            "Saturation (s)", "Response"])
         for row, result in enumerate(self.tuning_results):
             m = result.metrics
             if m is None:
-                values = [row+1, result.controller_kind] + ["Unavailable"]*8 + ["Insufficient samples"]
+                values = [row+1, result.controller_kind] + ["Unavailable"]*11 + ["Insufficient samples"]
             else:
                 values = [row+1, result.controller_kind,
                     f"{m.settling_time:.3g}" if m.settled else "Not settled",
@@ -1261,6 +1457,9 @@ class PidControlPage(DetailPage):
                     f"{m.steady_state_error:.4g}", f"{m.steady_state_rms:.4g}",
                     f"{m.oscillation_amplitude:.4g}", f"{m.oscillation_cycles:.2g}",
                     f"{m.oscillation_penalty:.4g}", f"{m.overshoot:.4g}",
+                    f"{m.tracking_error:.4g}",
+                    f"{m.command_movement:.4g}" if m.command_movement is not None else "Unavailable",
+                    f"{m.saturation_time:.4g}" if m.saturation_time is not None else "Unavailable",
                     "Sustained oscillation" if m.sustained_oscillation else "Settled" if m.settled else "Unsettled"]
             if not result.safe:
                 values[-1] = "Aborted / invalid: " + str(values[-1])
@@ -1309,12 +1508,12 @@ class PidControlPage(DetailPage):
         safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)]
         best = min(safe, key=lambda r: r.score) if safe else None
         summary = QLabel(
-            f"{len(self.tuning_results)} trials  Â·  {len(safe)} safe  Â·  "
+            f"{len(self.tuning_results)} trials  \xb7  {len(safe)} safe  \xb7  "
             + (f"Best cost: {best.score:.4f}" if best else "No safe result yet")
         )
         summary.setObjectName("pidSectionTitle")
         layout.addWidget(summary)
-        hint = QLabel("Lower cost is better Â· Current BO session Â· Select trial numbers to export")
+        hint = QLabel("Lower cost is better \xb7 Current BO session \xb7 Select trial numbers to export")
         hint.setWordWrap(True)
         layout.addWidget(hint)
         filters = ResponsiveRow()
@@ -1343,7 +1542,7 @@ class PidControlPage(DetailPage):
         table.horizontalHeader().setStretchLastSection(True)
         table.setHorizontalHeaderLabels(
             [
-                "Trial", "Kp", "Ki", "Kd", "Cost â†“", "Settling (s)",
+                "Trial", "Kp", "Ki", "Kd", "Cost \u2193", "Settling (s)",
                 "Overshoot (A)", "Steady error (A)", "Effort", "Result", "Controller",
             ]
         )
@@ -1411,9 +1610,12 @@ class PidControlPage(DetailPage):
         if not isinstance(candidate, PidGainCandidate):
             return
         self._restore_controller_config(self._approved_controller_config)
-        self.selected_index = self.tuner_channel.currentIndex()
-        self.channel_select.setCurrentIndex(self.selected_index)
-        self.setpoint_input.setValue(self.tuner_target.value())
+        channel, target, lower, upper = self._approved_run_settings
+        self.selected_index = channel
+        self.channel_select.setCurrentIndex(channel)
+        self.setpoint_input.setValue(target)
+        self.min_output_input.setValue(lower)
+        self.max_output_input.setValue(upper)
         self.kp_input.setValue(candidate.kp)
         self.ki_input.setValue(candidate.ki)
         self.kd_input.setValue(candidate.kd)
@@ -1423,9 +1625,13 @@ class PidControlPage(DetailPage):
         self._refresh_status()
 
     def _stop_tuning_session(self) -> None:
+        self._validating_gains = False
+        if self.coil_plot.samples:
+            self.coil_status.setText('Tuning stopped | Last recorded trial response (not live)')
         self._lock_controller_inputs(False)
-        if self.backend is not None and self.tuning_trial_candidate is not None:
+        if self.backend is not None and (self.tuning_trial_candidate is not None or self._tuning_output_held):
             self._stop_trial(True)
+        self._tuning_output_held = False
         self.tuning_session_active = False
         self._set_auto_tuning(False)
         self.auto_tuning_button.setEnabled(True)
@@ -1451,7 +1657,7 @@ class PidControlPage(DetailPage):
     def _build_status_panel(self) -> QFrame:
         panel = QFrame()
         panel.setObjectName("fieldBackendStatus")
-        panel.setFixedHeight(64)
+        panel.setFixedHeight(48)
         layout = ResponsiveRow(panel)
         layout.setContentsMargins(10, 5, 10, 5)
         layout.setSpacing(12)
@@ -1624,6 +1830,7 @@ class PidControlPage(DetailPage):
                 self.run_metrics.sample(metric_stamp, self.actual_values[self.selected_index])
         self._tick_pid_controller()
         self._poll_tuning_workflow()
+        self._sample_coil_session(metric_stamp)
         self._append_plot_sample()
         self._refresh_plot()
         self._refresh_status()
@@ -1632,31 +1839,6 @@ class PidControlPage(DetailPage):
         if self._service_pid_active:
             self._poll_service_nla()
             return
-        if not self.pid_enabled:
-            return
-
-        now = time.perf_counter()
-        error = self.setpoint_input.value() - self.actual_values[self.selected_index]
-        if self.pid_previous_time is None:
-            self.pid_previous_time = now
-            self.pid_previous_error = error
-            return
-
-        dt = max(now - self.pid_previous_time, 1.0e-3)
-        previous_error = self.pid_previous_error if self.pid_previous_error is not None else error
-        self.pid_integral = max(-PID_OUTPUT_LIMIT, min(PID_OUTPUT_LIMIT, self.pid_integral + error * dt))
-        derivative = (error - previous_error) / dt
-        raw_output = (
-            self.pid_output_bias
-            + self.kp_input.value() * error
-            + self.ki_input.value() * self.pid_integral
-            + self.kd_input.value() * derivative
-        )
-        self.command_values[self.selected_index] = self._limited_output(raw_output)
-        self._apply_channel_command(self.selected_index)
-        self.pid_previous_time = now
-        self.pid_previous_error = error
-
     def _apply_channel_command(self, index: int) -> bool:
         target = self.command_values[index]
         on = self.channel_on[index]
@@ -1799,7 +1981,7 @@ class PidControlPage(DetailPage):
         actual = self.actual_values[self.selected_index]
         setpoint = self.setpoint_input.value()
         error = setpoint - actual
-        self.history.append((time.perf_counter(), actual, setpoint, error))
+        self.history.append((time.perf_counter(), actual, setpoint, self.command_values[self.selected_index]))
         self.history = self.history[-240:]
 
     def _refresh_plot(self) -> None:
@@ -1879,6 +2061,10 @@ class PidControlPage(DetailPage):
         super().closeEvent(event)
 
     def stop_backend(self) -> None:
+        self.gain_model_dialog.close()
+        if self.tuning_surface_proposal is not None:
+            self.tuning_surface_proposal.cancel()
+            self.tuning_surface_proposal = None
         self.timer.stop()
         self.run_metrics.finish('Page closed')
         if self._service_pid_active:

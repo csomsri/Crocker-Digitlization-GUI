@@ -4,13 +4,13 @@
 as a standalone C++ class. The engine owns its integral history, derivative
 filter, direction windows, and reset state. `ControlService` owns scheduling,
 telemetry, actuator bounds/slew, transport, and run lifecycle. There are no
-inline P/I/D equations in the service trial runner. Conventional trials call
-`PID::propose()` and commit integral state through `PID::acceptIntegral()`.
+inline P/I/D equations in the service trial runner. NLAPID is the sole C++ controller;
+the conventional PID implementation and GUI fallback have been removed.
 
 ## Use in the application
 
 1. Rebuild the CycloViz extension and restart the application.
-2. Open Automation > PID Control and select **C++ NLAPID** in Controller.
+2. Open Automation > PID Control which uses **C++ NLAPID** exclusively.
 3. Configure the setpoint, gains, limits, and NLA settings. The channel actual
    value in amperes is the feedback; this is not beam-current regulation yet.
 4. Arm and enable PID. The C++ service runs continuously on its worker thread;
@@ -18,7 +18,7 @@ inline P/I/D equations in the service trial runner. Conventional trials call
 5. Stop/disarm holds the last command. Service faults use the existing fault
    shutdown path; dry-run faults do not send shutdown commands.
 
-For Bayesian tuning, select the controller before opening Optimized Tuner.
+For Bayesian tuning, open Optimized Tuner.
 The session freezes controller settings and searches Kp/Ki/Kd using the existing
 Sobol / Gaussian-process / qLogEI workflow. Seven safe trials are needed to
 execute a first model-guided candidate with the default six-trial seed budget.
@@ -34,7 +34,7 @@ remain available. Additional dictionary fields:
 
 | Field | Default / meaning |
 |---|---|
-| `controller_kind` | `conventional` or `nla`; default conventional |
+| `controller_kind` | `nla` only (also the default); other values are rejected |
 | `continuous` | false; true runs until stopped instead of duration expiry |
 | `nla_deadband` | 0.0 |
 | `nla_trend_tolerance` | 0.0 |
@@ -64,11 +64,16 @@ anti-windup; it is not plant-model compensation.
 
 Status adds `controller_kind`, `nla` (all reference result fields),
 `command_target`, `command_delta`, `control_rate`, and `calculation_us`.
-`control_output` remains the engine output: conventional offset versus NLA
-increment. For NLA the tuner integrates absolute movement rate for its effort
-term, avoiding a sample-rate-dependent sum of increments. Conventional effort
-retains its historical offset-based definition. Costs belong to their selected
-controller; use a common physical effort metric for cross-algorithm studies.
+`control_output` is the NLA signed increment. C++ and Python NLA trials share
+`trial_metrics.py` and the five-term cost:
+
+`J = w1 tracking_IAE + w2 steady_error + w3 command_movement + w4 saturation_time + w5 oscillation_penalty`.
+
+Balanced weights are `(1, 4, 0.01, 10, 1)`. Movement is the total variation of
+sampled bounded, ramp-limited command targets; saturation time integrates the
+actuator clipping flag. These are project definitions/defaults because the
+reference image does not specify component equations or weights. See
+`TC10_PID_EVALUATION_GUIDE.md` at the repository root for sampling limitations.
 
 ## Verification
 
@@ -79,7 +84,7 @@ python CrockerGUI/tests/NLAPIDParityTest.py
 python CrockerGUI/tests/CppNLAPIDIntegrationTest.py
 python CrockerGUI/tests/PythonPIDPageTest.py
 python CrockerGUI/tests/PidAutoRunTest.py
-ctest --test-dir CrockerGUI/build -C Debug -R "^(PIDTest|ControlServicePidTrialTest)$" --output-on-failure
+ctest --test-dir CrockerGUI/build -C Debug -R "^ControlServicePidTrialTest$" --output-on-failure
 ```
 
 Parity replays 10,000 updates against Python, including reversals, window

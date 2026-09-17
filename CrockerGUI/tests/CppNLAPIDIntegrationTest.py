@@ -33,6 +33,15 @@ def wait_for(predicate, timeout=3):
 
 
 class ServiceTest(unittest.TestCase):
+    def test_nla_default_and_removed_conventional(self):
+        with self.assertRaisesRegex(ValueError, "Only C\\+\\+ NLAPID"):
+            self.service.StartPidTrial(config(controller_kind="conventional"))
+        settings = config(dry_run=True)
+        del settings['controller_kind']
+        self.service.StartPidTrial(settings)
+        wait_for(lambda: self.service.PidTrialStatus()['iterations'] > 0)
+        self.assertEqual(self.service.PidTrialStatus()['controller_kind'], 'nla')
+
     def setUp(self):
         self.service = CycloViz.ControlService()
         self.service.StartSimulator(100)
@@ -88,7 +97,8 @@ class PageTest(unittest.TestCase):
         self.page = PidControlPage(lambda: None, 'simulation')
         self.page.timer.stop()
         self.page._log_command = lambda *args: None
-        self.page.controller_kind_input.setCurrentIndex(1)
+        self.assertEqual(self.page.controller_kind_input.count(), 1)
+        self.assertEqual(self.page.controller_kind_input.currentData(), "nla")
 
     def tearDown(self):
         self.page.stop_backend()
@@ -122,17 +132,62 @@ class PageTest(unittest.TestCase):
             p._poll_tuning_workflow()
             if len(p.tuning_results) != observed:
                 observed = len(p.tuning_results)
+                if observed < 7:
+                    self.assertTrue(p._tuning_output_held)
+                    command = p.backend.PendingCommand()[0]
+                    self.assertTrue(command['on'] and command['enabled'])
                 print(f"NLA trial {observed}: {p.tuning_results[-1].score:.4f}", flush=True)
             time.sleep(0.02)
         self.assertEqual(len(p.tuning_results), 7, p.tuner_status.text())
+        self.assertFalse(p._tuning_output_held)
+        self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
         self.assertTrue(all(r.safe and r.controller_kind == 'nla' for r in p.tuning_results))
+        for result in p.tuning_results:
+            m = result.metrics
+            self.assertIsNotNone(m.command_movement)
+            self.assertIsNotNone(m.saturation_time)
+            self.assertAlmostEqual(result.score, m.tracking_error + 4*m.steady_state_error
+                                   + .01*m.command_movement + 10*m.saturation_time
+                                   + m.oscillation_penalty)
         self.assertTrue(p.tuning_optimizer.optimizer._botorch_ready)  # passed Sobol initialization
         self.assertEqual(p.backend.PidTrialStatus()['controller_kind'], 'nla')
         self.assertFalse(p.pid_enabled)
         p._validate_best_gains()
+        self.assertFalse(p.apply_tuned_gains_button.isEnabled())
+        self.assertTrue(p._validating_gains)
+        p._stop_tuning_session()
         p._apply_tuned_gains()
         self.assertEqual(p.controller_kind_input.currentData(), 'nla')
         self.assertFalse(p.pid_enabled)
+
+    def test_stop_between_trials_disables_held_output(self):
+        p = self.page
+        p.backend.StartPidTrial(config())
+        wait_for(lambda: p.backend.PidTrialStatus()['state'] == 'Completed')
+        p.backend.StopPidTrial(False)
+        p._tuning_output_held = True
+        p.tuning_trial_candidate = None
+        self.assertTrue(p.backend.PendingCommand()[0]['enabled'])
+        p._stop_tuning_session()
+        self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
+        self.assertFalse(p._tuning_output_held)
+
+    def test_interlock_during_hold_stops_session(self):
+        from types import SimpleNamespace
+        p = self.page
+        native = p.backend
+        stopped = []
+        try:
+            p._tuning_output_held = True
+            p.backend = SimpleNamespace(
+                Health=lambda: dict(connection='Connected', packet_age_ms=0),
+                LatestSnapshot=lambda: dict(channels=[dict(interlocked=True)]),
+                StopPidTrial=lambda disable: stopped.append(disable))
+            self.assertFalse(p._check_tuning_hold())
+            self.assertEqual(stopped, [True])
+            self.assertFalse(p._tuning_output_held)
+        finally:
+            p.backend = native
 
 
 if __name__ == '__main__':

@@ -267,8 +267,8 @@ void LineChart::Render(const ChartRect& area) {
             ? style.lineColor
             : style.lineColors[series % style.lineColors.size()];
         const auto bucketedPixels = BucketTrend(seriesPixels[series], plot.right - plot.left);
-        const auto filteredPixels = SmoothForDisplay(bucketedPixels);
-        const auto smoothPixels = SmoothPolyline(filteredPixels);
+        const auto filteredPixels = style.smoothLines ? SmoothForDisplay(bucketedPixels) : seriesPixels[series];
+        const auto smoothPixels = style.smoothLines ? SmoothPolyline(filteredPixels) : filteredPixels;
         const auto softStroke = StrokeStrip(smoothPixels, viewport, style.lineWidth + 4.4f);
         chart_gl::Draw(vertexArray, vertexBuffer, shaderProgram, softStroke, GL_TRIANGLE_STRIP,
                        color.r, color.g, color.b, 1.0f, 0.20f);

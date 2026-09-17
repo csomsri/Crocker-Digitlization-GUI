@@ -90,9 +90,9 @@ error, but still permits proportional/derivative output and direction changes.
 
 ## Compare Python and C++
 
-First compare the current conventional PID and Python NLA as different control
+The C++ runtime now supports NLAPID only. Compare C++ NLA and Python NLA as control
 algorithms. The C++ port now lives in `source/Controls/ControlSystem/NLAPID.cpp`.
-Select C++ NLAPID on the existing PID Control page to run it or tune it with
+Use C++ NLAPID on the existing PID Control page to run it or tune it with
 Bayesian trials. Compare language/runtime performance using
 identical algorithms, parameters, initial state, and input samples.
 
