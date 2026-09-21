@@ -97,6 +97,7 @@ class AssignedMonitorWindow(QMainWindow):
         self.sync_theme()
         old_page = self.takeCentralWidget()
         if old_page is not None:
+            self._stop_ga_page(old_page)
             old_page.deleteLater()
         page = self.owner.create_assigned_page(page_name, self)
         scroll_area = QScrollArea()
@@ -118,3 +119,18 @@ class AssignedMonitorWindow(QMainWindow):
             self.close()
             return
         super().keyPressEvent(event)
+
+    @staticmethod
+    def _stop_ga_page(container):
+        from python.app.Automation.GAPIDPage import GAPIDPage
+        from python.app.Automation.PidControlPage import PidControlPage
+        pages = container.findChildren(GAPIDPage) + container.findChildren(PidControlPage)
+        if isinstance(container, (GAPIDPage, PidControlPage)):
+            pages.append(container)
+        for page in pages:
+            page.stop_backend()
+
+    def closeEvent(self, event):
+        if self.centralWidget() is not None:
+            self._stop_ga_page(self.centralWidget())
+        super().closeEvent(event)

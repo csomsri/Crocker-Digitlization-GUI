@@ -75,11 +75,13 @@ class ParameterSpace:
                 if isinstance(entry, OptimizationParameter)
                 else OptimizationParameter(name=str(entry[0]), bounds=entry[1])
             )
+
             name = parameter.name.strip()
             if not name:
                 raise ValueError("Parameter names must not be empty")
             if name in seen:
                 raise ValueError(f"Duplicate optimization parameter: {name}")
+
             parsed.append(
                 OptimizationParameter(
                     name=name,
@@ -95,7 +97,9 @@ class ParameterSpace:
     def _validate_bounds(name: str, bounds: tuple[float, float]) -> tuple[float, float]:
         if len(bounds) != 2:
             raise ValueError(f"{name} bounds must contain exactly two values")
+
         lower, upper = (float(bounds[0]), float(bounds[1]))
+
         if not math.isfinite(lower) or not math.isfinite(upper) or lower >= upper:
             raise ValueError(f"{name} bounds must be finite and strictly increasing")
         return lower, upper

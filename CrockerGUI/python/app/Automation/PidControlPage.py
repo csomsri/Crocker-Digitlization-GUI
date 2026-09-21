@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from source.Python.Data.file_writer import file_writer, write_csv
 import math
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -8,6 +9,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from python.app.ResponsiveLayout import ResponsiveRow
+from python.app.Automation.ControlOwnership import active_controller
+from python.app.Automation.PIDRecording import recording
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -35,6 +38,8 @@ from PySide6.QtWidgets import (
 )
 
 from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
+from source.Python.Automation.hardware_profile import apply_hardware_profile
+from python.app.Automation.HardwareProfileDialog import HardwareProfileDialog, PROFILE_PATH
 from python.app.Automation.RunMetrics import RunMetrics
 from python.app.PageShell import DetailPage
 from python.app.widgets.DialogTitleBar import DialogTitleBar
@@ -42,6 +47,7 @@ from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 from python.app.Automation.GainSurfaceWidget import GainSurfaceWidget
 from python.app.Automation.CoilResponsePlot import CoilResponsePlot
+from python.app.Automation.BeamResponsePlot import BeamResponsePlot
 from python.app.Automation.SurrogatePlotWidget import SurrogatePlotWidget
 from python.app.widgets.MagneticFieldWidgets import (
     CHANNEL_NAMES,
@@ -74,6 +80,7 @@ class FullRowCheckBox(QCheckBox):
 
 
 class PidControlPage(DetailPage):
+    beam_feedback = True
     def __init__(
         self,
         go_back: Callable[[], None],
@@ -83,10 +90,11 @@ class PidControlPage(DetailPage):
         tuning_enabled: bool | None = None,
         manage_backend: bool = True,
         simulation_mode: str | None = None,
+        get_beam_state: Callable[[], dict] | None = None,
     ) -> None:
         super().__init__(
             "PID Control",
-            "Closed-loop channel control",
+            "Beam feedback → selected trim coil" if self.beam_feedback else "Closed-loop channel control",
             "Back to Automation",
             go_back,
         )
@@ -96,6 +104,10 @@ class PidControlPage(DetailPage):
             back_button.setText("Back to Automation")
 
         self.backend_mode = backend_mode.lower()
+        self.get_beam_state = get_beam_state
+        self.beam_value = float('nan')
+        self.beam_timestamp = 0.0
+        self.beam_valid = False
         self.simulation_mode = simulation_mode
         self.zmq_endpoint = zmq_endpoint
         self.tuning_enabled = (
@@ -147,16 +159,13 @@ class PidControlPage(DetailPage):
         self.tuning_surrogate_grid: dict | None = None
         self.tuning_surrogate_proposal: Future[dict] | None = None
         self.tuning_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pid-bo")
-        self.log_path = Path(__file__).resolve().parents[3] / "logs" / "pid_commands.csv"
+        self.log_path = Path(__file__).resolve().parents[3] / "logs" / (
+            "cpp_beam_pid_commands.csv" if self.beam_feedback else "pid_commands.csv")
 
         self._start_backend()
 
-        # Remove the page scroll container: the workspace fits the available window.
-        shell_content = self.scroll_area.takeWidget()
-        shell_layout = QWidget.layout(self)
-        shell_layout.removeWidget(self.scroll_area)
-        self.scroll_area.hide()
-        shell_layout.addWidget(shell_content)
+        # Retain the responsive shell so compact windows can scroll the controls
+        # instead of forcing a desktop-sized minimum window.
         _, workspace = self.add_workspace()
         workspace.setContentsMargins(12, 4, 12, 6)
         self.header.setFixedHeight(40)
@@ -176,13 +185,15 @@ class PidControlPage(DetailPage):
         layout.addWidget(self.control_panel, 0, Qt.AlignTop)
         self.run_metrics = RunMetrics(self.log_path.parent / 'pid_runs')
         layout.addWidget(self.run_metrics)
-        self.time_plot = CoilResponsePlot()
+        self.time_plot = BeamResponsePlot() if self.beam_feedback else CoilResponsePlot()
         self.time_plot.setObjectName("pidVisualizationViewport")
         self.time_plot.setMinimumHeight(100)
         self.time_plot.setMaximumHeight(16777215)
         self.time_plot.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         layout.addWidget(self.time_plot, 1)
-        layout.addWidget(self._build_status_panel())
+        # Keep connection and startup errors visible while the controls scroll.
+        self.backend_status_panel = self._build_status_panel()
+        QWidget.layout(self).addWidget(self.backend_status_panel)
 
         self.tuner_page = self._build_tuner_page()
         self.page_stack.addWidget(control_page)
@@ -192,6 +203,33 @@ class PidControlPage(DetailPage):
         self.timer.timeout.connect(self._tick_feedback)
         self.timer.start(125)
         self._refresh_status()
+
+    @property
+    def feedback_unit(self):
+        return 'nA' if self.beam_feedback else 'A'
+
+    def _feedback_value(self):
+        return self.beam_value if self.beam_feedback else self.actual_values[self.selected_index]
+
+    def _refresh_beam(self, publish=False):
+        if not self.beam_feedback:
+            return
+        self.beam_valid = False
+        self.beam_value = float('nan')
+        self.beam_timestamp = 0.0
+        try:
+            sample = self.get_beam_state() if self.get_beam_state else {}
+            value = float(sample.get('current_ua', float('nan'))) * 1000.0
+            stamp = float(sample.get('timestamp', 0.0))
+            self.beam_valid = (sample.get('quality') == 'ok' and math.isfinite(value)
+                               and math.isfinite(stamp) and 0 <= time.time()-stamp <= 1.0)
+            self.beam_timestamp = stamp
+            if self.beam_valid:
+                self.beam_value = value
+        except (TypeError, ValueError, RuntimeError, KeyError):
+            pass
+        if (publish or self.pid_enabled or self.tuning_session_active) and hasattr(self.backend, 'SetPidBeamMeasurement'):
+            self.backend.SetPidBeamMeasurement(self.beam_value, self.beam_timestamp, self.beam_valid)
 
     def _build_control_panel(self) -> QFrame:
         panel = QFrame()
@@ -209,7 +247,7 @@ class PidControlPage(DetailPage):
         title_layout = QVBoxLayout(title_panel)
         title_layout.setContentsMargins(10, 5, 10, 5)
         title_layout.setSpacing(1)
-        title = QLabel("PID CHANNEL CONTROL")
+        title = QLabel("BEAM PID · TRIM-COIL OUTPUT" if self.beam_feedback else "PID CHANNEL CONTROL")
         title.setObjectName("pidControlTitle")
         subtitle = QLabel("REAL-TIME CLOSED-LOOP CONTROL")
         subtitle.setObjectName("pidControlSubtitle")
@@ -241,7 +279,7 @@ class PidControlPage(DetailPage):
         # combo views, which can leave this frequently refreshed page with a
         # popup that displays choices but does not commit mouse selections.
         self.channel_select.setProperty("stablePopup", True)
-        self.channel_select.addItems(CHANNEL_NAMES)
+        self.channel_select.addItems(CHANNEL_NAMES[:12] if self.beam_feedback else CHANNEL_NAMES)
         self.channel_select.currentIndexChanged.connect(self._set_channel)
         channel_selector = self.channel_select
 
@@ -259,7 +297,7 @@ class PidControlPage(DetailPage):
         layout.addWidget(self.arm_button, 1, 2)
         layout.addWidget(self.enable_button, 1, 3)
 
-        self.setpoint_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
+        self.setpoint_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " " + self.feedback_unit)
         self.kp_input = self._make_spinbox(0.0, 100.0, 0.1)
         self.ki_input = self._make_spinbox(0.0, 100.0, 0.01)
         self.kd_input = self._make_spinbox(0.0, 100.0, 0.01)
@@ -270,7 +308,7 @@ class PidControlPage(DetailPage):
 
         for column, (label_text, widget) in enumerate(
             (
-                ("Setpoint", self.setpoint_input),
+                ("Beam target (nA)" if self.beam_feedback else "Setpoint", self.setpoint_input),
                 ("Kp", self.kp_input),
                 ("Ki", self.ki_input),
                 ("Kd", self.kd_input),
@@ -314,7 +352,7 @@ class PidControlPage(DetailPage):
         layout.addWidget(self.dry_run_check, 6, 3)
 
         actions = ResponsiveRow()
-        self.hold_button = QPushButton("Hold Actual")
+        self.hold_button = QPushButton("Match measured beam" if self.beam_feedback else "Hold Actual")
         self.hold_button.setObjectName("fieldAction")
         self.hold_button.clicked.connect(self._hold_actual)
         self.zero_button = QPushButton("Zero Command")
@@ -333,14 +371,14 @@ class PidControlPage(DetailPage):
         self.controller_kind_input = QComboBox()
         self.controller_kind_input.addItem("C++ NLAPID", "nla")
         self.controller_kind_input.setCurrentIndex(0)
-        self.nla_deadband_input = self._make_spinbox(0, 100, 0.01, " A")
+        self.nla_deadband_input = self._make_spinbox(0, 100, 0.01, " " + self.feedback_unit)
         self.nla_deadband_input.setValue(0.05)
         self.nla_direction_input = QComboBox()
         self.nla_direction_input.addItem("Increase first", 1)
         self.nla_direction_input.addItem("Decrease first", -1)
         self.nla_window_input = self._make_spinbox(0.05, 60, 0.05, " s")
         self.nla_window_input.setValue(1.0)
-        self.nla_tolerance_input = self._make_spinbox(0, 100, 0.01, " A")
+        self.nla_tolerance_input = self._make_spinbox(0, 100, 0.01, " " + self.feedback_unit)
         self.nla_tolerance_input.setValue(0.05)
         self.nla_memory_input = self._make_spinbox(0.1, 120, 0.5, " s")
         self.nla_memory_input.setValue(20.0)
@@ -441,7 +479,29 @@ class PidControlPage(DetailPage):
             self.settings_dialog.show()
             self.settings_dialog.raise_()
         toggle.clicked.connect(open_settings)
-        grid.addWidget(toggle, 6, 0, 1, 4)
+        settings_row = ResponsiveRow()
+        settings_row.addWidget(toggle, 1)
+        grid.addLayout(settings_row, 6, 0, 1, 4)
+        if self.beam_feedback:
+            self.hardware_profile_button = QPushButton('Edit Hardware Profile')
+            self.hardware_profile_button.clicked.connect(self._show_hardware_profile)
+            self.hardware_profile_button.setStyleSheet('text-align: center;')
+            settings_row.addWidget(self.hardware_profile_button, 1)
+
+    def _show_hardware_profile(self):
+        def can_save():
+            return (not self.pid_enabled and not self.tuning_session_active
+                    and active_controller(self.backend, self) is None)
+        try:
+            channel = self.tuner_channel.currentText() if self.tuning_session_active else CHANNEL_NAMES[self.selected_index]
+            dialog = HardwareProfileDialog(self, CHANNEL_NAMES, can_save=can_save, initial_channel=channel)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            self.cpp_nla_status.setText(f'Cannot open hardware profile: {exc}')
+            self.settings_dialog.show()
+            return
+        available = self.screen().availableGeometry()
+        dialog.resize(min(700, available.width()-40), min(760, available.height()-80))
+        dialog.exec()
 
     def _cpp_nla_selected(self) -> bool:
         return self.controller_kind_input.currentData() == "nla"
@@ -517,7 +577,7 @@ class PidControlPage(DetailPage):
             if not hasattr(CycloViz, "NLAPID"):
                 raise RuntimeError("Rebuild CycloViz to enable C++ NLAPID")
             self.command_values[index] = float(self.backend.PendingCommand()[index]["target"])
-            self.backend.StartPidTrial(config)
+            self._start_trial(config)
         except Exception as exc:
             self._stop_pid(f"NLA start failed: {exc}")
             return
@@ -572,7 +632,7 @@ class PidControlPage(DetailPage):
         heading.addStretch(1)
         self.smoke2_preset_button = QPushButton("Load smoke2 BO preset")
         self.smoke2_preset_button.setObjectName("pidCompactAction")
-        self.smoke2_preset_button.setVisible(self.simulation_mode == "smoke2")
+        self.smoke2_preset_button.setVisible(self.simulation_mode == "smoke2" and not self.beam_feedback)
         self.smoke2_preset_button.clicked.connect(self._load_smoke2_preset)
         heading.addWidget(self.smoke2_preset_button)
         self.close_tuner_button = QPushButton("Back to PID Control")
@@ -592,12 +652,12 @@ class PidControlPage(DetailPage):
         self.tuner_channel = QComboBox()
         self.tuner_channel.setObjectName("pidTunerChannel")
         self.tuner_channel.setProperty("stablePopup", True)
-        self.tuner_channel.addItems(CHANNEL_NAMES)
-        if self.backend_mode != "simulation":
+        self.tuner_channel.addItems(CHANNEL_NAMES[:12] if self.beam_feedback else CHANNEL_NAMES)
+        if self.backend_mode != "simulation" and not self.beam_feedback:
             for index in range(12, len(CHANNEL_NAMES)):
                 self.tuner_channel.model().item(index).setEnabled(False)
         tuner_channel_selector = self.tuner_channel
-        self.tuner_target = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " A")
+        self.tuner_target = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 0.1, " " + self.feedback_unit)
         self.tuner_trials = QSpinBox()
         self.tuner_trials.setObjectName("pidSpin")
         self.tuner_trials.setRange(3, 200)
@@ -615,7 +675,7 @@ class PidControlPage(DetailPage):
 
         primary_fields = (
             ("Controlled channel", tuner_channel_selector),
-            ("Trial target", self.tuner_target),
+            ("Trial beam target" if self.beam_feedback else "Trial target", self.tuner_target),
             ("Trial budget", self.tuner_trials),
             ("Trial duration", self.tuner_duration),
             ("Performance profile", self.tuner_profile),
@@ -684,7 +744,7 @@ class PidControlPage(DetailPage):
         self.tuner_safety_profile = QComboBox()
         self.tuner_safety_profile.setObjectName("pidTunerSafetyProfile")
         self.tuner_safety_profile.setProperty("stablePopup", True)
-        self.tuner_safety_profile.addItems(["Simulation / dry run", "Trim coils / existing scaling"])
+        self.tuner_safety_profile.addItems(["Simulation / dry run", "Reviewed hardware profile" if self.beam_feedback else "Trim coils / existing scaling"])
         self.tuner_safety_profile.setCurrentIndex(0 if self.backend_mode == "simulation" else 1)
         self.tuner_safety_profile.setEnabled(False)
 
@@ -735,11 +795,11 @@ class PidControlPage(DetailPage):
         self.tuner_viewport.setAccessibleName("Optimized tuner visualization viewport")
         tuner_viewport_layout = QVBoxLayout(self.tuner_viewport)
         tuner_viewport_layout.setContentsMargins(0, 0, 0, 0)
-        self.coil_status = QLabel("Trim coil response | Waiting for a trial")
+        self.coil_status = QLabel("Beam feedback / TC output | Waiting for a trial" if self.beam_feedback else "Trim coil response | Waiting for a trial")
         self.coil_status.setStyleSheet('color: #cbd5e1; padding: 8px 12px;')
         self.coil_status.setWordWrap(True)
         tuner_viewport_layout.addWidget(self.coil_status)
-        self.coil_plot = CoilResponsePlot(self.tuner_viewport)
+        self.coil_plot = (BeamResponsePlot if self.beam_feedback else CoilResponsePlot)(self.tuner_viewport)
         tuner_viewport_layout.addWidget(self.coil_plot, 1)
         self.gain_model_button = QPushButton("Gain model")
         self.gain_model_button.setObjectName("fieldAction")
@@ -857,6 +917,9 @@ class PidControlPage(DetailPage):
         self.page_stack.setCurrentIndex(0)
 
     def _load_smoke2_preset(self) -> None:
+        if self.beam_feedback:
+            self.tuner_status.setText("Smoke2 has no TC-to-beam response; its current-control preset does not apply.")
+            return
         if self.simulation_mode != "smoke2" or self.tuning_session_active:
             return
         self.tuner_channel.setCurrentIndex(0)
@@ -930,7 +993,7 @@ class PidControlPage(DetailPage):
 
     def _prepare_tuning_session(self) -> None:
         for page in QApplication.allWidgets():
-            if (isinstance(page, PidControlPage) and page is not self
+            if (hasattr(page, "pid_enabled") and hasattr(page, "tuning_session_active") and page is not self
                     and self.backend is not None and page.backend is self.backend
                     and (page.pid_enabled or page.tuning_session_active)):
                 self.tuner_status.setText("Another PID page is using this backend")
@@ -1120,7 +1183,25 @@ class PidControlPage(DetailPage):
             self._complete_tuning_trial(False)
 
     def _start_trial(self, config: dict) -> None:
+        if self.beam_feedback and self.backend_mode != "simulation":
+            config = apply_hardware_profile(
+                config, PROFILE_PATH,
+                CHANNEL_NAMES,
+            )
+            if (config['maximum_slew_per_second'][config['measurement_channel']] == 0
+                    and not getattr(CycloViz, 'PID_EXTERNAL_RAMP_SUPPORTED', False)):
+                raise RuntimeError('Restart with the rebuilt CycloViz extension to use LabVIEW ramping.')
+        if not config.get('continuous'):
+            recording(self, 'check_trial')
+        if self.beam_feedback:
+            self._refresh_beam(publish=True)
+            if not self.beam_valid:
+                raise RuntimeError("A fresh calibrated beam measurement is required")
+            if not hasattr(self.backend, 'SetPidBeamMeasurement'):
+                raise RuntimeError("Rebuild CycloViz for beam-feedback PID support")
+            config = dict(config, external_beam_measurement=True)
         self.backend.StartPidTrial(config)
+        recording(self, 'started', config=config)
 
     def _trial_status(self) -> dict:
         return self.backend.PidTrialStatus()
@@ -1256,6 +1337,7 @@ class PidControlPage(DetailPage):
             self._tuning_output_held = False
         self._lock_controller_inputs(False)
         self.tuning_session_active = False
+        recording(self, reason='Tuning complete')
         self._set_auto_tuning(False)
         self.auto_tuning_button.setEnabled(True)
         self.stop_tuning_button.setEnabled(False)
@@ -1272,6 +1354,9 @@ class PidControlPage(DetailPage):
         self._refresh_surrogate_plot()
 
     def _validate_best_gains(self) -> None:
+        if active_controller(self.backend, self) is not None:
+            self.tuner_status.setText("Another PID/BO/GA page is using this backend")
+            return
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
         if best is None:
             return
@@ -1293,6 +1378,7 @@ class PidControlPage(DetailPage):
             self.tuner_status.setText('Validation running for at least 60 seconds. Apply remains disabled until settled without sustained oscillation.')
 
     def _finish_gain_validation(self, candidate, metrics, safe):
+        recording(self, 'event', event='validation_result', details=dict(candidate=candidate, metrics=metrics, safe=safe))
         self._stop_trial(True)
         self._tuning_output_held = False
         self._validating_gains = False
@@ -1324,7 +1410,7 @@ class PidControlPage(DetailPage):
         self.coil_status.setText(message + ' Last recorded response; output disabled.')
         self._set_tuning_progress(trial='Validation', state='Passed' if valid else 'Failed',
                                   elapsed=f'{elapsed:.1f} s',
-                                  error=f'{metrics.steady_state_error:.3f} A' if metrics else 'Unavailable')
+                                  error=f'{metrics.steady_state_error:.3f} {self.feedback_unit}' if metrics else 'Unavailable')
 
 
     def _surface_tab_changed(self, index):
@@ -1360,7 +1446,7 @@ class PidControlPage(DetailPage):
                 command = float(status['command_target'])
             else:
                 command = float(self.backend.PendingCommand()[channel]['target'])
-            measured = self.actual_values[channel]
+            measured = self._feedback_value() if self.beam_feedback else self.actual_values[channel]
             if not all(math.isfinite(v) for v in (command, measured)):
                 return
         except (KeyError, TypeError, ValueError, RuntimeError, AttributeError):
@@ -1368,12 +1454,12 @@ class PidControlPage(DetailPage):
         self.coil_session_stamp = stamp
         elapsed = time.perf_counter()-self.coil_session_started
         target = self.tuner_target.value()
-        self.coil_session_samples.append((elapsed, measured, target-measured, 0, command, 0))
+        self.coil_session_samples.append((elapsed, measured, target-measured, 0, command, 0, self.actual_values[channel]))
         visible = [r for r in self.coil_session_samples if r[0] >= elapsed-120]
         self.coil_plot.set_samples(visible, target)
         if self.tuning_trial_candidate is None:
             self.coil_status.setText(f"{self.tuner_channel.currentText()} | Between trials | "
-                                    f"Actual {measured:.4g} A | Command {command:.4g} A | Target {target:.4g} A")
+                                    f"Actual {measured:.4g} {self.feedback_unit} | Command {command:.4g} A | Target {target:.4g} {self.feedback_unit}")
 
     def _refresh_coil_response(self, status):
         self.coil_plot.target = self.tuner_target.value()
@@ -1387,8 +1473,8 @@ class PidControlPage(DetailPage):
         limits = self._coil_trial_limits
         self.coil_status.setText(
             f"{self.tuner_channel.currentText()} | {mode} | {status['state']}\n"
-            f"Actual {status['measured_field']:.4g} A | Command {command:.4g} A | "
-            f"Target {self.coil_plot.target:.4g} A | Error {status['error']:+.4g} A | Ramp {rate}\n"
+            f"Actual {status['measured_field']:.4g} {self.feedback_unit} | Command {command:.4g} A | "
+            f"Target {self.coil_plot.target:.4g} {self.feedback_unit} | Error {status['error']:+.4g} {self.feedback_unit} | Ramp {rate}\n"
             f"Limits {limits[0]:g} to {limits[1]:g} A | "
             f"Saturation: {'YES' if status.get('saturated') else 'No'}")
 
@@ -1431,7 +1517,7 @@ class PidControlPage(DetailPage):
             "Balanced weights: (1, 4, 0.01, 10, 1). "
             "Settling: enter tolerance and remain there through trial end for at least 0.5 s. "
             "Transient: first entry into tolerance. Steady-state values estimate the final 20% of the run.\n"
-            "Tolerance = max(0.1 A, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
+            f"Tolerance = max(0.1 {self.feedback_unit}, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
             "Oscillation penalty is always active; sustained oscillation blocks gain approval. "
             "After at least 1 s and 2 detected cycles, persistent oscillation stops the trial and its penalized result is retained. "
             "These estimates use fresh status samples; very fast oscillations can be missed."
@@ -1443,8 +1529,8 @@ class PidControlPage(DetailPage):
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setAlternatingRowColors(True)
         table.setHorizontalHeaderLabels(["Trial", "Controller", "Settling (s)", "Transient (s)",
-            "Steady |error| (A)", "Steady RMS (A)", "Osc. amplitude (A)", "Osc. cycles",
-            "Osc. penalty", "Overshoot (A)", "Tracking IAE (A s)", "Command movement (A)",
+            f"Steady |error| ({self.feedback_unit})", f"Steady RMS ({self.feedback_unit})", f"Osc. amplitude ({self.feedback_unit})", "Osc. cycles",
+            "Osc. penalty", f"Overshoot ({self.feedback_unit})", f"Tracking IAE ({self.feedback_unit} s)", "Command movement (A)",
             "Saturation (s)", "Response"])
         for row, result in enumerate(self.tuning_results):
             m = result.metrics
@@ -1543,7 +1629,7 @@ class PidControlPage(DetailPage):
         table.setHorizontalHeaderLabels(
             [
                 "Trial", "Kp", "Ki", "Kd", "Cost \u2193", "Settling (s)",
-                "Overshoot (A)", "Steady error (A)", "Effort", "Result", "Controller",
+                f"Overshoot ({self.feedback_unit})", f"Steady error ({self.feedback_unit})", "Effort", "Result", "Controller",
             ]
         )
         for row, result in enumerate(self.tuning_results):
@@ -1653,14 +1739,18 @@ class PidControlPage(DetailPage):
         self.tuner_status.setText(
             f"Tuning stopped and the allocated output was disabled. Result: {suffix}."
         )
+        recording(self, reason='Tuning stopped')
 
     def _build_status_panel(self) -> QFrame:
         panel = QFrame()
         panel.setObjectName("fieldBackendStatus")
-        panel.setFixedHeight(48)
-        layout = ResponsiveRow(panel)
-        layout.setContentsMargins(10, 5, 10, 5)
-        layout.setSpacing(12)
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        outer = QVBoxLayout(panel)
+        outer.setContentsMargins(10, 6, 10, 6)
+        outer.setSpacing(6)
+        layout = ResponsiveRow()
+        layout.setSpacing(10)
+        outer.addLayout(layout)
 
         self.connection_dot = QLabel()
         self.connection_dot.setObjectName("fieldStatusDot")
@@ -1679,7 +1769,12 @@ class PidControlPage(DetailPage):
         layout.addWidget(self.connection_label, 1)
         layout.addWidget(self.destination_label, 2)
         layout.addWidget(self.command_label, 2)
-        layout.addWidget(self.safety_label, 2)
+        for label in (self.connection_label, self.destination_label, self.command_label, self.safety_label):
+            label.setWordWrap(True)
+            label.setTextFormat(Qt.PlainText)
+            label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+            label.setStyleSheet('padding: 6px 10px; min-height: 0;')
+        outer.addWidget(self.safety_label)
         return panel
 
     def _make_spinbox(self, lower: float, upper: float, step: float, suffix: str = "") -> QDoubleSpinBox:
@@ -1729,6 +1824,7 @@ class PidControlPage(DetailPage):
             return
         self.pid_enabled = enabled
         if enabled:
+            recording(self, 'started', config=self._run_metrics_config())
             self.run_metrics.start(self._run_metrics_config())
         else:
             self.run_metrics.finish('Operator stop')
@@ -1736,6 +1832,7 @@ class PidControlPage(DetailPage):
         self._reset_pid_state()
         self.enable_button.setText("Disable PID" if enabled else "Enable PID")
         self.last_safety_message = "PID active" if enabled else "PID stopped"
+        recording(self, reason=None if enabled else 'Operator stop')
         self._refresh_status()
 
     def _reset_pid_state(self) -> None:
@@ -1750,7 +1847,8 @@ class PidControlPage(DetailPage):
         self._refresh_status()
 
     def _hold_actual(self) -> None:
-        self.setpoint_input.setValue(self.actual_values[self.selected_index])
+        if math.isfinite(self._feedback_value()):
+            self.setpoint_input.setValue(self._feedback_value())
         self.pid_output_bias = self.command_values[self.selected_index]
         self._reset_pid_state()
         self._refresh_status()
@@ -1784,7 +1882,7 @@ class PidControlPage(DetailPage):
         return dict(self._controller_config(), setpoint=self.setpoint_input.value(),
                     kp=self.kp_input.value(), ki=self.ki_input.value(), kd=self.kd_input.value(),
                     channel=self.selected_index, backend=self.backend_mode,
-                    simulation_mode=self.simulation_mode, dry_run=self.dry_run_check.isChecked(),
+                    simulation_mode=self.simulation_mode, feedback_unit=self.feedback_unit, feedback_source="calibrated_beam" if self.beam_feedback else "coil_current", dry_run=self.dry_run_check.isChecked(),
                     minimum_output=self.min_output_input.value(), maximum_output=self.max_output_input.value())
 
     def _tick_feedback(self) -> None:
@@ -1818,6 +1916,9 @@ class PidControlPage(DetailPage):
             self.actual_values[self.selected_index] = self.actual_models[self.selected_index].step(target)
             metric_stamp = time.perf_counter()
 
+        self._refresh_beam()
+        if self.beam_feedback:
+            metric_stamp = self.beam_timestamp if self.beam_valid else None
         self._sync_channel_toggles()
         if self.pid_enabled and not self._is_safe_to_run():
             self._stop_pid(self.last_safety_message)
@@ -1827,9 +1928,10 @@ class PidControlPage(DetailPage):
                 self.run_metrics.finish('Setpoint or controller settings changed')
                 self.run_metrics.start(config)
             if metric_stamp is not None:
-                self.run_metrics.sample(metric_stamp, self.actual_values[self.selected_index])
+                self.run_metrics.sample(metric_stamp, self._feedback_value())
         self._tick_pid_controller()
         self._poll_tuning_workflow()
+        recording(self)
         self._sample_coil_session(metric_stamp)
         self._append_plot_sample()
         self._refresh_plot()
@@ -1840,6 +1942,9 @@ class PidControlPage(DetailPage):
             self._poll_service_nla()
             return
     def _apply_channel_command(self, index: int) -> bool:
+        if active_controller(self.backend, self) is not None:
+            self.last_safety_message = "Another PID/BO/GA page is using this backend"
+            return False
         target = self.command_values[index]
         on = self.channel_on[index]
         enabled = self.channel_enabled[index]
@@ -1877,11 +1982,14 @@ class PidControlPage(DetailPage):
             self.last_safety_message = "Stop the tuning session before enabling normal PID control"
             return False
         for page in QApplication.allWidgets():
-            if (isinstance(page, PidControlPage) and page is not self
+            if (hasattr(page, "pid_enabled") and hasattr(page, "tuning_session_active") and page is not self
                     and self.backend is not None and page.backend is self.backend
                     and (page.pid_enabled or page.tuning_session_active)):
                 self.last_safety_message = "Another PID page is using this backend"
                 return False
+        if self.beam_feedback and not self.beam_valid:
+            self.last_safety_message = "No fresh calibrated beam measurement"
+            return False
         if not self.armed:
             self.last_safety_message = "Not armed"
             return False
@@ -1912,6 +2020,7 @@ class PidControlPage(DetailPage):
                 reason = f"{reason}; stop failed: {exc}"
             self._lock_controller_inputs(False)
         self.pid_enabled = False
+        recording(self, reason=reason)
         self.enable_button.blockSignals(True)
         self.enable_button.setChecked(False)
         self.enable_button.setText("Enable PID")
@@ -1923,65 +2032,25 @@ class PidControlPage(DetailPage):
         self._refresh_status()
 
     def _log_command(self, index: int, target: float, on: bool, enabled: bool, ok: bool) -> None:
-        self.log_path.parent.mkdir(parents=True, exist_ok=True)
-        exists = self.log_path.exists()
-        with self.log_path.open("a", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            if not exists:
-                writer.writerow(
-                    [
-                        "timestamp",
-                        "channel_index",
-                        "channel",
-                        "setpoint",
-                        "actual",
-                        "error",
-                        "command",
-                        "kp",
-                        "ki",
-                        "kd",
-                        "output_on",
-                    "control_enabled",
-                    "dry_run",
-                    "armed",
-                        "pid_enabled",
-                        "status",
-                        "interlocked",
-                        "ok",
-                        "message",
-                    ]
-                )
-            actual = self.actual_values[index]
-            setpoint = self.setpoint_input.value()
-            writer.writerow(
-                [
-                    f"{time.time():.6f}",
-                    index,
-                    CHANNEL_NAMES[index],
-                    f"{setpoint:.6f}",
-                    f"{actual:.6f}",
-                    f"{setpoint - actual:.6f}",
-                    f"{target:.6f}",
-                    f"{self.kp_input.value():.6f}",
-                    f"{self.ki_input.value():.6f}",
-                    f"{self.kd_input.value():.6f}",
-                    on,
-                    enabled,
-                    self.dry_run_check.isChecked(),
-                    self.armed,
-                    self.pid_enabled,
-                    self.channel_status[index],
-                    self.channel_interlocked[index],
-                    ok,
-                    self.last_safety_message,
-                ]
-            )
+        actual, target_beam = self._feedback_value(), self.setpoint_input.value()
+        header = ('timestamp','channel_index','channel',
+                  'beam_target_nA' if self.beam_feedback else 'setpoint',
+                  'beam_actual_nA' if self.beam_feedback else 'actual',
+                  'beam_error_nA' if self.beam_feedback else 'error',
+                  'tc_command_A' if self.beam_feedback else 'command',
+                  'kp','ki','kd','output_on','control_enabled','dry_run','armed',
+                  'pid_enabled','status','interlocked','ok','message')
+        row = (time.time(),index,CHANNEL_NAMES[index],target_beam,actual,target_beam-actual,
+               target,self.kp_input.value(),self.ki_input.value(),self.kd_input.value(),
+               on,enabled,self.dry_run_check.isChecked(),self.armed,self.pid_enabled,
+               self.channel_status[index],self.channel_interlocked[index],ok,self.last_safety_message)
+        file_writer.submit(write_csv, self.log_path, (row,), header, True)
 
     def _append_plot_sample(self) -> None:
-        actual = self.actual_values[self.selected_index]
+        actual = self._feedback_value()
         setpoint = self.setpoint_input.value()
         error = setpoint - actual
-        self.history.append((time.perf_counter(), actual, setpoint, self.command_values[self.selected_index]))
+        self.history.append((time.perf_counter(), actual, setpoint, self.command_values[self.selected_index], self.actual_values[self.selected_index]) if self.beam_feedback else (time.perf_counter(), actual, setpoint, self.command_values[self.selected_index]))
         self.history = self.history[-240:]
 
     def _refresh_plot(self) -> None:
@@ -1989,17 +2058,19 @@ class PidControlPage(DetailPage):
 
     def _refresh_status(self) -> None:
         channel = CHANNEL_NAMES[self.selected_index]
-        actual = self.actual_values[self.selected_index]
+        actual = self._feedback_value()
         error = self.setpoint_input.value() - actual
         state = "active" if self.pid_enabled else "standby"
         status_values = {
             "Channel": channel,
             "State": state.title(),
-            "Error": f"{error:+.2f} A",
-            "Actual": f"{actual:.2f} A",
+            "Error": f"{error:+.2f} {self.feedback_unit}" if math.isfinite(error) else "Unavailable",
+            "Actual": f"{actual:.2f} {self.feedback_unit}" if math.isfinite(actual) else "Unavailable",
         }
         for name, value in status_values.items():
-            self.pid_status_values[name].setText(f"{name.upper()}\n{value}")
+            label = ({"Actual": "BEAM", "Error": "BEAM ERROR", "Channel": "TC OUTPUT"}.get(name, name.upper())
+                     if self.beam_feedback else name.upper())
+            self.pid_status_values[name].setText(f"{label}\n{value}")
 
         connected = self.backend_available and self.backend_connection.lower() in {"connected", "listening"}
         self.connection_dot.setProperty("connected", connected)
@@ -2016,6 +2087,7 @@ class PidControlPage(DetailPage):
             f"Output {'On' if self.telemetry_on[self.selected_index] else 'Off'}    "
             f"Control {'Enabled' if self.telemetry_enabled[self.selected_index] else 'Disabled'}"
         )
+        self.safety_label.setToolTip(self.safety_label.text())
 
     def _start_backend(self) -> None:
         if self.backend is not None:
@@ -2077,3 +2149,4 @@ class PidControlPage(DetailPage):
             except Exception:
                 pass
         self.backend_available = False
+        recording(self, 'close')

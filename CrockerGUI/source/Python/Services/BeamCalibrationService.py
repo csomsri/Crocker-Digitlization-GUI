@@ -43,6 +43,7 @@ class BeamState:
     select_mode: str
     quality: str
     message: str = ""
+    calibration_revision: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -52,6 +53,7 @@ class BeamCalibrationService:
     def __init__(self, config_path: str | Path) -> None:
         self.config_path = Path(config_path)
         self._lock = Lock()
+        self._calibration_revision = 0
         self._ranges = self._default_ranges()
         self._select_mode = "manual"
         self._manual_index = 0
@@ -88,6 +90,7 @@ class BeamCalibrationService:
         with self._lock:
             if ranges:
                 self._ranges = ranges
+            self._calibration_revision += 1
             self._select_mode = str(data.get("select_mode", self._select_mode))
             self._manual_index = int(data.get("manual_index", self._manual_index))
             self._digital_source = str(data.get("digital_source", self._digital_source))
@@ -132,6 +135,7 @@ class BeamCalibrationService:
                 full_scale_ua=full_scale_ua,
                 select_mode=self._select_mode,
                 quality="ok",
+                calibration_revision=self._calibration_revision,
             )
             return self._state
 

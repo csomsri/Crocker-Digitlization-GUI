@@ -31,6 +31,7 @@ class AlarmService:
     def __init__(self, config_path: str | Path, db_path: str | Path | None = None) -> None:
         self.config_path = Path(config_path)
         self.db_path = Path(db_path) if db_path is not None else None
+        self.event_sink = None
         self._lock = Lock()
         self._enabled = True
         self._log_events = True
@@ -244,6 +245,9 @@ class AlarmService:
         opened = [alarm for key, alarm in current.items() if key not in previous]
         cleared = [alarm for key, alarm in previous.items() if key not in current]
         if not opened and not cleared:
+            return
+        if self.event_sink is not None:
+            self.event_sink(opened, cleared, timestamp)
             return
         try:
             connection = connect_database(self.db_path)

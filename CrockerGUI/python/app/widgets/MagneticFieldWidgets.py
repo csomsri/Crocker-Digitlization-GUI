@@ -489,4 +489,12 @@ def make_speedometer(parent: QWidget | None = None) -> QWidget:
 
 
 def make_time_domain_plot(parent: QWidget | None = None) -> QWidget:
+    from PySide6.QtGui import QGuiApplication
+    if QGuiApplication.platformName() not in ('offscreen', 'minimal'):
+        try:
+            import CycloViz
+            if hasattr(CycloViz, 'TimeDomainLinePlot') and hasattr(CycloViz, 'load_opengl'):
+                return TimeDomainPlot(parent)
+        except ImportError:
+            pass
     return QtTimeDomainPlot(parent)

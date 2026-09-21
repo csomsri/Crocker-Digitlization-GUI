@@ -95,7 +95,9 @@ class PageTest(unittest.TestCase):
 
     def setUp(self):
         self.page = PidControlPage(lambda: None, 'simulation')
-        self.page.timer.stop()
+        # Explicit beam fixture, independent of the selected coil's actual value.
+        self.page.get_beam_state = lambda: dict(current_ua=0.001, timestamp=time.time(), quality='ok')
+        self.page._refresh_beam()
         self.page._log_command = lambda *args: None
         self.assertEqual(self.page.controller_kind_input.count(), 1)
         self.assertEqual(self.page.controller_kind_input.currentData(), "nla")
@@ -111,7 +113,10 @@ class PageTest(unittest.TestCase):
         p.arm_button.setChecked(True)
         p.enable_button.setChecked(True)
         self.assertTrue(p._service_pid_active)
-        wait_for(lambda: p.backend.PidTrialStatus()['iterations'] >= 3)
+        def updated():
+            p._refresh_beam(publish=True)
+            return p.backend.PidTrialStatus()['iterations'] >= 3
+        wait_for(updated)
         p._tick_pid_controller()
         self.assertGreater(p.command_values[0], 0)
         self.assertEqual(p.backend.PendingCommand()[0]['target'], 0)  # default dry run

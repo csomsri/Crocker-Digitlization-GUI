@@ -5,6 +5,7 @@ from PidControlPageTest import QApplication, PidControlPage
 
 app = QApplication.instance() or QApplication([])
 page = PidControlPage(lambda: None, backend_mode="simulation")
+page.get_beam_state = lambda: dict(current_ua=0.001, timestamp=time.time(), quality='ok')
 
 
 def wait_until(predicate, seconds=40):

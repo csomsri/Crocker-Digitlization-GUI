@@ -22,6 +22,7 @@ def build_training_tensors(
         ],
         **tensor_options,
     )
+    
     # BoTorch maximizes objectives; observation score is a cost.
     train_y = torch.tensor(
         [[-observation.score] for observation in observations],

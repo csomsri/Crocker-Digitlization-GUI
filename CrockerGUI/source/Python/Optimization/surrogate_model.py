@@ -23,6 +23,7 @@ def fit_single_task_gp(
         input_transform=Normalize(d=dimension, bounds=bounds),
         outcome_transform=Standardize(m=1),
     )
+
     mll = ExactMarginalLogLikelihood(model.likelihood, model)
     fit_gpytorch_mll(mll)
     return model
@@ -34,9 +35,14 @@ def predict_posterior_mean_variance(
     query_x: Any,
     torch: Any,
 ) -> tuple[list[float], list[float]]:
+    
     model.eval()
     with torch.no_grad():
         posterior = model.posterior(query_x)
         mean = posterior.mean.detach().cpu().reshape(-1)
         variance = posterior.variance.detach().cpu().reshape(-1)
+
     return [float(value) for value in mean], [float(value) for value in variance]
+
+
+

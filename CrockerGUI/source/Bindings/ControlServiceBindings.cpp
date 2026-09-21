@@ -273,6 +273,7 @@ Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
     if (source.contains("nla_derivative_filter_tau")) config.nlaLimits.derivativeFilterTau = source["nla_derivative_filter_tau"].cast<double>();
 
     config.measurementChannel = source["measurement_channel"].cast<Controls::ChannelId>();
+    if (source.contains("external_beam_measurement")) config.externalBeamMeasurement = source["external_beam_measurement"].cast<bool>();
     config.setpoint = source["setpoint"].cast<double>();
     config.kp = source["kp"].cast<double>();
     config.ki = source["ki"].cast<double>();
@@ -486,6 +487,7 @@ py::list CommandToList(const Controls::ControlCommand& command)
 
 void BindControlService(py::module_& module)
 {
+    module.attr("PID_EXTERNAL_RAMP_SUPPORTED") = true;
     py::class_<Controls::NLAPIDGains>(module, "NLAPIDGains")
         .def(py::init<>())
         .def_readwrite("kp", &Controls::NLAPIDGains::kp)
@@ -580,6 +582,7 @@ void BindControlService(py::module_& module)
         .def("PidTrialStatus", [](const Controls::ControlService& service) {
             return PidTrialStatusToDict(service.PidTrialStatusSnapshot());
         })
+        .def("SetPidBeamMeasurement", &Controls::ControlService::SetPidBeamMeasurement)
         .def("StartSequence", [](Controls::ControlService& service, const py::dict& config) {
             service.StartSequence(SequenceRunConfigFromDict(config));
         }, py::arg("config"))

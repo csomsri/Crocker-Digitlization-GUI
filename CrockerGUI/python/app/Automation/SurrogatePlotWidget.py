@@ -6,9 +6,10 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen, QFont
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
+from python.app.widgets.PlotSurface import PlotSurface
 
 
-class SurrogatePlotWidget(QWidget):
+class SurrogatePlotWidget(PlotSurface):
     """Cost versus one gain, with a posterior band from the full 3D GP."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -64,7 +65,7 @@ class SurrogatePlotWidget(QWidget):
         padding = max((high - low) * 0.08, 0.1 if low == high else 1e-9)
         return low - padding, high + padding
 
-    def paintEvent(self, event) -> None:  # noqa: N802
+    def paint_chart(self, event) -> None:
         del event
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)

@@ -42,6 +42,7 @@ public:
     [[nodiscard]] HealthStatus Health() const;
 
     void StartPidTrial(const PidTrialConfig& config);
+    void SetPidBeamMeasurement(double nanoamps, double timestampUnixSeconds, bool valid);
     void StopPidTrial(bool disableAllocatedChannels = true) noexcept;
     [[nodiscard]] PidTrialStatus PidTrialStatusSnapshot() const;
 
@@ -50,6 +51,9 @@ public:
     [[nodiscard]] SequenceRunStatus SequenceStatusSnapshot() const;
 
 private:
+    double pidBeamNanoamps_ = 0.0;
+    double pidBeamTimestamp_ = 0.0;
+    bool pidBeamValid_ = false;
     void StopUnlocked() noexcept;
     void RunPidTrial(PidTrialConfig config) noexcept;
     void SetPidTrialFault(const std::string& message) noexcept;

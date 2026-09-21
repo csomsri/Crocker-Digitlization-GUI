@@ -1,5 +1,11 @@
 # Testing Bayesian PID tuning with smoke2
 
+The C++ **PID Control** page now regulates calibrated **beam current (nA)**
+by commanding a selected **TC current (A)**. The coil-current preset described
+below applies only to the unchanged **PythonPID** page. Smoke2 does not couple
+TC current to beam current, so it cannot validate C++ beam regulation or beam
+gain tuning. Use an explicitly coupled test plant for that purpose.
+
 From the repository root:
 
 ```powershell
@@ -7,7 +13,7 @@ cd CrockerGUI
 python main.py -simulation -smoke2
 ```
 
-Open AI Control → PID Control, arm PID, open Optimized Tuner, and click
+Open AI Control → PythonPID, arm PID, open Optimized Tuner, and click
 **Load smoke2 BO preset**, then **Auto Run N Trials**.
 The preset loads TC1, a 250 A target, 20 trials of 10 seconds,
 Balanced scoring, Kp 0–2, Ki 0–2, Kd 0–0.1, command limits 0–400 A,

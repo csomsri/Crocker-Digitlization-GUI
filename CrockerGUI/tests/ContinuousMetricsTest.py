@@ -2,21 +2,43 @@ import os
 import sys
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QDialog, QTableWidget
 from python.app.Automation.RunMetrics import RunMetrics, export_sample_range
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Automation.PythonPIDPage import PythonPIDPage
+from source.Python.Data.file_writer import file_writer
 
 app = QApplication.instance() or QApplication([])
 
 
 class ContinuousMetricsTest(unittest.TestCase):
+    def test_history_and_sample_dialog_load_from_background_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            widget = RunMetrics(Path(directory))
+            widget.start(dict(setpoint=10))
+            widget.sample(1, 9)
+            widget.sample(2, 10)
+            widget.finish('Test complete')
+            def check_loaded(dialog):
+                table = dialog.findChild(QTableWidget)
+                end = time.monotonic()+3
+                while not table.rowCount() and time.monotonic() < end:
+                    app.processEvents()
+                    time.sleep(.01)
+                self.assertGreater(table.rowCount(), 0)
+                return 0
+            with patch.object(QDialog, 'exec', check_loaded):
+                widget.show_history()
+                widget.show_csv(widget._stem.with_suffix('.csv'))
+            file_writer.submit(lambda: None).result(3)
+
     def test_export_inclusive_points(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / 'source.csv'
@@ -37,6 +59,7 @@ class ContinuousMetricsTest(unittest.TestCase):
                 widget.start(dict(setpoint=10))
             with patch('python.app.Automation.RunMetrics.time.perf_counter', return_value=1):
                 widget.sample(1, 9)
+            file_writer.submit(lambda: None).result(3)
             csv_path = next(Path(directory).glob('*.csv'))
             self.assertIn('1,9,1', csv_path.read_text())
             with patch('python.app.Automation.RunMetrics.time.perf_counter', return_value=10):
@@ -47,6 +70,7 @@ class ContinuousMetricsTest(unittest.TestCase):
             self.assertEqual(widget.records[-1]['reason'], 'Measurement window complete')
             widget.finish('PID stopped')
             self.assertFalse(widget.record_button.isEnabled())
+            file_writer.submit(lambda: None).result(3)
 
     def test_fresh_samples_settling_and_saved_data(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -64,6 +88,7 @@ class ContinuousMetricsTest(unittest.TestCase):
                 self.assertFalse(widget.metrics().settled)
                 widget.finish('Operator stop')
                 widget.finish('Repeated stop')
+            file_writer.submit(lambda: None).result(3)
             files = list(Path(directory).glob('*.json'))
             self.assertEqual(len(files), 1)
             record = json.loads(files[0].read_text())
@@ -102,6 +127,7 @@ class ContinuousMetricsTest(unittest.TestCase):
                     self.assertEqual(len(page.run_metrics.records), 2)
                 finally:
                     page.stop_backend()
+                    file_writer.submit(lambda: None).result(3)
 
 
 if __name__ == '__main__':

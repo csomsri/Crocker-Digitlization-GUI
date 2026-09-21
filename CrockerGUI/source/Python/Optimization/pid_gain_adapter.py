@@ -89,9 +89,11 @@ class BotorchPidOptimizer:
     def best_result(self) -> PidTrialResult | None:
         safe = [r for r in self.safe_results if r.candidate not in self.rejected_validation_candidates
                 and not (r.metrics and r.metrics.sustained_oscillation)]
+
         return min(safe, key=lambda result: result.score) if safe else None
 
     def propose_batch(self, batch_size: int) -> list[PidGainCandidate]:
+
         return [
             self._to_pid_candidate(candidate)
             for candidate in self.optimizer.propose_batch(batch_size)
@@ -100,6 +102,7 @@ class BotorchPidOptimizer:
     def record_results(self, results: Iterable[PidTrialResult]) -> None:
         validated = list(results)
         observations: list[OptimizationObservation] = []
+
         for result in validated:
             if result.controller_kind != self.controller_kind:
                 raise ValueError("Cannot mix C++ and Python NLA observations")
@@ -153,8 +156,10 @@ class BotorchPidOptimizer:
     def surrogate_volume(self, *, grid_size: int = 16) -> dict:
         grid = self.optimizer.surrogate_volume(grid_size=grid_size)
         grid['trials'] = [(r.candidate.kp, r.candidate.ki, r.candidate.kd) for r in self.results]
+
         best = self.best_result
         grid['best'] = (best.candidate.kp, best.candidate.ki, best.candidate.kd) if best else None
+
         return grid
 
     def surrogate_slice(self, *, axis_x: str = "kp", point_count: int = 160) -> dict:

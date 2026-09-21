@@ -11,8 +11,11 @@ the conventional PID implementation and GUI fallback have been removed.
 
 1. Rebuild the CycloViz extension and restart the application.
 2. Open Automation > PID Control which uses **C++ NLAPID** exclusively.
-3. Configure the setpoint, gains, limits, and NLA settings. The channel actual
-   value in amperes is the feedback; this is not beam-current regulation yet.
+3. Configure the beam target in nA, gains, and NLA settings. Select TC1–TC12
+   as the actuator; command limits and slew remain in amperes and A/s.
+   Feedback comes from the application's calibrated beam service, converted
+   from µA to nA. Missing, invalid, stale, or backward beam samples cannot
+   drive the loop. The separate PythonPID page retains coil-current feedback.
 4. Arm and enable PID. The C++ service runs continuously on its worker thread;
    the GUI polls status. Dry Run advances virtual targets without sending them.
 5. Stop/disarm holds the last command. Service faults use the existing fault
@@ -36,6 +39,7 @@ remain available. Additional dictionary fields:
 |---|---|
 | `controller_kind` | `nla` only (also the default); other values are rejected |
 | `continuous` | false; true runs until stopped instead of duration expiry |
+| `external_beam_measurement` | false for legacy service callers; the C++ BO page sets true |
 | `nla_deadband` | 0.0 |
 | `nla_trend_tolerance` | 0.0 |
 | `nla_direction_check_interval` | 1.0 seconds |
@@ -50,9 +54,18 @@ remain available. Additional dictionary fields:
 | `nla_integral_max` | 100.0 maximum integral increment |
 | `nla_derivative_filter_tau` | 0.05 seconds |
 
-NLA currently requires direct single-channel allocation (1 for the measured
-channel, 0 elsewhere). It starts from the pending channel target and consumes
-each fresh telemetry timestamp once. Backward timestamps fault the run.
+NLA requires single-channel allocation (1 for `measurement_channel`, 0 elsewhere).
+For beam mode that channel identifies the TC actuator and its health telemetry;
+feedback instead arrives through `SetPidBeamMeasurement(nanoamps, unix_timestamp,
+valid)`. The worker consumes each beam timestamp once and independently checks
+transport freshness. It starts from the pending TC target. Backward timestamps
+fault the run. Unprofiled live hardware does not qualify for the legacy
+direct-current exemption; beam mode requires a calibrated allocation for live
+hardware. Native simulated transport and dry runs can test the new path.
+
+Stock smoke/smoke2/cyclotron telemetry does not model TC-to-beam coupling.
+`PidControlPageTest.py` supplies an explicit synthetic beam response for testing;
+its gains are not hardware commissioning values.
 
 `NLAPID::update(setpoint, measurement, dt)` returns a **signed target increment**.
 The service adds it to the previous target exactly once; no additional dt

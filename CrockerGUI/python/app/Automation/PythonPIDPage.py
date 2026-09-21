@@ -8,6 +8,7 @@ from pathlib import Path
 from PySide6.QtWidgets import QLabel
 
 from python.app.Automation.PidControlPage import PidControlPage
+from python.app.Automation.PIDRecording import recording
 from source.Python.Control.PythonNLATrial import PythonNLATrial
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 from source.Python.Control.NLAPID import (
@@ -17,6 +18,7 @@ from source.Python.Control.NLAPID import (
 
 class PythonPIDPage(PidControlPage):
     """Reuse the PID page controls/transport; replace only the control engine."""
+    beam_feedback = False
 
     def __init__(self, go_back, backend_mode, **kwargs):
         self.pid = NLAPID()
@@ -87,8 +89,10 @@ class PythonPIDPage(PidControlPage):
             widget.setEnabled(not locked)
 
     def _start_trial(self, config: dict) -> None:
+        recording(self, 'check_trial')
         self.python_trial.backend = self.backend
         self.python_trial.start(config)
+        recording(self, 'started', config=config)
 
     def _trial_status(self) -> dict:
         return self.python_trial.status()
@@ -106,6 +110,7 @@ class PythonPIDPage(PidControlPage):
         self.run_metrics.finish(reason)
         # Holding means no new write, especially after a rejected command.
         self.pid_enabled = False
+        recording(self, reason=reason)
         self.enable_button.blockSignals(True)
         self.enable_button.setChecked(False)
         self.enable_button.setText("Enable PID")
@@ -190,6 +195,9 @@ class PythonPIDPage(PidControlPage):
             f"P {result.proportional:.4g}  I {result.integral:.4g}  D {result.derivative:.4g} A/update | "
             f"Delta {result.output:+.4g} A"
         )
+        recording(self, sample=dict(feedback=measurement, error=result.error,
+            controller_output=result.output, telemetry_timestamp=sample_time,
+            tc_command_a=proposed, sample_kind='controller_update'))
 
     def stop_backend(self):
         self.timer.stop()

@@ -11,6 +11,8 @@ from datetime import datetime
 from pathlib import Path
 
 from python.app.ResponsiveLayout import ResponsiveRow
+from python.app.Monitoring.DatabaseReader import ReadJobs
+from source.Python.Data.file_writer import file_writer, write_csv
 
 from PySide6.QtCore import (
     QPointF,
@@ -577,6 +579,8 @@ class DatabaseHistoryPage(DetailPage):
             go_back,
         )
         self.db_path = self._resolve_db_path(Path(db_path))
+        self._read_jobs = ReadJobs(self)
+        self._data_start = self._data_end = None
         self.last_rows: list[tuple[float, str, float, str]] = []
         self._shared_hover_time: float | None = None
         self._shared_pinned_times: list[float] = []
@@ -932,92 +936,71 @@ class DatabaseHistoryPage(DetailPage):
         ]
         had_plot_assignments = any(existing_plot_channels)
         previous_date = self.date_edit.date()
-        try:
-            with self._connect() as connection:
-                channels = [
-                    row["channel"]
-                    for row in connection.execute(
-                        """
-                        SELECT channel
-                        FROM readings
-                        GROUP BY channel
-                        ORDER BY channel
-                        """
-                    )
-                ]
-                count, start, end = connection.execute(
-                    "SELECT COUNT(*), MIN(timestamp), MAX(timestamp) FROM readings"
-                ).fetchone()
-        except sqlite3.Error as exc:
-            QMessageBox.critical(self, "Database Error", str(exc))
-            return
+        def loaded(results):
+            channels = [row['channel'] for row in results[0]]
+            extent = results[1][0]
+            count, start, end = extent['count'], extent['start'], extent['end']
+            self._data_start, self._data_end = start, end
+            apply_result(channels, count, start, end)
 
-        self.channel_list.clear()
-        ordered = sorted(
-            channels,
-            key=lambda c: (CHANNEL_ORDER.index(c) if c in CHANNEL_ORDER else 999, c),
-        )
-        for channel in ordered:
-            item = QListWidgetItem(CHANNEL_LABELS.get(channel, channel))
-            item.setData(Qt.UserRole, channel)
-            if channel in selected_channels:
-                item.setSelected(True)
-            self.channel_list.addItem(item)
+        def apply_result(channels, count, start, end):
+            self.channel_list.clear()
+            ordered = sorted(
+                channels,
+                key=lambda c: (CHANNEL_ORDER.index(c) if c in CHANNEL_ORDER else 999, c),
+            )
+            for channel in ordered:
+                item = QListWidgetItem(CHANNEL_LABELS.get(channel, channel))
+                item.setData(Qt.UserRole, channel)
+                if channel in selected_channels:
+                    item.setSelected(True)
+                self.channel_list.addItem(item)
 
-        if not selected_channels:
-            for row in range(min(4, self.channel_list.count())):
-                self.channel_list.item(row).setSelected(True)
+            if not selected_channels:
+                for row in range(min(4, self.channel_list.count())):
+                    self.channel_list.item(row).setSelected(True)
 
-        available_channels = set(ordered)
-        if had_plot_assignments:
-            for plot, plot_channels in zip(self.plot_widgets, existing_plot_channels):
-                plot.channels = [
-                    channel for channel in plot_channels if channel in available_channels
-                ]
-        elif not self._has_loaded_defaults and getattr(self, "plot_widgets", None):
-            for row in range(min(3, self.channel_list.count())):
-                channel = self.channel_list.item(row).data(Qt.UserRole)
-                if channel:
-                    self.plot_widgets[row % len(self.plot_widgets)].channels.append(channel)
-        self._has_loaded_defaults = True
+            available_channels = set(ordered)
+            if had_plot_assignments:
+                for plot, plot_channels in zip(self.plot_widgets, existing_plot_channels):
+                    plot.channels = [
+                        channel for channel in plot_channels if channel in available_channels
+                    ]
+            elif not self._has_loaded_defaults and getattr(self, "plot_widgets", None):
+                for row in range(min(3, self.channel_list.count())):
+                    channel = self.channel_list.item(row).data(Qt.UserRole)
+                    if channel:
+                        self.plot_widgets[row % len(self.plot_widgets)].channels.append(channel)
+            self._has_loaded_defaults = True
 
-        if start is not None and end is not None:
-            data_start_date = QDateTime.fromSecsSinceEpoch(int(start)).date()
-            data_end_date = QDateTime.fromSecsSinceEpoch(int(end)).date()
-            if self._has_loaded_defaults and data_start_date <= previous_date <= data_end_date:
-                self.date_edit.setDate(previous_date)
+            if start is not None and end is not None:
+                data_start_date = QDateTime.fromSecsSinceEpoch(int(start)).date()
+                data_end_date = QDateTime.fromSecsSinceEpoch(int(end)).date()
+                if self._has_loaded_defaults and data_start_date <= previous_date <= data_end_date:
+                    self.date_edit.setDate(previous_date)
+                else:
+                    self.date_edit.setDate(data_end_date)
+                start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
+                end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
+                self.status_label.setText(f"{count:,} readings Â· {start_text} to {end_text}")
             else:
-                self.date_edit.setDate(data_end_date)
-            start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
-            end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
-            self.status_label.setText(f"{count:,} readings Â· {start_text} to {end_text}")
-        else:
-            self.status_label.setText("No readings")
-        self.plot()
+                self.status_label.setText("No readings")
+            self.plot()
 
-    def _jump_to_first(self) -> None:
-        try:
-            with self._connect() as connection:
-                row = connection.execute("SELECT MIN(timestamp) FROM readings").fetchone()
-        except sqlite3.Error as exc:
-            QMessageBox.critical(self, "Range Error", str(exc))
-            return
-        if row[0] is None:
-            return
-        self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(row[0])).date())
-        self.plot()
+        self._read_jobs.submit('reload', self.db_path,
+            (("SELECT channel FROM readings GROUP BY channel ORDER BY channel", ()),
+             ("SELECT COUNT(*) AS count, MIN(timestamp) AS start, MAX(timestamp) AS end FROM readings", ())),
+            loaded, self.status_label.setText)
 
-    def _jump_to_latest(self) -> None:
-        try:
-            with self._connect() as connection:
-                row = connection.execute("SELECT MAX(timestamp) FROM readings").fetchone()
-        except sqlite3.Error as exc:
-            QMessageBox.critical(self, "Range Error", str(exc))
-            return
-        if row[0] is None:
-            return
-        self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(row[0])).date())
-        self.plot()
+    def _jump_to_first(self):
+        if self._data_start is not None:
+            self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(self._data_start)).date())
+            self.plot()
+
+    def _jump_to_latest(self):
+        if self._data_end is not None:
+            self.date_edit.setDate(QDateTime.fromSecsSinceEpoch(int(self._data_end)).date())
+            self.plot()
 
     def plot(self) -> None:
         channels = []
@@ -1050,55 +1033,53 @@ class DatabaseHistoryPage(DetailPage):
         """
         params = [*channels, start, end]
 
-        try:
-            with self._connect() as connection:
-                rows = connection.execute(query, params).fetchall()
-        except sqlite3.Error as exc:
-            QMessageBox.critical(self, "Query Error", str(exc))
-            return
+        def loaded(results):
+            rows = results[0]
+            self.last_rows = [
+                (
+                    float(row["timestamp"]),
+                    str(row["channel"]),
+                    float(row["engineering_value"]),
+                    str(row["units"] or ""),
+                )
+                for row in rows
+            ]
+            all_series: dict[str, list[tuple[float, float]]] = {channel: [] for channel in channels}
+            units_by_channel: dict[str, str] = {}
+            for timestamp, channel, value, _units in self.last_rows:
+                all_series.setdefault(channel, []).append((timestamp, value))
+                if _units:
+                    units_by_channel[channel] = _units
+            sample_limit = self.sample_limit.value()
+            all_series = {
+                channel: self._limit_points(values, sample_limit)
+                for channel, values in all_series.items()
+                if values
+            }
 
-        self.last_rows = [
-            (
-                float(row["timestamp"]),
-                str(row["channel"]),
-                float(row["engineering_value"]),
-                str(row["units"] or ""),
+            for plot_widget in self.plot_widgets:
+                plot_widget.set_series({
+                    channel: all_series[channel]
+                    for channel in plot_widget.channels
+                    if channel in all_series
+                })
+                plot_widget.set_units(units_by_channel)
+            self._fill_summary(all_series)
+            day_text = selected_date.toString("yyyy-MM-dd")
+            plotted_samples = sum(len(values) for values in all_series.values())
+            plotted_times = [
+                timestamp
+                for values in all_series.values()
+                for timestamp, _value in values
+            ]
+            self._last_plotted_sample_count = plotted_samples
+            self._last_plot_time_range = (
+                (min(plotted_times), max(plotted_times)) if plotted_times else None
             )
-            for row in rows
-        ]
-        all_series: dict[str, list[tuple[float, float]]] = {channel: [] for channel in channels}
-        units_by_channel: dict[str, str] = {}
-        for timestamp, channel, value, _units in self.last_rows:
-            all_series.setdefault(channel, []).append((timestamp, value))
-            if _units:
-                units_by_channel[channel] = _units
-        sample_limit = self.sample_limit.value()
-        all_series = {
-            channel: self._limit_points(values, sample_limit)
-            for channel, values in all_series.items()
-            if values
-        }
+            self.status_label.setText(f"{plotted_samples:,} plotted samples Â· {day_text}")
 
-        for plot_widget in self.plot_widgets:
-            plot_widget.set_series({
-                channel: all_series[channel]
-                for channel in plot_widget.channels
-                if channel in all_series
-            })
-            plot_widget.set_units(units_by_channel)
-        self._fill_summary(all_series)
-        day_text = selected_date.toString("yyyy-MM-dd")
-        plotted_samples = sum(len(values) for values in all_series.values())
-        plotted_times = [
-            timestamp
-            for values in all_series.values()
-            for timestamp, _value in values
-        ]
-        self._last_plotted_sample_count = plotted_samples
-        self._last_plot_time_range = (
-            (min(plotted_times), max(plotted_times)) if plotted_times else None
-        )
-        self.status_label.setText(f"{plotted_samples:,} plotted samples Â· {day_text}")
+        self._read_jobs.submit('plot', self.db_path, ((query, tuple(params)),),
+                               loaded, self.status_label.setText)
 
     def _limit_points(
         self,
@@ -1335,15 +1316,8 @@ class DatabaseHistoryPage(DetailPage):
             self.status_label.setText("Plot data before exporting")
             return
         path = self._export_file_path(".csv")
-        with open(path, "w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["timestamp", "datetime", "channel", "engineering_value", "units"])
-            for timestamp, channel, value, units in self.last_rows:
-                writer.writerow([
-                    timestamp,
-                    datetime.fromtimestamp(timestamp).strftime("%Y-%m-%d %H:%M:%S"),
-                    channel,
-                    value,
-                    units,
-                ])
-        self.status_label.setText(f"CSV exported: {path.name}")
+        rows = tuple((stamp, datetime.fromtimestamp(stamp).strftime('%Y-%m-%d %H:%M:%S'), channel, value, units)
+                     for stamp, channel, value, units in self.last_rows)
+        file_writer.submit(write_csv, path, rows,
+                           ('timestamp','datetime','channel','engineering_value','units'))
+        self.status_label.setText(f'CSV export queued: {path.name}')

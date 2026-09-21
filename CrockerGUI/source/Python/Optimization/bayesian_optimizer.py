@@ -142,8 +142,10 @@ class BotorchBayesianOptimizer:
             bounds=bounds,
             dimension=self.parameter_space.dimension,
         )
+
         x_values = self._axis_values(axis_x, grid_size)
         y_values = self._axis_values(axis_y, grid_size)
+
         rows = []
         for y_value in y_values:
             for x_value in x_values:
@@ -162,8 +164,10 @@ class BotorchBayesianOptimizer:
             query_x=query_x,
             torch=self._torch,
         )
+
         cost_mean = [-value for value in objective_mean]
         cost_stddev = [max(value, 0.0) ** 0.5 for value in objective_variance]
+
         return {
             "ready": True,
             "axis_x": axis_x,
@@ -180,17 +184,21 @@ class BotorchBayesianOptimizer:
     def surrogate_volume(self, *, grid_size: int = 16) -> dict[str, Any]:
         """Predict cost throughout a three-parameter space without fixing an axis."""
         from itertools import product
+
         if self.parameter_space.dimension != 3 or not 2 <= grid_size <= 30:
             raise ValueError('Volume requires three parameters and grid_size between 2 and 30')
         safe = self.safe_observations
+
         if len(safe) < self.initial_safe_trials:
             return dict(ready=False, message=f'Need {self.initial_safe_trials} safe observations; have {len(safe)}.')
         self._require_botorch()
+
         train_x, train_y = build_training_tensors(
             observations=safe, parameter_space=self.parameter_space,
             torch=self._torch, tensor_options=self._tensor_options())
         model = fit_single_task_gp(train_x=train_x, train_y=train_y,
                                    bounds=self._bounds_tensor(), dimension=3)
+
         rows = list(product(*(self._axis_values(name, grid_size) for name in self.parameter_names)))
         costs = []
         # Bound posterior memory; input normalization is owned by the GP.
@@ -199,6 +207,7 @@ class BotorchBayesianOptimizer:
                 model=model, query_x=self._torch.tensor(rows[start:start+512], **self._tensor_options()),
                 torch=self._torch)
             costs.extend(-value for value in means)
+
         return dict(ready=True, parameter_names=list(self.parameter_names), points=rows, mean=costs)
 
     def surrogate_slice(
@@ -240,6 +249,7 @@ class BotorchBayesianOptimizer:
         )
         mean = [-value for value in means]
         stddev = [max(0.0, value) ** 0.5 for value in variances]
+        
         result.update(
             ready=True, mean=mean, stddev=stddev,
             lower=[m - 1.96 * sd for m, sd in zip(mean, stddev)],

@@ -5,7 +5,7 @@ from python.app.widgets.DialogTitleBar import DialogTitleBar
 from pathlib import Path
 
 
-def setup_pid_dialog(dialog, title, *, window_controls=True):
+def setup_pid_dialog(dialog, title, *, window_controls=True, resize_grip=True):
     dialog.setWindowTitle(title)
     dialog.setWindowFlag(Qt.FramelessWindowHint, True)
     dialog.setAttribute(Qt.WA_TranslucentBackground)
@@ -43,6 +43,7 @@ def setup_pid_dialog(dialog, title, *, window_controls=True):
     frame.addLayout(content, 1)
     footer = QHBoxLayout()
     footer.addStretch()
-    footer.addWidget(QSizeGrip(dialog))
+    if resize_grip:
+        footer.addWidget(QSizeGrip(dialog))
     frame.addLayout(footer)
     return content

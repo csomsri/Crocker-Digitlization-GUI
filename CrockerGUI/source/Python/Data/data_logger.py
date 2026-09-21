@@ -105,12 +105,16 @@ def _beam_readings(
     try:
         raw_value = float(beam.get("raw_value", 0.0))
         display_ua = float(beam.get("display_ua", beam.get("current_ua", 0.0)))
+        control_ua = float(beam.get("current_ua", display_ua))
         full_scale_ua = float(beam.get("full_scale_ua", 0.0))
         range_index = float(beam.get("range_index", 0.0))
     except (TypeError, ValueError):
         return []
     quality = str(beam.get("quality", "ok"))
     return [
+        Reading(timestamp=timestamp, logged_at=logged_at, channel="beam_control_current",
+                raw_value=raw_value, engineering_value=control_ua,
+                units="uA", source=source, quality=quality),
         Reading(
             timestamp=timestamp,
             logged_at=logged_at,

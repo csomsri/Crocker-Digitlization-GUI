@@ -1,16 +1,31 @@
 {
-  "profile_name": "TC10 current-control commissioning - awaiting operating limits",
-  "approval_status": "draft",
+  "profile_name": "TC1-TC12 0-800 A - operator-approved test limits",
+  "approval_status": "approved",
   "setup_notes": {
-    "scope": "TC10 current readback and TC10 command only; all other allocation coefficients are zero.",
-    "allocation_basis": "Identity routing of scalar PID current output to TC10 engineering-current command, not a magnetic-field sensitivity calibration.",
+    "scope": "TC1-TC12, one selected trim coil per trial. User requested 0-800 A bounds for each coil.",
+    "allocation_basis": "Identity allocation to the selected trim coil; external calibrated beam-current feedback.",
     "operator_confirmed": "LabVIEW ramps requested values and the app receives actual current during the ramp.",
-    "pending": "Confirm command/readback units, operating current range, baseline bias, ramp rate, abort thresholds and calibration review before approving. Existing curve endpoints are calibration data, not approved operating limits."
+    "pending": "None for operator approval of these limits. This approval is not a calibration certificate.",
+    "draft_values": "Operator approved: 0-800 A; absolute beam error 3 nA; overshoot 0.5 nA; PID correction 10 A/update; saturation 5 s; LabVIEW ramping.",
+    "previous_abort_limits_before_all_coil_proposal": {
+      "TC10": {
+        "max_absolute_error": 1.0,
+        "max_overshoot": 0.47,
+        "max_control_output": 0.05,
+        "max_saturation_seconds": 2.0
+      },
+      "TC1": {
+        "max_absolute_error": 100.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 0.05,
+        "max_saturation_seconds": 1.94
+      }
+    }
   },
   "provenance": {
     "measurement_date": "YYYY-MM-DD",
-    "machine_configuration": "TC10 only; LabVIEW ramp; actual-current feedback (operator reported)",
-    "units": "allocation: command-unit/PID-output-unit; commands: A; slew: A/s",
+    "machine_configuration": "Selected TC1-TC12 actuator, one coil per trial; external calibrated beam feedback; LabVIEW physical ramping",
+    "units": "beam error and overshoot: nA; current bounds and PID correction: A; saturation duration: s; allocation: dimensionless",
     "operator": "Operator name",
     "reviewer": "Independent reviewer name",
     "source_dataset": "Immutable calibration record or dataset ID",
@@ -18,18 +33,540 @@
     "valid_until": "YYYY-MM-DD"
   },
   "measurement_channels": {
-    "TC10": {
-      "allocation": {"TC10": 1.0},
-      "command_bias": {"TC10": 0.0},
-      "minimum_command": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
-      "maximum_command": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
-      "maximum_slew_per_second": {"TC1": 0.0, "TC2": 0.0, "TC3": 0.0, "TC4": 0.0, "TC5": 0.0, "TC6": 0.0, "TC7": 0.0, "TC8": 0.0, "TC9": 0.0, "TC10": 0.0, "TC11": 0.0, "TC12": 0.0, "Main Magnet": 0.0, "Centering Beam": 0.0},
+    "TC1": {
+      "allocation": {
+        "TC1": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 800.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
       "abort_limits": {
-        "max_absolute_error": 0.0,
-        "max_overshoot": 0.0,
-        "max_control_output": 0.0,
-        "max_saturation_seconds": 0.0
-      }
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC2": {
+      "allocation": {
+        "TC2": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 800.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC3": {
+      "allocation": {
+        "TC3": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 800.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC4": {
+      "allocation": {
+        "TC4": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 800.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC5": {
+      "allocation": {
+        "TC5": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 800.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC6": {
+      "allocation": {
+        "TC6": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 800.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC7": {
+      "allocation": {
+        "TC7": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 800.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC8": {
+      "allocation": {
+        "TC8": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 800.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC9": {
+      "allocation": {
+        "TC9": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 800.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC10": {
+      "allocation": {
+        "TC10": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 800.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC11": {
+      "allocation": {
+        "TC11": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 800.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
+    },
+    "TC12": {
+      "allocation": {
+        "TC12": 1.0
+      },
+      "minimum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 0.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "maximum_command": {
+        "TC1": 0.0,
+        "TC2": 0.0,
+        "TC3": 0.0,
+        "TC4": 0.0,
+        "TC5": 0.0,
+        "TC6": 0.0,
+        "TC7": 0.0,
+        "TC8": 0.0,
+        "TC9": 0.0,
+        "TC10": 0.0,
+        "TC11": 0.0,
+        "TC12": 800.0,
+        "Main Magnet": 0.0,
+        "Centering Beam": 0.0
+      },
+      "abort_limits": {
+        "max_absolute_error": 3.0,
+        "max_overshoot": 0.5,
+        "max_control_output": 10.0,
+        "max_saturation_seconds": 5.0
+      },
+      "ramp_control": "labview"
     }
+  },
+  "approval_basis": "operator_limits",
+  "operator_approval": {
+    "approved_by": "User via this Codex task",
+    "statement": "I approve these values that you propose to me so implement it and let me test. Applies to the proposed TC1-TC12 profiles, one selected coil per trial.",
+    "approved_at": "2026-09-21T19:26:22.160296+00:00",
+    "limits_sha256": "7d878b80ec977c61ef40c1671c680ad3f76867095bb57cc158e31714cf6d2a2c"
   }
 }

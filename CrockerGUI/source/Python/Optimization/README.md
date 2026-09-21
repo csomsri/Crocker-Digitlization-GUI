@@ -53,3 +53,19 @@ optimizer.record_observations([
 
 PID gain tuning now uses this package through a thin adapter in
 `source/Python/Optimization/pid_gain_adapter.py`.
+
+## Genetic PID search
+
+`genetic_optimizer.py` provides the bounded, deterministic GA shared by the
+C++ and Python GA PID workspaces. It proposes gain candidates and consumes
+fitness scores; it never runs PID or writes hardware. Evaluation, recovery and
+command integration live in `source/Python/Automation/ga_*.py`. See
+`CrockerGUI/GA_INTEGRATION_PROPOSAL.md` for the integration map.
+
+## Hybrid GA / BO PID search
+
+`hybrid_pid_optimizer.py` shares measured GA observations with BO and requires
+paired measured improvement before handover. It has no GUI or device access.
+The fifth automation page uses the same trial evaluator for both optimizers,
+restores a fixed baseline between trials, and validates gains before applying.
+See `CrockerGUI/HYBRID_GA_BO_PID.md` for defaults, safety behavior and tests.

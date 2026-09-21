@@ -1,5 +1,7 @@
 """Continuous-control response measurements, independent of tuning trials."""
 import csv
+from source.Python.Data.file_writer import file_writer, write_text, write_csv, read_summaries, read_csv_range
+from python.app.Monitoring.DatabaseReader import ReadJobs
 import json
 import math
 import time
@@ -109,21 +111,12 @@ class RunMetrics(QFrame):
         self.record_button.setEnabled(False)
         self.display.setText('Running - waiting for fresh response samples')
         self._stem = None
-        try:
-            self.directory.mkdir(parents=True, exist_ok=True)
-            self._stem = self.directory / uuid4().hex
-            self._file = self._stem.with_suffix('.csv').open('w', newline='', encoding='utf-8')
-            self._writer = csv.writer(self._file)
-            self._writer.writerow(['elapsed_seconds', 'measurement', 'error'])
-            self._file.flush()
-            self._stem.with_suffix('.json').write_text(json.dumps(dict(
-                self.config, started_utc=self.started_utc, reason='Recording / incomplete',
-                measurement_window_seconds=self.window_seconds), indent=2), encoding='utf-8')
-        except OSError as exc:
-            if self._file:
-                self._file.close()
-            self._file = None
-            self.note.setText(f'Live save unavailable: {exc}. Will retry saving at the end.')
+        self._stem = self.directory / uuid4().hex
+        file_writer.submit(write_csv, self._stem.with_suffix('.csv'), (),
+                           ('elapsed_seconds', 'measurement', 'error'))
+        file_writer.submit(write_text, self._stem.with_suffix('.json'), json.dumps(dict(
+            self.config, started_utc=self.started_utc, reason='Recording / incomplete',
+            measurement_window_seconds=self.window_seconds), indent=2))
 
     def sample(self, stamp, measurement):
         if self.active and time.perf_counter() - self.started >= self.window_seconds:
@@ -137,14 +130,8 @@ class RunMetrics(QFrame):
         self.last_stamp = stamp
         elapsed = time.perf_counter() - self.started
         self.samples.append((elapsed, measurement, self.config['setpoint']-measurement, 0.0))
-        if self._file:
-            try:
-                self._writer.writerow(self.samples[-1][:3])
-                self._file.flush()
-            except OSError as exc:
-                self._file.close()
-                self._file = None
-                self.note.setText(f'Live save failed: {exc}. Will retry saving at the end.')
+        file_writer.submit(write_csv, self._stem.with_suffix('.csv'),
+                           (tuple(self.samples[-1][:3]),), None, True)
         self.refresh()
         if len(self.samples) >= 10000:
             self.finish('Sample limit reached')
@@ -193,22 +180,13 @@ class RunMetrics(QFrame):
         record['sampling'] = 'Fresh telemetry at GUI polling rate (nominally 8 Hz)'
         self.records.append(record)
         self.records[:] = self.records[-100:]
-        try:
-            self.directory.mkdir(parents=True, exist_ok=True)
-            stem = self._stem or self.directory / uuid4().hex
-            if self._file:
-                self._file.close()
-                self._file = None
-            else:
-                with stem.with_suffix('.csv').open('w', newline='', encoding='utf-8') as handle:
-                    writer = csv.writer(handle)
-                    writer.writerow(['elapsed_seconds', 'measurement', 'error'])
-                    writer.writerows(row[:3] for row in self.samples)
-            stem.with_suffix('.json').write_text(json.dumps(record, indent=2), encoding='utf-8')
-            self.note.setText('Recording saved | Open Run History / CSV')
-            self.note.setToolTip(str(stem))
-        except OSError as exc:
-            self.note.setText(f'Could not save run: {exc}. Results remain in memory.')
+        stem = self._stem or self.directory / uuid4().hex
+        file_writer.submit(write_csv, stem.with_suffix('.csv'),
+                           tuple(tuple(row[:3]) for row in self.samples),
+                           ('elapsed_seconds', 'measurement', 'error'))
+        file_writer.submit(write_text, stem.with_suffix('.json'), json.dumps(record, indent=2))
+        self.note.setText('Recording queued for save | Open Run History / CSV')
+        self.note.setToolTip(str(stem))
 
     def show_history(self):
         dialog = QDialog(self)
@@ -244,44 +222,47 @@ class RunMetrics(QFrame):
         table.setSelectionBehavior(QTableWidget.SelectRows)
         table.verticalHeader().hide()
         layout.addWidget(table)
-        paths = sorted(self.directory.glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
         valid = []
-        for path in paths:
-            try:
-                data = json.loads(path.read_text(encoding='utf-8'))
-            except (OSError, ValueError):
-                continue
-            # The on-disk summary is finalized on stop. Show current samples
-            # when this widget owns a recording that is still in progress.
-            if self.active and self._stem is not None and path == self._stem.with_suffix('.json'):
-                current = self.metrics()
-                data.update(sample_count=len(self.samples), metrics=asdict(current) if current else None,
-                            reason='Recording (metrics provisional)')
-            row = table.rowCount()
-            table.insertRow(row)
-            valid.append(path.with_suffix('.csv'))
-            for col, key in enumerate(['started_utc', 'method', 'controller_kind', 'sample_count', 'reason']):
-                raw = str(data.get(key, 'N/A'))
-                value = raw
-                if key == 'started_utc':
-                    value = raw[:19].replace('T', ' ')
-                if key == 'controller_kind':
-                    value = {'python_nla': 'Python NLA', 'nla': 'C++ NLA', 'conventional': 'Conventional'}.get(raw, raw)
-                item = QTableWidgetItem(value)
-                item.setData(Qt.UserRole, raw)
-                item.setToolTip(raw)
-                table.setItem(row, col, item)
-            metrics = data.get('metrics') or {}
-            values = [metrics.get('settling_time') if metrics.get('settled') else 'Not settled',
-                      metrics.get('transient_time') if metrics.get('entered_tolerance') else 'Not reached',
-                      metrics.get('steady_state_error', 'N/A'), metrics.get('sustained_oscillation', 'N/A')]
-            if not metrics:
-                values = ['N/A'] * 4
-            for col, value in enumerate(values, 5):
-                item = QTableWidgetItem(f'{value:.4g}' if isinstance(value, float) else str(value))
+        jobs = ReadJobs(dialog)
+        def populate(records):
+            valid.clear()
+            table.setRowCount(0)
+            for path, data in records:
+                # The on-disk summary is finalized on stop. Show current samples
+                # when this widget owns a recording that is still in progress.
+                if self.active and self._stem is not None and path == self._stem.with_suffix('.json'):
+                    current = self.metrics()
+                    data.update(sample_count=len(self.samples), metrics=asdict(current) if current else None,
+                                reason='Recording (metrics provisional)')
+                row = table.rowCount()
+                table.insertRow(row)
+                valid.append(path.with_suffix('.csv'))
+                for col, key in enumerate(['started_utc', 'method', 'controller_kind', 'sample_count', 'reason']):
+                    raw = str(data.get(key, 'N/A'))
+                    value = raw
+                    if key == 'started_utc':
+                        value = raw[:19].replace('T', ' ')
+                    if key == 'controller_kind':
+                        value = {'python_nla': 'Python NLA', 'nla': 'C++ NLA', 'conventional': 'Conventional'}.get(raw, raw)
+                    item = QTableWidgetItem(value)
+                    item.setData(Qt.UserRole, raw)
+                    item.setToolTip(raw)
+                    table.setItem(row, col, item)
+                metrics = data.get('metrics') or {}
+                values = [metrics.get('settling_time') if metrics.get('settled') else 'Not settled',
+                          metrics.get('transient_time') if metrics.get('entered_tolerance') else 'Not reached',
+                          metrics.get('steady_state_error', 'N/A'), metrics.get('sustained_oscillation', 'N/A')]
                 if not metrics:
-                    item.setToolTip('Metrics unavailable: fewer than two fresh samples or an unfinished recording.')
-                table.setItem(row, col, item)
+                    values = ['N/A'] * 4
+                for col, value in enumerate(values, 5):
+                    item = QTableWidgetItem(f'{value:.4g}' if isinstance(value, float) else str(value))
+                    if not metrics:
+                        item.setToolTip('Metrics unavailable: fewer than two fresh samples or an unfinished recording.')
+                    table.setItem(row, col, item)
+            table.resizeColumnsToContents()
+            filter_rows()
+        jobs.call('summaries', read_summaries, (self.directory,), populate,
+                  lambda error: self.note.setText('History read failed: '+error), worker=file_writer)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
         table.resizeColumnsToContents()
         table.resizeRowsToContents()
@@ -301,17 +282,13 @@ class RunMetrics(QFrame):
             path, _ = QFileDialog.getSaveFileName(dialog, 'Export run summaries', 'pid-run-summaries.csv', 'CSV (*.csv)')
             if not path:
                 return
-            try:
-                with open(path, 'w', newline='', encoding='utf-8') as handle:
-                    writer = csv.writer(handle)
-                    writer.writerow(table.horizontalHeaderItem(col).text() for col in range(table.columnCount()))
-                    for row in range(table.rowCount()):
-                        if not table.isRowHidden(row):
-                            writer.writerow(table.item(row, col).data(Qt.UserRole) or table.item(row, col).text() for col in range(table.columnCount()))
-                export.setText('Exported OK')
-            except OSError as exc:
-                export.setText('Export failed')
-                export.setToolTip(str(exc))
+            header = tuple(table.horizontalHeaderItem(col).text() for col in range(table.columnCount()))
+            rows = tuple(tuple(table.item(row, col).data(Qt.UserRole) or table.item(row, col).text()
+                               for col in range(table.columnCount()))
+                         for row in range(table.rowCount()) if not table.isRowHidden(row))
+            jobs.call('export', write_csv, (path, rows, header),
+                      lambda _: export.setText('Exported OK'),
+                      lambda error: export.setText('Export failed: '+error), worker=file_writer)
         export.clicked.connect(export_summaries)
         footer = QHBoxLayout()
         footer.addWidget(QLabel('Double-click a run to view samples'))
@@ -366,25 +343,24 @@ class RunMetrics(QFrame):
         close.clicked.connect(dialog.close)
         layout.addWidget(close, 0, Qt.AlignRight)
         offset = [0]
+        jobs = ReadJobs(dialog)
         def load():
-            try:
-                with path.open(newline='', encoding='utf-8') as handle:
-                    reader = csv.reader(handle)
-                    header = next(reader)
-                    rows = list(islice(reader, offset[0], min(last.value(), offset[0]+1001)))
+            start, end = offset[0], last.value()
+            next_button.setEnabled(False)
+            def loaded(result):
+                header, rows = result
                 table.setColumnCount(len(header))
                 table.setHorizontalHeaderLabels(header)
                 table.setRowCount(min(len(rows), 1000))
-                table.setVerticalHeaderLabels([str(offset[0]+i+1) for i in range(min(len(rows),1000))])
+                table.setVerticalHeaderLabels([str(start+i+1) for i in range(min(len(rows),1000))])
                 for i, row in enumerate(rows[:1000]):
                     for j, value in enumerate(row[:len(header)]):
                         table.setItem(i, j, QTableWidgetItem(value))
                 next_button.setEnabled(len(rows) > 1000)
-                offset[0] += 1000
+                offset[0] = start+1000
                 table.resizeColumnsToContents()
-            except (OSError, StopIteration, csv.Error) as exc:
-                label.setText(f'Cannot read CSV: {exc}')
-                next_button.setEnabled(False)
+            jobs.call('csv', read_csv_range, (path, start, end), loaded,
+                      lambda error: label.setText('Cannot read CSV: '+error), worker=file_writer)
         next_button.clicked.connect(load)
         def view_range():
             if first.value() > last.value():
@@ -404,11 +380,9 @@ class RunMetrics(QFrame):
             if Path(destination).resolve() == path.resolve():
                 label.setText('Choose a different file to preserve the original recording.')
                 return
-            try:
-                count = export_sample_range(path, Path(destination), first.value(), last.value())
-                label.setText(f'Exported {count} samples | {destination}')
-            except (OSError, ValueError, csv.Error) as exc:
-                label.setText(f'Export failed: {exc}')
+            jobs.call('export', export_sample_range, (path, Path(destination), first.value(), last.value()),
+                      lambda count: label.setText(f'Exported {count} samples | {destination}'),
+                      lambda error: label.setText('Export failed: '+error), worker=file_writer)
         export.clicked.connect(export_range)
         load()
         dialog.exec()

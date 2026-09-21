@@ -43,7 +43,7 @@ def main():
     builders.update({name: lambda b=b: b(noop, noop) for name, b in PAGE_BUILDERS.items()})
     for name, (_, builder) in DETAIL_BUILDERS.items():
         kwargs = {}
-        if name in {"Field Ctrl", "PID Control", "PythonPID"}:
+        if name in {"Field Ctrl", "PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
             kwargs = {"backend_mode": "simulation"}
         elif name == "Settings":
             kwargs = {"set_display_mode": noop, "set_window_resolution": noop}
@@ -62,7 +62,12 @@ def main():
                 for _ in range(12):
                     app.processEvents()
                 assert (page.width(), page.height()) == (width, height), name
-                assert page.scroll_area.geometry().size() == page.size(), name
+                if hasattr(page, 'backend_status_panel'):
+                    footer = page.backend_status_panel.geometry()
+                    assert page.rect().contains(footer), name
+                    assert page.scroll_area.geometry().bottom() < footer.top(), name
+                else:
+                    assert page.scroll_area.geometry().size() == page.size(), name
                 if name == "Field Ctrl" and width >= 1280:
                     tabs = page.control_tab_buttons
                     assert len({button.y() for button in tabs}) == 1, "Tabs stacked on desktop"

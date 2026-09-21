@@ -3,6 +3,8 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QStackedWidget,
     QWidget,
+    QLabel,
+    QMessageBox,
 )
 from PySide6.QtCore import QMargins, QRect, QSettings, Qt, QTimer
 from PySide6.QtGui import QFont
@@ -10,6 +12,9 @@ from python.app.theme import load_app_font, load_stylesheet
 from pathlib import Path
 import socket
 import json
+import time
+from source.Python.Data.file_writer import file_writer
+from python.app.Monitoring.DatabaseReader import reader
 from threading import Event, Thread
 
 from python.app.Automation.AutomationPage import AutomationPage
@@ -46,6 +51,10 @@ from python.app.Monitoring.VacuumBeamMonitoringPage import (
 from python.app.widgets.MagneticFieldWidgets import FIELD_PLOT_SAMPLE_RATE_HZ
 from source.Python.Data.pipeline_manager import DataPipelineManager
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
+from source.Python.Data.telemetry_database import TelemetryDatabase
+from source.Python.Data.pid_database import PIDDatabase
+from python.app.Automation.PIDRecording import PagePIDRecorder
+from python.app.Automation.GAPIDPage import GAPIDPage
 from source.Python.Services.AlarmService import AlarmService
 from source.Python.Services.BeamCalibrationService import BeamCalibrationService
 from source.Python.Services.InterlockService import InterlockService
@@ -76,6 +85,11 @@ class MainWindow(QMainWindow):
         pipeline_db_path = self.db_path if self.db_path.is_absolute() else self._crocker_root / self.db_path
         self.beam_calibration = BeamCalibrationService(self._crocker_root / "config" / "beam_cal.json")
         self.alarm_service = AlarmService(self._crocker_root / "config" / "alarm_config.json", pipeline_db_path)
+        self.database_a = TelemetryDatabase(pipeline_db_path, simulation_mode or backend_mode)
+        self.database_b = PIDDatabase(pipeline_db_path.with_name('crocker_pid.sqlite3'))
+        self.alarm_service.event_sink = self.database_a.alarms
+        self._recording_closing = False
+        self._recording_closed = False
         self.signal_map = SignalMapService(self._crocker_root / "config" / "signal_map.json")
         self.interlocks = InterlockService(self._crocker_root / "config" / "interlock_config.json")
         self._settings = QSettings("Crocker Nuclear Lab", "Digitalization")
@@ -142,23 +156,25 @@ class MainWindow(QMainWindow):
             self.pages[category] = category_page
 
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
-            if title in {"Field Ctrl", "PID Control", "PythonPID"}:
+            if title in {"Field Ctrl", "PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                 field_backend_mode = self.backend_mode
                 if title == "Field Ctrl" and self.simulation_mode in {"cyclotron", "smoke2"}:
                     field_backend_mode = "zmq"
-                elif title in {"PID Control", "PythonPID"} and self.simulation_mode in {"cyclotron", "smoke2"}:
+                elif title in {"PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"} and self.simulation_mode in {"cyclotron", "smoke2"}:
                     field_backend_mode = "zmq"
                 page_kwargs = {
                     "backend_mode": field_backend_mode,
                     "zmq_endpoint": self.zmq_endpoint,
                 }
-                if title in {"PID Control", "PythonPID"}:
+                if title in {"PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
                     page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
+                    if "GA + " in title or title in {"PID Control", "Hybrid GA + BO PID"}:
+                        page_kwargs["get_beam_state"] = self.current_beam_state
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
                     page_kwargs["confirm_large_changes"] = (
@@ -280,6 +296,14 @@ class MainWindow(QMainWindow):
             self._start_zmq_simulation_plant(self.simulation_mode)
         if self.enable_data_pipeline:
             self._start_data_pipeline()
+        for page in self.pages.values():
+            self._attach_pid_recording(page)
+        self._recording_status = QLabel('A: idle | B: idle (starts with PID)')
+        self.statusBar().addPermanentWidget(self._recording_status)
+        self.statusBar().setSizeGripEnabled(False)
+        self._recording_timer = QTimer(self)
+        self._recording_timer.timeout.connect(self._update_recording_status)
+        self._recording_timer.start(500)
         app = QApplication.instance()
         if app is not None:
             app.screenAdded.connect(lambda screen: self._screens_changed())
@@ -453,7 +477,7 @@ class MainWindow(QMainWindow):
         if page_name in DETAIL_BUILDERS:
             parent_category, builder = DETAIL_BUILDERS[page_name]
             go_back = lambda checked=False: host.set_page(parent_category)
-            if page_name in {"Field Ctrl", "PID Control", "PythonPID"}:
+            if page_name in {"Field Ctrl", "PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                 field_backend_mode = (
                     "zmq"
                     if self.simulation_mode in {"cyclotron", "smoke2"}
@@ -463,22 +487,26 @@ class MainWindow(QMainWindow):
                     "backend_mode": field_backend_mode,
                     "zmq_endpoint": self.zmq_endpoint,
                 }
-                if page_name in {"PID Control", "PythonPID"}:
+                if page_name in {"PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
                     page_kwargs["tuning_enabled"] = self.simulation_mode is not None
                     page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
+                    if "GA + " in page_name or page_name in {"PID Control", "Hybrid GA + BO PID"}:
+                        page_kwargs["get_beam_state"] = self.current_beam_state
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
                     page_kwargs["confirm_large_changes"] = (
                         self._confirm_large_manual_changes and self.simulation_mode is None
                     )
-                return builder(
+                page = builder(
                     go_back,
                     **page_kwargs,
                 )
+                self._attach_pid_recording(page)
+                return page
             if page_name == "Database History":
                 return builder(
                     go_back,
@@ -692,19 +720,80 @@ class MainWindow(QMainWindow):
             source=self.simulation_mode or self.backend_mode,
             rate_hz=float(FIELD_PLOT_SAMPLE_RATE_HZ),
             snapshot_source=self._transport_snapshot,
+            database=self.database_a,
         )
         self._data_pipeline.start()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt API name
+        if self._recording_closed:
+            super().closeEvent(event)
+            return
+        event.ignore()
+        if self._recording_closing:
+            return
+        self._recording_closing = True
+        self.alarm_service.event_sink = lambda *_: False
         for window in self._monitor_windows.values():
             window.close()
         self._monitor_windows.clear()
+        for page in self.pages.values():
+            if isinstance(page, (PidControlPage, GAPIDPage)):
+                page.stop_backend()
         if self._data_pipeline is not None:
             self._data_pipeline.stop()
+        else:
+            self.database_a.stop()
+        self.database_b.writer.close()
+        file_writer.close()
+        reader.close()
+        self._export_close_deadline = time.monotonic()+10
         stop = getattr(self, "_simulation_plant_stop", None)
         if stop is not None:
             stop.set()
-        super().closeEvent(event)
+        self._recording_status.setText('Finishing database writes…')
+        self._finish_recording_close()
+
+    def _finish_recording_close(self):
+        writers = (self.database_a.writer, self.database_b.writer)
+        if not all(w.done.is_set() for w in writers):
+            QTimer.singleShot(100, self._finish_recording_close)
+            return
+        if not file_writer.done.is_set() and time.monotonic() < self._export_close_deadline:
+            QTimer.singleShot(100, self._finish_recording_close)
+            return
+        failures = [f'{w.name}: {w.error}' for w in writers if w.error]
+        if not file_writer.done.is_set() or file_writer.error or file_writer.rejected:
+            failures.append('CSV/JSON exports incomplete: '+(file_writer.error or 'pending or rejected records'))
+        self._recording_closed = True
+        self._recording_timer.stop()
+        if failures:
+            self._recording_warning = QMessageBox(QMessageBox.Warning, 'Recording incomplete',
+                '\n'.join(failures), QMessageBox.Ok, self)
+            self._recording_warning.finished.connect(lambda _: self.close())
+            self._recording_warning.open()
+        else:
+            self.close()
+
+    def _attach_pid_recording(self, page):
+        if isinstance(page, (PidControlPage, GAPIDPage)):
+            page._database_recorder = PagePIDRecorder(page, self.database_b, self.database_a,
+                                                      self.current_beam_state)
+
+    def _update_recording_status(self):
+        if self._recording_closing:
+            return
+        parts, details = [], []
+        for name, writer in (('A', self.database_a.writer), ('B', self.database_b.writer)):
+            s = writer.status()
+            state = 'ERROR' if s['error'] else 'GAPS' if s['rejected'] else 'ready' if s['started'] else 'idle'
+            parts.append(f"{name}: {state} · queued {s['queue_depth']} · lost {s['rejected']}")
+            details.append(f"{writer.path}\nLast commit: {s['last_commit']}\n{s['error']}")
+        errors = [p._database_recorder.error for p in self.findChildren(QWidget)
+                  if hasattr(p, '_database_recorder') and p._database_recorder.error]
+        self._recording_status.setText(' | '.join(parts) + (' | '+errors[0] if errors else ''))
+        if file_writer.error or file_writer.rejected:
+            self._recording_status.setText(self._recording_status.text()+' | Export error: '+file_writer.error)
+        self._recording_status.setToolTip('\n'.join(details))
 
     def _transport_snapshot(self) -> dict | None:
         field_page = self.pages.get("Field Ctrl")

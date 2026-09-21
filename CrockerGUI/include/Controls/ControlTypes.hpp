@@ -95,6 +95,8 @@ struct PidTrialConfig {
     NLAPIDLimits nlaLimits{};
     bool continuous = false;
     ChannelId measurementChannel = 0;
+    // Calibrated beam feedback is independent of the allocated trim-coil output.
+    bool externalBeamMeasurement = false;
     double setpoint = 0.0;
     double kp = 0.0;
     double ki = 0.0;
@@ -110,7 +112,7 @@ struct PidTrialConfig {
     std::array<double, ChannelCount> commandBias{};
     std::array<double, ChannelCount> minimumCommand{};
     std::array<double, ChannelCount> maximumCommand{};
-    std::array<double, ChannelCount> maximumSlewPerSecond{};
+    std::array<double, ChannelCount> maximumSlewPerSecond{}; // Zero: external/LabVIEW ramping.
     bool allocationCalibrated = false;
     bool hardwareArmed = false;
     bool dryRun = true;

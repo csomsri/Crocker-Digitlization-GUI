@@ -323,7 +323,7 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
     if (!snapshot.simulated && !config.dryRun && !config.allocationCalibrated) {
         // Direct trim-coil current control uses the transport's existing engineering
         // scaling; it does not need a separate field-allocation calibration.
-        bool directTrimCoil = config.measurementChannel < 12;
+        bool directTrimCoil = !config.externalBeamMeasurement && config.measurementChannel < 12;
         for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
             directTrimCoil = directTrimCoil && config.allocation[channel] == (channel == config.measurementChannel ? 1.0 : 0.0);
         }
@@ -385,6 +385,14 @@ void ControlService::StopPidTrial(bool disableAllocatedChannels) noexcept
     }
 }
 
+void ControlService::SetPidBeamMeasurement(double nanoamps, double timestampUnixSeconds, bool valid)
+{
+    std::lock_guard<std::mutex> lock(pidTrialMutex_);
+    pidBeamNanoamps_ = nanoamps;
+    pidBeamTimestamp_ = timestampUnixSeconds;
+    pidBeamValid_ = valid && std::isfinite(nanoamps) && std::isfinite(timestampUnixSeconds);
+}
+
 PidTrialStatus ControlService::PidTrialStatusSnapshot() const
 {
     std::lock_guard<std::mutex> lock(pidTrialMutex_);
@@ -421,7 +429,19 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
 
             const TelemetrySnapshot snapshot = LatestSnapshot();
             const HealthStatus health = Health();
-            const ChannelTelemetry& measurement = snapshot.channels[config.measurementChannel];
+            ChannelTelemetry measurement = snapshot.channels[config.measurementChannel];
+            double sampleTimestamp = snapshot.timestampUnixSeconds;
+            if (config.externalBeamMeasurement) {
+                std::lock_guard<std::mutex> lock(pidTrialMutex_);
+                const double epochNow = std::chrono::duration<double>(
+                    std::chrono::system_clock::now().time_since_epoch()).count();
+                const double age = epochNow - pidBeamTimestamp_;
+                if (!pidBeamValid_ || age < 0.0 || age > config.telemetryTimeoutSeconds) {
+                    throw std::runtime_error("No fresh calibrated beam measurement");
+                }
+                measurement.actual = pidBeamNanoamps_;
+                sampleTimestamp = pidBeamTimestamp_;
+            }
             const bool telemetryFresh = health.packetAgeMilliseconds <= config.telemetryTimeoutSeconds * 1000.0;
             const bool connectionHealthy = snapshot.connection == ConnectionState::Connected;
             const bool channelHealthy = !measurement.interlocked
@@ -439,7 +459,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             // The adaptive reference consumes each fresh measurement once. Watchdogs
             // above continue to run even while a held snapshot is skipped.
             {
-                const double stamp = snapshot.timestampUnixSeconds;
+                const double stamp = sampleTimestamp;
                 if (!std::isfinite(stamp) || (lastSampleTime && stamp < *lastSampleTime)) {
                     throw std::runtime_error("Invalid or out-of-order NLA telemetry timestamp");
                 }
@@ -496,7 +516,8 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 const double bounded = std::clamp(requested, config.minimumCommand[channel], config.maximumCommand[channel]);
                 saturated = saturated || bounded != requested;
                 const double maximumDelta = config.maximumSlewPerSecond[channel] * dt;
-                const double slewed = std::clamp(
+                // Zero delegates physical ramping to LabVIEW; absolute bounds remain active.
+                const double slewed = config.maximumSlewPerSecond[channel] == 0.0 ? bounded : std::clamp(
                     bounded,
                     lastCommand[channel].target - maximumDelta,
                     lastCommand[channel].target + maximumDelta);
@@ -620,8 +641,8 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
         }
         hasAllocation = true;
         if (config.minimumCommand[channel] >= config.maximumCommand[channel]
-            || config.maximumSlewPerSecond[channel] <= 0.0) {
-            throw std::invalid_argument("allocated channels require ordered limits and positive slew rates");
+            || config.maximumSlewPerSecond[channel] < 0.0) {
+            throw std::invalid_argument("allocated channels require ordered limits and nonnegative slew rates (zero uses external ramping)");
         }
     }
     if (!hasAllocation) {

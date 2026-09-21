@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from python.app.Automation.ControlOwnership import active_controller
+
 import json
 import time
 from collections.abc import Callable
@@ -1010,6 +1012,10 @@ class FieldCtrlPage(DetailPage):
         return applied
 
     def _apply_channel_command(self, index: int) -> bool:
+        if active_controller(self.backend, self) is not None:
+            self.backend_status = "Stop PID/BO/GA before applying manual commands"
+            self.backend_label.setText(self.backend_status)
+            return False
         target = self.target_values[index]
         on = self.on_buttons[index].isChecked()
         enabled = self.enable_buttons[index].isChecked()
@@ -1102,6 +1108,10 @@ class FieldCtrlPage(DetailPage):
         return answer == QMessageBox.StandardButton.Yes
 
     def _apply_all_channel_commands(self) -> bool:
+        if active_controller(self.backend, self) is not None:
+            self.backend_status = "Stop PID/BO/GA before applying manual commands"
+            self.backend_label.setText(self.backend_status)
+            return False
         if self.backend_available and self.backend is not None:
             try:
                 for index in range(len(CHANNEL_NAMES)):

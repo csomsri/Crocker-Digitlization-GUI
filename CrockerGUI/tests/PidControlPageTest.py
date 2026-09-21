@@ -34,7 +34,15 @@ from python.app.Automation.PidControlPage import PidControlPage
 def main() -> int:
     app = QApplication.instance() or QApplication([])
     page = PidControlPage(lambda: None, backend_mode="simulation")
-    setpoint = 75.0
+    # Explicit synthetic beam plant: 0.01 nA per amp of the selected TC.
+    # The stock transport simulator has no TC-to-beam coupling.
+    def beam_sample():
+        snapshot = page.backend.LatestSnapshot()
+        index = page.tuner_channel.currentIndex() if page.tuning_session_active else page.selected_index
+        return dict(current_ua=snapshot['channels'][index]['actual'] * 0.00001,
+                    timestamp=snapshot['timestamp'], quality='ok')
+    page.get_beam_state = beam_sample
+    setpoint = 0.75
     control_index = 2
 
     try:
@@ -60,7 +68,7 @@ def main() -> int:
             raise RuntimeError("Safety-profile dropdown did not accept a selection")
         page.tuner_safety_profile.setCurrentIndex(0)
 
-        page.tuner_target.setValue(30.0)
+        page.tuner_target.setValue(0.3)
         page.tuner_duration.setValue(0.5)
         page.prepare_tuning_button.click()
         proposal_deadline = time.monotonic() + 20.0
@@ -93,22 +101,23 @@ def main() -> int:
         # trial's plant state does not make the convergence assertion timing-dependent.
         page.channel_select.setCurrentIndex(control_index)
         page.setpoint_input.setValue(setpoint)
-        page.kp_input.setValue(1.0)
+        page.kp_input.setValue(100.0)
         page.ki_input.setValue(0.05)
         page.kd_input.setValue(0.0)
         page.output_on_check.setChecked(True)
         page.control_enabled_check.setChecked(True)
         page.dry_run_check.setChecked(False)
         page.arm_button.setChecked(True)
+        page._tick_feedback()
         page.enable_button.setChecked(True)
 
-        first = float(page.backend.LatestSnapshot()["channels"][control_index]["actual"])
+        first = beam_sample()['current_ua'] * 1000
         deadline = time.monotonic() + 4.0
         samples: list[float] = []
         while time.monotonic() < deadline:
             app.processEvents()
             page._tick_feedback()
-            actual = float(page.backend.LatestSnapshot()["channels"][control_index]["actual"])
+            actual = beam_sample()['current_ua'] * 1000
             samples.append(actual)
             if abs(setpoint - actual) < abs(setpoint - first) * 0.65:
                 break
