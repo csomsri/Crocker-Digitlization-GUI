@@ -161,6 +161,10 @@ struct Alarm {
 // Immutable-by-convention value returned to UI and logging consumers.
 struct TelemetrySnapshot {
     std::array<ChannelTelemetry, ChannelCount> channels{};
+    std::uint64_t bitmask = 0;
+    std::vector<double> extraction, extractionAngles, source, transport, vacuum;
+    std::optional<double> rfPowerKv, beamCurrent;
+    std::optional<int> beamRangeIndex;
     std::vector<Alarm> activeAlarms;
     double timestampUnixSeconds = 0.0;
     double latencyMilliseconds = 0.0;

@@ -41,8 +41,8 @@ def main():
         def frame(self):
             frame = super().frame()
             beam_na = .1 + .02*(self.channels[0]-200)
-            frame.channels[13] = float(np.interp(beam_na/1000, points[:, 1], points[:, 0]))
-            return frame
+            raw = float(np.interp(beam_na/1000, points[:, 1], points[:, 0]))
+            return SimulatorFrame(frame.timestamp, frame.channels, frame.bitmask, raw, 0)
 
     stop = Event()
     plant = CoupledPlant(raw_scale=1.)

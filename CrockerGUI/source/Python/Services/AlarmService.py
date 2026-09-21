@@ -179,7 +179,7 @@ class AlarmService:
 
     def _values_from_snapshot(self, snapshot: dict[str, Any] | None, beam_state: dict[str, Any] | None) -> dict[str, float]:
         values: dict[str, float] = {}
-        if beam_state:
+        if beam_state and beam_state.get("quality") == "ok":
             values["beam_current"] = float(beam_state.get("display_ua", beam_state.get("current_ua", 0.0)))
         if not snapshot:
             return values
@@ -194,7 +194,6 @@ class AlarmService:
                     values["main_magnet"] = value
                 elif index == 13:
                     values["centering_beam"] = value
-                    values.setdefault("beam_current", value)
         extra = snapshot.get("signals")
         if isinstance(extra, dict):
             for key, value in extra.items():

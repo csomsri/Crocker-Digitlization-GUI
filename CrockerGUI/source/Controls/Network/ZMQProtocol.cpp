@@ -47,6 +47,9 @@ void TryTransportVacuumLayout(
     std::optional<int> vacIdx;
 
     auto left = [&]() { return middle.size() - offset; };
+    auto validRange = [](double value) {
+        return std::isfinite(value) && value >= 0 && value <= 9 && std::floor(value) == value;
+    };
 
     if (transportFirst) {
         if (left() >= N_TRANS) {
@@ -59,7 +62,8 @@ void TryTransportVacuumLayout(
             } else if (left() == N_VAC_BM_7 + 1) {
                 vacStart = offset;
                 offset += N_VAC_BM_7;
-                vacIdx = static_cast<int>(std::llround(middle[offset]));
+                if (!validRange(middle[offset])) return;
+                vacIdx = static_cast<int>(middle[offset]);
                 ++offset;
             }
         }
@@ -68,7 +72,8 @@ void TryTransportVacuumLayout(
         offset += N_VAC_BM_7;
 
         if (left() >= N_TRANS + 1) {
-            vacIdx = static_cast<int>(std::llround(middle[offset]));
+            if (!validRange(middle[offset])) return;
+            vacIdx = static_cast<int>(middle[offset]);
             ++offset;
         }
 
@@ -167,12 +172,22 @@ Packet SliceBestEffort(const std::vector<double>& doubles)
     packet.bitmask = static_cast<std::uint64_t>(std::llround(doubles.back()));
 
     std::size_t middleOffset = 0;
-    if (middle.size() >= N_SRC_EX_18) {
+    // Select a source prefix by the complete supported layout length, not
+    // merely by having 18 values remaining (which consumes transport data
+    // from legacy 12-value source/extraction packets).
+    auto hasSourcePrefix = [&](std::size_t count) {
+        if (middle.size() < count) return false;
+        const auto remaining = middle.size() - count;
+        return remaining == 0 || remaining == N_TRANS ||
+            remaining == N_TRANS + N_VAC_BM_7 ||
+            remaining == N_TRANS + N_VAC_BM_7 + 1;
+    };
+    if (hasSourcePrefix(N_SRC_EX_18)) {
         packet.extraction = Slice(middle, middleOffset, middleOffset + 6);
         packet.extractionAngles = Slice(middle, middleOffset + 6, middleOffset + 12);
         packet.source = Slice(middle, middleOffset + 12, middleOffset + N_SRC_EX_18);
         middleOffset += N_SRC_EX_18;
-    } else if (middle.size() >= N_SRC_EX_12) {
+    } else if (hasSourcePrefix(N_SRC_EX_12)) {
         packet.extraction = Slice(middle, middleOffset, middleOffset + 6);
         packet.source = Slice(middle, middleOffset + 6, middleOffset + N_SRC_EX_12);
         middleOffset += N_SRC_EX_12;
@@ -228,11 +243,18 @@ Packet SliceBestEffort(const std::vector<double>& doubles)
                 packet.beamCurrent = vacuumBeam[6];
             }
         } else {
-            if (middle.size() - middleOffset >= N_TRANS) {
+            if (middle.size() - middleOffset == N_TRANS) {
                 packet.transport = Slice(middle, middleOffset, middleOffset + N_TRANS);
                 middleOffset += N_TRANS;
             }
-            if (middle.size() - middleOffset >= N_VAC_BM_7) {
+            const auto remaining = middle.size() - middleOffset;
+            if (remaining == N_VAC_BM_7 || remaining == N_VAC_BM_7 + 1) {
+                if (remaining == N_VAC_BM_7 + 1) {
+                    const double index = middle.back();
+                    if (!std::isfinite(index) || index < 0 || index > 9 || std::floor(index) != index)
+                        return packet;
+                    packet.beamRangeIndex = static_cast<int>(index);
+                }
                 const auto vacuumBeam = Slice(middle, middleOffset, middleOffset + N_VAC_BM_7);
                 packet.vacuum = Slice(vacuumBeam, 0, 5);
                 packet.rfPowerKv = vacuumBeam[5];

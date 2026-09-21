@@ -449,6 +449,15 @@ py::dict SnapshotToDict(const Controls::TelemetrySnapshot& snapshot)
     py::dict out;
     out["channels"] = channels;
     out["active_alarms"] = alarms;
+    out["bitmask"] = snapshot.bitmask;
+    out["extraction"] = snapshot.extraction;
+    out["extraction_angles"] = snapshot.extractionAngles;
+    out["source"] = snapshot.source;
+    out["transport"] = snapshot.transport;
+    out["vacuum"] = snapshot.vacuum;
+    out["rf_power_kv"] = py::cast(snapshot.rfPowerKv);
+    out["beam_current"] = py::cast(snapshot.beamCurrent);
+    out["beam_range_idx"] = py::cast(snapshot.beamRangeIndex);
     out["timestamp"] = snapshot.timestampUnixSeconds;
     out["latency_ms"] = snapshot.latencyMilliseconds;
     out["sequence_number"] = snapshot.sequenceNumber;

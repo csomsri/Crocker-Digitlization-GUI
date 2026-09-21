@@ -329,7 +329,7 @@ class CalibrationTest(unittest.TestCase):
     def test_reload_changes_revision_even_when_range_is_unchanged(self):
         from source.Python.Services.BeamCalibrationService import BeamCalibrationService
         service=BeamCalibrationService(Path(__file__).resolve().parents[1]/'config'/'beam_cal.json')
-        snapshot=dict(timestamp=time.time(),channels=[dict(raw=0,actual=0)]*14)
+        snapshot=dict(timestamp=time.time(),beam_current=.06,channels=[dict(raw=0,actual=0)]*14)
         a=service.update(snapshot)
         service.reload()
         b=service.update(snapshot)

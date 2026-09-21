@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import math
-import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from threading import Lock
@@ -58,7 +57,6 @@ class BeamCalibrationService:
         self._select_mode = "manual"
         self._manual_index = 0
         self._digital_source = "bitmask_low4"
-        self._beam_channel = 13
         self._smooth_tau_s = 0.0
         self._deadband_display = 0.0
         self._gauge_uses_range_fs = True
@@ -94,7 +92,6 @@ class BeamCalibrationService:
             self._select_mode = str(data.get("select_mode", self._select_mode))
             self._manual_index = int(data.get("manual_index", self._manual_index))
             self._digital_source = str(data.get("digital_source", self._digital_source))
-            self._beam_channel = self._channel_index(data.get("beam_channel", self._beam_channel))
             self._smooth_tau_s = max(0.0, float(data.get("smooth_tau_s", self._smooth_tau_s)))
             self._deadband_display = max(0.0, float(data.get("deadband_display", self._deadband_display)))
             self._gauge_uses_range_fs = bool(data.get("gauge_uses_range_fs", self._gauge_uses_range_fs))
@@ -108,19 +105,24 @@ class BeamCalibrationService:
                 self._state = self._state_with_quality("idle", "No transport snapshot")
                 return self._state
 
-            channels = snapshot.get("channels", [])
-            if not isinstance(channels, list) or self._beam_channel >= len(channels):
-                self._state = self._state_with_quality("degraded", "Beam channel is not present")
+            # Match the legacy experiment: detector voltage is a separate packet
+            # field, never the centering magnet's control-channel readback.
+            raw = snapshot.get("beam_current")
+            if isinstance(raw, (list, tuple)):
+                raw = raw[0] if raw else None
+            if raw is None:
+                raw = snapshot.get("beam_v_raw", snapshot.get("beam"))
+            try:
+                if raw is None:
+                    raise ValueError("Beam field missing")
+                raw_value = float(raw)
+                timestamp = float(snapshot.get("timestamp", 0))
+                if not math.isfinite(raw_value) or not math.isfinite(timestamp) or timestamp <= 0:
+                    raise ValueError("Invalid beam value or timestamp")
+                range_index = self._active_range_index(snapshot)
+            except (TypeError, ValueError, OverflowError) as exc:
+                self._state = self._state_with_quality("degraded", str(exc))
                 return self._state
-
-            channel = channels[self._beam_channel]
-            if not isinstance(channel, dict):
-                self._state = self._state_with_quality("degraded", "Beam channel is malformed")
-                return self._state
-
-            timestamp = float(snapshot.get("timestamp") or time.time())
-            raw_value = float(channel.get("raw", channel.get("actual", 0.0)))
-            range_index = self._active_range_index(snapshot)
             beam_range = self._ranges[range_index]
             current_ua = self._convert(raw_value, beam_range)
             display_ua = self._smooth(current_ua, timestamp)
@@ -166,6 +168,12 @@ class BeamCalibrationService:
         return BeamState(**{**self._state.to_dict(), "quality": quality, "message": message})
 
     def _active_range_index(self, snapshot: dict[str, Any]) -> int:
+        explicit = snapshot.get("beam_range_idx", snapshot.get("range_idx"))
+        if explicit is not None:
+            index = int(explicit)
+            if index != float(explicit) or not 0 <= index < len(self._ranges):
+                raise ValueError("Invalid beam range index")
+            return index
         if self._select_mode == "digital":
             bitmask = int(snapshot.get("bitmask", self._bitmask_from_channels(snapshot.get("channels", []))))
             if self._digital_source == "bitmask_low4":
@@ -252,18 +260,6 @@ class BeamCalibrationService:
 
     def _clamp_range_index(self, index: int) -> int:
         return max(0, min(len(self._ranges) - 1, int(index)))
-
-    def _channel_index(self, value: Any) -> int:
-        if isinstance(value, int):
-            return max(0, value)
-        text = str(value).lower()
-        if text.startswith("ch") and text[2:].isdigit():
-            return max(0, int(text[2:]) - 1)
-        if text in {"beam", "beam_current", "centering_beam"}:
-            return 13
-        if text == "main_magnet":
-            return 12
-        return self._beam_channel
 
     def _label_to_ua(self, label: str) -> float:
         text = label.strip().lower().replace("µ", "u")

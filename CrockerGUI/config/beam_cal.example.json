@@ -2,7 +2,7 @@
   "select_mode": "manual",
   "manual_index": 2,
   "digital_source": "bitmask_low4",
-  "beam_channel": "centering_beam",
+  "beam_field": "beam_current",
   "smooth_tau_s": 0.2,
   "deadband_display": 0.000001,
   "gauge_uses_range_fs": true,

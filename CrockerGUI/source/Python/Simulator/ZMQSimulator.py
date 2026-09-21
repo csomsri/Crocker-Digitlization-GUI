@@ -29,6 +29,8 @@ class SimulatorFrame:
     timestamp: float
     channels: list[float]
     bitmask: int
+    beam_current: float | None = None
+    beam_range_idx: int | None = None
 
 
 def build_bitmask(on_off: Iterable[bool], enable_ctrl: Iterable[bool]) -> int:
@@ -165,11 +167,17 @@ class ZMQSimulator:
         self.socket.connect(self.endpoint)
 
     def send_frame(self, frame: SimulatorFrame) -> list[float]:
+        values = [frame.timestamp, *frame.channels]
+        if frame.beam_current is not None:
+            # Extended layout: extraction/source (18), transport (10),
+            # vacuum (5), RF (1), detector voltage (1), optional range.
+            values.extend([0.0] * (18 + 10 + 5 + 1))
+            values.append(frame.beam_current)
+            if frame.beam_range_idx is not None:
+                values.append(float(frame.beam_range_idx))
+        values.append(float(frame.bitmask))
         packet = struct.pack(
-            f"<{NUM_CHANNELS + 2}d",
-            frame.timestamp,
-            *frame.channels,
-            float(frame.bitmask),
+            f"<{len(values)}d", *values,
         )
         if self.socket is None:
             self._connect_socket()

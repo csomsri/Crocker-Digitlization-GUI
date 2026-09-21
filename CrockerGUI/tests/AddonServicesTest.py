@@ -17,6 +17,8 @@ def main() -> int:
     state = beam.update(
         {
             "timestamp": 1.0,
+            "beam_current": 0.06,
+            "beam_range_idx": 0,
             "channels": [
                 {"raw": 0.0, "actual": 0.0, "on": False, "enabled": False}
                 for _ in range(14)
@@ -24,8 +26,8 @@ def main() -> int:
         }
     )
     assert state.quality == "ok"
-    assert state.range_label == "1 nA"
-    assert abs(state.current_ua) < 1.0e-12
+    assert state.range_index == 0
+    assert abs(state.current_ua - 0.0002) < 1.0e-12
 
     alarm = AlarmService(root / "config" / "alarm_config.json", None)
     assert alarm.update({"timestamp": 1.0, "signals": {"rf_kv": 10.0}}) == []
@@ -63,9 +65,12 @@ def main() -> int:
         ],
     }
     signal_map.enrich_snapshot(signal_snapshot)
-    assert signal_snapshot["signals"]["rf_kv"] == 4.0
-    assert signal_snapshot["signal_classes"]["rf_kv"] == "rf"
+    assert "rf_kv" not in signal_snapshot["signals"]
+    assert "beam_slit_current" not in signal_snapshot["signals"]
     assert signal_snapshot["signals"]["main_magnet_current"] == 12.0
+    assert signal_snapshot["signal_units"]["centering_beam_current"] == "A"
+    # Explicit synthetic RF measurement for the independent interlock test.
+    signal_snapshot["signals"]["rf_kv"] = 4.0
 
     interlock_config = root / "Exports" / "interlock_config.test.json"
     try:

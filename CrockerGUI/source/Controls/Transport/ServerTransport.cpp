@@ -442,6 +442,17 @@ void ServerTransport::ApplyPacket(const Packet& packet)
         telemetry.status = StatusFromFlags(on, enabled);
     }
 
+    // Replace every packet field, including absent optionals, so a short packet
+    // cannot refresh a beam measurement retained from an older extended packet.
+    snapshot_.bitmask = packet.bitmask;
+    snapshot_.extraction = packet.extraction;
+    snapshot_.extractionAngles = packet.extractionAngles;
+    snapshot_.source = packet.source;
+    snapshot_.transport = packet.transport;
+    snapshot_.vacuum = packet.vacuum;
+    snapshot_.rfPowerKv = packet.rfPowerKv;
+    snapshot_.beamCurrent = packet.beamCurrent;
+    snapshot_.beamRangeIndex = packet.beamRangeIndex;
     snapshot_.timestampUnixSeconds = normalizedTimestamp.unixSeconds;
     snapshot_.latencyMilliseconds = packet.latencyMs.value_or((now - normalizedTimestamp.unixSeconds) * 1000.0);
     snapshot_.connection = ConnectionState::Connected;
