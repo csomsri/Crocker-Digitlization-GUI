@@ -1,0 +1,1975 @@
+--- before/pid_controller.py
++++ after/pid_controller.py
+@@ -1,15 +1,28 @@
+ # -*- coding: utf-8 -*-
+-"""Deterministic PID engine used by the PID/GA controller tab.
++"""Deterministic PID engines used by the PID/GA controller tab.
+ 
+-This module has no Qt dependency and can be unit-tested independently from the
+-GUI.  Lower-level hardware timing should eventually call this class from the
+-fixed-rate control process rather than from the display refresh timer.
++Two controller forms are provided:
++
++``PIDController``
++    Conventional signed-error PID retained for compatibility and unit tests.
++
++``AdaptiveDirectionPIDController``
++    Paper-schematic controller for beam-current regulation.  It computes the
++    signed tracking error ``e = setpoint - measurement`` for diagnostics, then
++    controls on the magnitude ``E = abs(e)``.  A separate direction term
++    ``d = +1`` or ``-1`` is retained while the error magnitude decreases and is
++    reversed when the magnitude increases.  The signed trim-coil increment is
++    therefore ``delta_TC = d * limited_PID_magnitude``.
++
++This module has no Qt dependency and can be tested independently from the GUI.
++The final hardware loop should still execute in the deterministic control layer
++rather than depend on the display refresh timer.
+ """
+ 
+ from __future__ import annotations
+ 
+ import math
+-from dataclasses import dataclass, replace
++from dataclasses import dataclass
+ 
+ 
+ @dataclass(frozen=True)
+@@ -44,20 +57,79 @@
+ 
+ 
+ @dataclass(frozen=True)
++class AdaptiveDirectionSettings:
++    """Settings for the absolute-error/adaptive-direction PID.
++
++    ``deadband``
++        When ``abs(error)`` is at or below this value, the requested trim-coil
++        increment is zero and the target is held.
++
++    ``trend_tolerance``
++        Changes in error magnitude smaller than this value are treated as
++        unchanged.  This avoids reversing direction on small measurement noise.
++
++    ``direction_check_interval``
++        Minimum time between direction decisions.  The CNL plant identified in
++        the paper has measurable delay, so direction should not be reversed on
++        every display sample.
++    """
++
++    deadband: float = 0.0
++    trend_tolerance: float = 0.0
++    direction_check_interval: float = 1.0
++    initial_direction: int = 1
++    reset_integral_in_deadband: bool = False
++    reset_integral_on_direction_change: bool = False
++
++    def validated(self) -> "AdaptiveDirectionSettings":
++        deadband = max(0.0, float(self.deadband))
++        tolerance = max(0.0, float(self.trend_tolerance))
++        interval = max(0.0, float(self.direction_check_interval))
++        values = (deadband, tolerance, interval)
++        if not all(math.isfinite(v) for v in values):
++            raise ValueError("Adaptive PID settings must be finite")
++        direction = 1 if int(self.initial_direction) >= 0 else -1
++        return AdaptiveDirectionSettings(
++            deadband=deadband,
++            trend_tolerance=tolerance,
++            direction_check_interval=interval,
++            initial_direction=direction,
++            reset_integral_in_deadband=bool(self.reset_integral_in_deadband),
++            reset_integral_on_direction_change=bool(
++                self.reset_integral_on_direction_change
++            ),
++        )
++
++
++@dataclass(frozen=True)
+ class PIDResult:
++    """One controller evaluation.
++
++    The first six fields preserve the original public result interface.  The
++    remaining fields expose the paper-specific magnitude and direction logic to
++    the GUI and logger without requiring duplicate calculations.
++    """
++
+     output: float
+     error: float
+     proportional: float
+     integral: float
+     derivative: float
+     saturated: bool
++    error_magnitude: float = 0.0
++    pid_magnitude: float = 0.0
++    direction: int = 0
++    error_trend: str = "UNKNOWN"
++    direction_changed: bool = False
++    in_deadband: bool = False
+ 
+ 
+ class PIDController:
+-    """PID with derivative-on-measurement and conditional anti-windup.
++    """Conventional signed-error PID with derivative-on-measurement.
+ 
+-    ``update`` returns the controller output and each component so the GUI and
+-    data logger can inspect the loop without duplicating the PID math.
++    This class is retained because other development tests may still use a
++    normal signed PID.  The beam-control page uses
++    :class:`AdaptiveDirectionPIDController` below.
+     """
+ 
+     def __init__(
+@@ -128,7 +200,9 @@
+             self._filtered_derivative = raw_derivative
+         else:
+             alpha = dt / (tau + dt)
+-            self._filtered_derivative += alpha * (raw_derivative - self._filtered_derivative)
++            self._filtered_derivative += alpha * (
++                raw_derivative - self._filtered_derivative
++            )
+         derivative = gains.kd * self._filtered_derivative
+ 
+         candidate_integral = self._integral_state
+@@ -142,10 +216,12 @@
+ 
+         unsaturated = proportional + candidate_integral + derivative + feedforward
+         output = self._clamp(unsaturated, limits.output_min, limits.output_max)
+-        saturated = not math.isclose(output, unsaturated, rel_tol=0.0, abs_tol=1e-12)
++        saturated = not math.isclose(
++            output, unsaturated, rel_tol=0.0, abs_tol=1e-12
++        )
+ 
+         # Conditional integration: accept the new integral when not saturated,
+-        # or when the error would drive a saturated output back toward range.
++        # or when the signed error would drive saturation back toward range.
+         drives_back = (
+             (unsaturated > limits.output_max and error < 0.0)
+             or (unsaturated < limits.output_min and error > 0.0)
+@@ -153,10 +229,13 @@
+         if not hold_integrator and (not saturated or drives_back):
+             self._integral_state = candidate_integral
+         else:
+-            # Recompute output using the retained integrator state.
+-            unsaturated = proportional + self._integral_state + derivative + feedforward
++            unsaturated = (
++                proportional + self._integral_state + derivative + feedforward
++            )
+             output = self._clamp(unsaturated, limits.output_min, limits.output_max)
+-            saturated = not math.isclose(output, unsaturated, rel_tol=0.0, abs_tol=1e-12)
++            saturated = not math.isclose(
++                output, unsaturated, rel_tol=0.0, abs_tol=1e-12
++            )
+ 
+         self._previous_measurement = measurement
+         self._last_result = PIDResult(
+@@ -166,8 +245,310 @@
+             integral=self._integral_state,
+             derivative=derivative,
+             saturated=saturated,
++            error_magnitude=abs(error),
++            pid_magnitude=abs(output),
++            direction=1 if output > 0.0 else (-1 if output < 0.0 else 0),
++            error_trend="SIGNED PID",
++        )
++        return self._last_result
++
++
++class AdaptiveDirectionPIDController:
++    """Absolute-error PID with a separately learned actuator direction.
++
++    The key distinction from a conventional PID is intentional:
++
++    * The signed error ``e`` is retained for display and logging.
++    * PID magnitude is calculated from ``E = abs(e)``.
++    * The actuator sign is the independent state ``direction``.
++    * If a completed actuator move makes ``E`` smaller, direction is kept.
++    * If it makes ``E`` larger, direction is reversed.
++
++    This lets the controller work when the local TC-to-beam-current response can
++    have either sign.  A raw error sign change alone does not reverse the move;
++    the direction changes only when the *magnitude* stops improving.
++    """
++
++    def __init__(
++        self,
++        gains: PIDGains | None = None,
++        limits: PIDLimits | None = None,
++        settings: AdaptiveDirectionSettings | None = None,
++    ):
++        self.gains = (gains or PIDGains()).validated()
++        self.limits = (limits or PIDLimits(output_min=0.0)).validated()
++        self.settings = (settings or AdaptiveDirectionSettings()).validated()
++        self.reset()
++
++    @staticmethod
++    def _clamp(value: float, lower: float, upper: float) -> float:
++        return max(lower, min(upper, value))
++
++    @staticmethod
++    def _trend(current: float, previous: float | None, tolerance: float) -> str:
++        if previous is None:
++            return "INITIALIZING"
++        change = current - previous
++        if change > tolerance:
++            return "INCREASING"
++        if change < -tolerance:
++            return "DECREASING"
++        return "STEADY"
++
++    def set_gains(self, gains: PIDGains) -> None:
++        self.gains = gains.validated()
++
++    def set_limits(self, limits: PIDLimits) -> None:
++        self.limits = limits.validated()
++        int_lo, int_hi = self._integral_bounds()
++        self._integral_state = self._clamp(
++            self._integral_state,
++            int_lo,
++            int_hi,
++        )
++
++    def set_settings(self, settings: AdaptiveDirectionSettings) -> None:
++        self.settings = settings.validated()
++        if self._direction not in (-1, 1):
++            self._direction = self.settings.initial_direction
++
++    def _magnitude_bounds(self) -> tuple[float, float]:
++        # The adaptive controller interprets output bounds as a nonnegative
++        # magnitude.  A legacy negative lower field therefore becomes zero.
++        lower = max(0.0, float(self.limits.output_min))
++        upper = max(lower, float(self.limits.output_max))
++        return lower, upper
++
++    def _integral_bounds(self) -> tuple[float, float]:
++        lower = max(0.0, float(self.limits.integral_min))
++        upper = max(lower, float(self.limits.integral_max))
++        return lower, upper
++
++    def reset(
++        self,
++        *,
++        setpoint: float | None = None,
++        measurement: float | None = None,
++        direction: int | None = None,
++    ) -> None:
++        self._integral_state = 0.0
++        self._filtered_derivative = 0.0
++        self._direction = (
++            self.settings.initial_direction
++            if direction is None
++            else (1 if int(direction) >= 0 else -1)
++        )
++        self._previous_error_magnitude: float | None = None
++        self._direction_reference_magnitude: float | None = None
++        self._direction_elapsed = 0.0
++        self._last_setpoint: float | None = None
++
++        if setpoint is not None and measurement is not None:
++            setpoint_f = float(setpoint)
++            measurement_f = float(measurement)
++            if math.isfinite(setpoint_f) and math.isfinite(measurement_f):
++                magnitude = abs(setpoint_f - measurement_f)
++                self._previous_error_magnitude = magnitude
++                self._direction_reference_magnitude = magnitude
++                self._last_setpoint = setpoint_f
++
++        self._last_result = PIDResult(
++            output=0.0,
++            error=0.0,
++            proportional=0.0,
++            integral=0.0,
++            derivative=0.0,
++            saturated=False,
++            direction=self._direction,
++            error_trend="RESET",
++        )
++
++    @property
++    def last_result(self) -> PIDResult:
++        return self._last_result
++
++    @property
++    def direction(self) -> int:
++        return self._direction
++
++    def update(
++        self,
++        setpoint: float,
++        measurement: float,
++        dt: float,
++        *,
++        hold_integrator: bool = False,
++    ) -> PIDResult:
++        setpoint = float(setpoint)
++        measurement = float(measurement)
++        dt = float(dt)
++        if not all(math.isfinite(v) for v in (setpoint, measurement, dt)):
++            raise ValueError("Adaptive PID inputs must be finite")
++        if dt <= 0.0:
++            raise ValueError("Adaptive PID dt must be greater than zero")
++
++        gains = self.gains
++        limits = self.limits
++        settings = self.settings
++
++        signed_error = setpoint - measurement
++        error_magnitude = abs(signed_error)
++
++        setpoint_changed = (
++            self._last_setpoint is not None
++            and not math.isclose(
++                setpoint,
++                self._last_setpoint,
++                rel_tol=0.0,
++                abs_tol=1e-12,
++            )
++        )
++        if self._last_setpoint is None or setpoint_changed:
++            # A new reference invalidates both the derivative history and the
++            # before/after comparison used to learn direction.
++            self._previous_error_magnitude = error_magnitude
++            self._direction_reference_magnitude = error_magnitude
++            self._direction_elapsed = 0.0
++            self._filtered_derivative = 0.0
++            sample_trend = "SETPOINT CHANGED" if setpoint_changed else "INITIALIZING"
++        else:
++            sample_trend = self._trend(
++                error_magnitude,
++                self._previous_error_magnitude,
++                settings.trend_tolerance,
++            )
++
++        in_deadband = error_magnitude <= settings.deadband
++        if in_deadband:
++            if settings.reset_integral_in_deadband:
++                self._integral_state = 0.0
++            # Figure 3 holds the TC target in the deadband.  Since ``output`` is
++            # a per-sample target increment, zero means hold the current target.
++            self._filtered_derivative = 0.0
++            self._previous_error_magnitude = error_magnitude
++            self._direction_reference_magnitude = error_magnitude
++            self._direction_elapsed = 0.0
++            self._last_setpoint = setpoint
++            self._last_result = PIDResult(
++                output=0.0,
++                error=signed_error,
++                proportional=0.0,
++                integral=self._integral_state,
++                derivative=0.0,
++                saturated=False,
++                error_magnitude=error_magnitude,
++                pid_magnitude=0.0,
++                direction=self._direction,
++                error_trend="DEADBAND",
++                direction_changed=False,
++                in_deadband=True,
++            )
++            return self._last_result
++
++        direction_changed = False
++        self._direction_elapsed += dt
++        if self._direction_reference_magnitude is None:
++            self._direction_reference_magnitude = error_magnitude
++            self._direction_elapsed = 0.0
++        elif self._direction_elapsed >= settings.direction_check_interval:
++            direction_delta = error_magnitude - self._direction_reference_magnitude
++            if direction_delta > settings.trend_tolerance:
++                # The last direction made |error| worse, regardless of whether
++                # the signed error itself is positive or negative.
++                self._direction *= -1
++                direction_changed = True
++                sample_trend = "INCREASING"
++                if settings.reset_integral_on_direction_change:
++                    self._integral_state = 0.0
++            elif direction_delta < -settings.trend_tolerance:
++                sample_trend = "DECREASING"
++            else:
++                sample_trend = "STEADY"
++            self._direction_reference_magnitude = error_magnitude
++            self._direction_elapsed = 0.0
++
++        if self._previous_error_magnitude is None or setpoint_changed:
++            raw_derivative = 0.0
++        else:
++            # The derivative is intentionally calculated on |error|, matching
++            # the magnitude-based flow in the paper schematic.
++            raw_derivative = (
++                error_magnitude - self._previous_error_magnitude
++            ) / dt
++
++        tau = limits.derivative_filter_tau
++        if tau <= 0.0:
++            self._filtered_derivative = raw_derivative
++        else:
++            alpha = dt / (tau + dt)
++            self._filtered_derivative += alpha * (
++                raw_derivative - self._filtered_derivative
++            )
++
++        proportional = gains.kp * error_magnitude
++        derivative = gains.kd * self._filtered_derivative
++
++        int_lo, int_hi = self._integral_bounds()
++        candidate_integral = self._integral_state
++        if not hold_integrator:
++            candidate_integral += gains.ki * error_magnitude * dt
++            candidate_integral = self._clamp(candidate_integral, int_lo, int_hi)
++
++        mag_lo, mag_hi = self._magnitude_bounds()
++        unsaturated_magnitude = proportional + candidate_integral + derivative
++        pid_magnitude = self._clamp(unsaturated_magnitude, mag_lo, mag_hi)
++        saturated = not math.isclose(
++            pid_magnitude,
++            unsaturated_magnitude,
++            rel_tol=0.0,
++            abs_tol=1e-12,
++        )
++
++        # With E >= 0 and Ki >= 0, integration can only increase magnitude.
++        # Retain it when unsaturated, and also when a negative derivative has
++        # temporarily clamped magnitude at the lower limit.  Reject it at the
++        # upper limit to prevent windup.
++        lower_saturation_can_recover = unsaturated_magnitude < mag_lo
++        if not hold_integrator and (not saturated or lower_saturation_can_recover):
++            self._integral_state = candidate_integral
++        else:
++            unsaturated_magnitude = (
++                proportional + self._integral_state + derivative
++            )
++            pid_magnitude = self._clamp(unsaturated_magnitude, mag_lo, mag_hi)
++            saturated = not math.isclose(
++                pid_magnitude,
++                unsaturated_magnitude,
++                rel_tol=0.0,
++                abs_tol=1e-12,
++            )
++
++        signed_output = float(self._direction) * pid_magnitude
++
++        self._previous_error_magnitude = error_magnitude
++        self._last_setpoint = setpoint
++        self._last_result = PIDResult(
++            output=signed_output,
++            error=signed_error,
++            proportional=proportional,
++            integral=self._integral_state,
++            derivative=derivative,
++            saturated=saturated,
++            error_magnitude=error_magnitude,
++            pid_magnitude=pid_magnitude,
++            direction=self._direction,
++            error_trend=sample_trend,
++            direction_changed=direction_changed,
++            in_deadband=False,
+         )
+         return self._last_result
+ 
+ 
+-__all__ = ["PIDGains", "PIDLimits", "PIDResult", "PIDController"]
++__all__ = [
++    "PIDGains",
++    "PIDLimits",
++    "AdaptiveDirectionSettings",
++    "PIDResult",
++    "PIDController",
++    "AdaptiveDirectionPIDController",
++]
+--- before/pid_ga_control_tab.py
++++ after/pid_ga_control_tab.py
+@@ -45,7 +45,13 @@
+     secondary_button_css,
+ )
+ from ga_pid_tuner import GAPIDTuner, GATuningConfig, GainBounds, PIDCandidate
+-from pid_controller import PIDController, PIDGains, PIDLimits, PIDResult
++from pid_controller import (
++    AdaptiveDirectionPIDController,
++    AdaptiveDirectionSettings,
++    PIDGains,
++    PIDLimits,
++    PIDResult,
++)
+ 
+ 
+ PIDOutputCallback = Callable[[int, float, PIDResult], bool | None]
+@@ -67,16 +73,26 @@
+         self.context = context
+         self.output_callback = output_callback
+ 
+-        self.pid = PIDController()
++        self.pid = AdaptiveDirectionPIDController()
+         self.ga_tuner: GAPIDTuner | None = None
+         self._pid_running = False
+-        self._pid_channel = 0
++        self._actuator_index = min(9, max(0, len(self.context.channel_names) - 1))
++        self._pid_channel = self._actuator_index
+         self._last_pid_time = 0.0
++        # The GUI may poll faster than the beam packet stream.  Track the last
++        # processed receive timestamp so one beam sample can produce at most one
++        # PID/TC command; otherwise the same held measurement could be integrated
++        # and applied repeatedly before the plant has supplied new feedback.
++        self._last_processed_beam_timestamp = 0.0
++        self._baseline_target = float("nan")
++        self._last_proposed_target = float("nan")
+ 
+         self._plot_t0 = time.monotonic()
+         self._plot_t = deque(maxlen=1000)
+         self._plot_setpoint = deque(maxlen=1000)
+         self._plot_actual = deque(maxlen=1000)
++        self._plot_abs_error = deque(maxlen=1000)
++        self._plot_deadband = deque(maxlen=1000)
+ 
+         # GA history is intentionally independent from the PID response plot.
+         # Each submitted candidate contributes one point: candidate fitness and
+@@ -161,8 +177,9 @@
+         layout.addWidget(title)
+ 
+         notice = QLabel(
+-            "DEVELOPMENT MODE — PID output is calculated locally. Hardware output remains blocked until an "
+-            "integration callback is connected and ARM HARDWARE OUTPUT is selected."
++            "PAPER-SCHEMATIC MODE — Beam-current error is e = setpoint − measured. "
++            "The PID uses |e|, while an independent direction d = +1 or −1 is kept when |e| decreases "
++            "and reversed when |e| increases. Hardware output remains blocked until ARM HARDWARE OUTPUT is selected."
+         )
+         notice.setWordWrap(True)
+         notice.setAlignment(Qt.AlignmentFlag.AlignCenter)
+@@ -210,7 +227,7 @@
+         grid.setHorizontalSpacing(16)
+         grid.setVerticalSpacing(4)
+ 
+-        channel_heading = QLabel("SELECTED CONTROL CHANNEL")
++        channel_heading = QLabel("SELECTED ACTUATOR")
+         channel_heading.setStyleSheet(
+             f"color: {T.muted}; font-size: 11px; font-weight: 600;"
+         )
+@@ -281,88 +298,149 @@
+         return card
+ 
+     def _build_channel_selector_card(self) -> QWidget:
++        """Separate the beam controlled variable from the magnetic actuator."""
+         card = Card(radius=9)
+-        row = QHBoxLayout(card)
+-        row.setContentsMargins(14, 10, 14, 10)
+-        row.setSpacing(12)
+-
+-        label = QLabel("CONTROL CHANNEL")
+-        label.setStyleSheet(f"color: {T.muted}; font-size: 12px; font-weight: 600;")
+-        row.addWidget(label)
+-
+-        self.channel_selector = QComboBox()
+-        self.channel_selector.addItems(self.context.channel_names)
+-        self.channel_selector.setMinimumWidth(230)
+-        self.channel_selector.setMaximumWidth(360)
+-        self.channel_selector.setToolTip(
+-            "Select the trim coil or magnet controlled by PID. Changing the channel stops a running PID loop."
++        grid = QGridLayout(card)
++        grid.setContentsMargins(14, 10, 14, 10)
++        grid.setHorizontalSpacing(18)
++        grid.setVerticalSpacing(6)
++
++        variable_heading = QLabel("CONTROLLED VARIABLE")
++        variable_heading.setStyleSheet(
++            f"color: {T.muted}; font-size: 11px; font-weight: 600;"
++        )
++        actuator_heading = QLabel("ACTUATOR / CONTROL CHANNEL")
++        actuator_heading.setStyleSheet(
++            f"color: {T.muted}; font-size: 11px; font-weight: 600;"
++        )
++        feedback_heading = QLabel("BEAM FEEDBACK")
++        feedback_heading.setStyleSheet(
++            f"color: {T.muted}; font-size: 11px; font-weight: 600;"
++        )
++        grid.addWidget(variable_heading, 0, 0)
++        grid.addWidget(actuator_heading, 0, 1)
++        grid.addWidget(feedback_heading, 0, 2)
++
++        controlled_value = QLabel("BEAM CURRENT")
++        controlled_value.setStyleSheet(
++            f"color: {T.cyan}; font-size: 18px; font-weight: 600;"
+         )
+-        self.channel_selector.setStyleSheet(
++        grid.addWidget(controlled_value, 1, 0)
++
++        self.actuator_selector = QComboBox()
++        self.actuator_selector.addItems(self.context.channel_names[:12])
++        self.actuator_selector.setCurrentIndex(self._actuator_index)
++        self.actuator_selector.setMinimumWidth(220)
++        self.actuator_selector.setToolTip(
++            "The PID feedback is beam current. This selection chooses only the trim-coil actuator."
++        )
++        self.actuator_selector.setStyleSheet(
+             f"QComboBox {{ color: {T.cyan}; font-size: 16px; font-weight: 600; padding: 7px 10px; }}"
+         )
+-        self.channel_selector.currentIndexChanged.connect(self._on_channel_selector_changed)
+-        row.addWidget(self.channel_selector)
++        self.actuator_selector.currentIndexChanged.connect(
++            self._on_actuator_selector_changed
++        )
++        grid.addWidget(self.actuator_selector, 1, 1)
++
++        self.beam_source_status = QLabel("NO DATA")
++        self.beam_source_status.setStyleSheet(
++            f"color: {T.red}; font-size: 16px; font-weight: 600;"
++        )
++        grid.addWidget(self.beam_source_status, 1, 2)
+ 
+         explanation = QLabel(
+-            "The selection is shared with the Magnetic Field page. PID, Manual, Sequence, and the separate GA tab use the same controller context."
++            "The actuator is independent from the channel selected on the Magnetic Field page. "
++            "The first paper configuration uses TC10, but TC1–TC12 remain selectable for controlled tests."
+         )
+         explanation.setWordWrap(True)
+         explanation.setStyleSheet(f"color: {T.muted}; font-size: 12px;")
+-        row.addWidget(explanation, 1)
++        grid.addWidget(explanation, 2, 0, 1, 3)
++        grid.setColumnStretch(0, 2)
++        grid.setColumnStretch(1, 2)
++        grid.setColumnStretch(2, 2)
+         return card
+ 
+     def _build_readout_card(self) -> QWidget:
+         card = Card(radius=9)
+         grid = QGridLayout(card)
+-        grid.setContentsMargins(12, 12, 12, 12)
+-        grid.setHorizontalSpacing(0)
+-
+-        headings = [
+-            ("SELECTED CHANNEL", T.muted),
+-            ("SETPOINT", T.cyan),
+-            ("ACTUAL", T.orange),
+-            ("ERROR", T.amber),
+-        ]
+-        displays = []
+-        for logical_col, (text, color) in enumerate(headings):
+-            col = logical_col * 2
+-            heading = QLabel(text)
+-            heading.setAlignment(Qt.AlignmentFlag.AlignCenter)
+-            heading.setStyleSheet(f"color: {color}; font-size: 12px;")
+-            grid.addWidget(heading, 0, col)
+-
+-            display = QLabel("—")
+-            display.setAlignment(Qt.AlignmentFlag.AlignCenter)
+-            display.setStyleSheet(f"color: {color}; font-size: 25px; font-weight: 600;")
+-            grid.addWidget(display, 1, col)
+-            displays.append(display)
++        grid.setContentsMargins(12, 10, 12, 10)
++        grid.setHorizontalSpacing(10)
++        grid.setVerticalSpacing(10)
++
++        def add_metric(row: int, col: int, heading: str, color: str) -> QLabel:
++            box = QWidget()
++            box_layout = QVBoxLayout(box)
++            box_layout.setContentsMargins(4, 2, 4, 2)
++            box_layout.setSpacing(3)
++            title = QLabel(heading)
++            title.setAlignment(Qt.AlignmentFlag.AlignCenter)
++            title.setStyleSheet(f"color: {color}; font-size: 11px;")
++            value = QLabel("—")
++            value.setAlignment(Qt.AlignmentFlag.AlignCenter)
++            value.setMinimumHeight(34)
++            value.setStyleSheet(
++                f"color: {color}; font-size: 21px; font-weight: 600;"
++            )
++            box_layout.addWidget(title)
++            box_layout.addWidget(value)
++            grid.addWidget(box, row, col)
+             grid.setColumnStretch(col, 1)
++            return value
+ 
+-            if logical_col < len(headings) - 1:
+-                divider = QFrame()
+-                divider.setFrameShape(QFrame.Shape.VLine)
+-                divider.setStyleSheet(f"color: {T.border};")
+-                grid.addWidget(divider, 0, col + 1, 2, 1)
+-
+-        (
+-            self.channel_display,
+-            self.setpoint_display,
+-            self.actual_display,
+-            self.error_display,
+-        ) = displays
++        self.controlled_display = add_metric(0, 0, "CONTROLLED VARIABLE", T.cyan)
++        self.actuator_display = add_metric(0, 1, "ACTUATOR", T.cyan)
++        self.setpoint_display = add_metric(0, 2, "SETPOINT", T.cyan)
++        self.actual_display = add_metric(0, 3, "MEASURED BEAM", T.orange)
++        self.error_display = add_metric(1, 0, "SIGNED ERROR e", T.amber)
++        self.abs_error_display = add_metric(1, 1, "ERROR MAGNITUDE |e|", T.amber)
++        self.trend_display = add_metric(1, 2, "|e| TREND", T.text)
++        self.direction_display = add_metric(1, 3, "ADAPTIVE DIRECTION d", T.text)
++
++        # Backward-compatible name used by some earlier integration snippets.
++        self.channel_display = self.actuator_display
+         return card
+ 
+     def _build_plot_card(self) -> QWidget:
+         card = Card(radius=9)
+-        layout = QVBoxLayout(card)
+-        layout.setContentsMargins(12, 8, 10, 8)
+-        title = QLabel("PID SETPOINT RESPONSE")
+-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+-        title.setStyleSheet(f"color: {T.muted}; font-size: 13px;")
+-        layout.addWidget(title)
+-        self.plot = TrendPlot(y_axis_label="PROCESS VALUE")
+-        self.plot.setMinimumHeight(220)
+-        layout.addWidget(self.plot)
++        outer = QHBoxLayout(card)
++        outer.setContentsMargins(12, 8, 10, 8)
++        outer.setSpacing(12)
++
++        response_panel = QWidget()
++        response_layout = QVBoxLayout(response_panel)
++        response_layout.setContentsMargins(0, 0, 0, 0)
++        response_title = QLabel("BEAM-CURRENT SETPOINT RESPONSE")
++        response_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        response_title.setStyleSheet(f"color: {T.muted}; font-size: 13px;")
++        response_layout.addWidget(response_title)
++        self.plot = TrendPlot(y_axis_label="BEAM CURRENT (nA)")
++        self.plot.setMinimumHeight(235)
++        response_layout.addWidget(self.plot)
++        response_legend = QLabel("Cyan = beam setpoint     Orange = measured beam current")
++        response_legend.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        response_legend.setStyleSheet(f"color: {T.muted}; font-size: 11px;")
++        response_layout.addWidget(response_legend)
++        outer.addWidget(response_panel, 1)
++
++        error_panel = QWidget()
++        error_layout = QVBoxLayout(error_panel)
++        error_layout.setContentsMargins(0, 0, 0, 0)
++        error_title = QLabel("ABSOLUTE ERROR AND DEADBAND")
++        error_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        error_title.setStyleSheet(f"color: {T.muted}; font-size: 13px;")
++        error_layout.addWidget(error_title)
++        self.error_plot = TrendPlot(
++            y_axis_label="|ERROR| (nA)",
++            target_color=T.green,
++            actual_color=T.amber,
++        )
++        self.error_plot.setMinimumHeight(235)
++        error_layout.addWidget(self.error_plot)
++        error_legend = QLabel("Amber = |signed error|     Green = deadband")
++        error_legend.setAlignment(Qt.AlignmentFlag.AlignCenter)
++        error_legend.setStyleSheet(f"color: {T.muted}; font-size: 11px;")
++        error_layout.addWidget(error_legend)
++        outer.addWidget(error_panel, 1)
+         return card
+ 
+     def _build_pid_card(self) -> QWidget:
+@@ -371,44 +449,88 @@
+         layout.setContentsMargins(14, 12, 14, 12)
+         layout.setSpacing(10)
+ 
+-        title = QLabel("PID PARAMETERS")
++        title = QLabel("ADAPTIVE-DIRECTION PID PARAMETERS")
+         title.setStyleSheet("font-size: 16px; font-weight: 600;")
+         layout.addWidget(title)
+ 
++        note = QLabel(
++            "Signed error is retained for diagnostics, but P, I, and D are calculated from |e|. "
++            "Direction is evaluated only after the direction-check interval so the measured plant delay does not cause rapid sign reversals. "
++            "A PID update is executed only when a new beam sample arrives; the poll timer never reuses a held sample for another TC move."
++        )
++        note.setWordWrap(True)
++        note.setStyleSheet(f"color: {T.muted};")
++        layout.addWidget(note)
++
+         grid = QGridLayout()
+-        grid.setHorizontalSpacing(12)
++        grid.setHorizontalSpacing(10)
+         grid.setVerticalSpacing(8)
+ 
+-        self.setpoint_spin = self._double_spin(-9999.99, 9999.99, 2, 1.0)
+-        self.kp_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.01)
+-        self.ki_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.01)
+-        self.kd_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.001)
+-        self.output_min_spin = self._double_spin(-9999.99, 9999.99, 3, 0.1)
+-        self.output_max_spin = self._double_spin(-9999.99, 9999.99, 3, 0.1)
+-        self.output_min_spin.setValue(-100.0)
+-        self.output_max_spin.setValue(100.0)
+-        self.integral_min_spin = self._double_spin(-9999.99, 9999.99, 3, 0.1)
+-        self.integral_max_spin = self._double_spin(-9999.99, 9999.99, 3, 0.1)
+-        self.integral_min_spin.setValue(-100.0)
+-        self.integral_max_spin.setValue(100.0)
++        self.setpoint_spin = self._double_spin(-1_000_000.0, 1_000_000.0, 4, 0.1)
++        self.setpoint_spin.setSuffix(" nA")
++        self.kp_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.001)
++        self.ki_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.0001)
++        self.kd_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.0001)
++
++        self.deadband_spin = self._double_spin(0.0, 1_000_000.0, 4, 0.01)
++        self.deadband_spin.setValue(0.05)
++        self.deadband_spin.setSuffix(" nA")
++        self.trend_tolerance_spin = self._double_spin(0.0, 1_000_000.0, 4, 0.01)
++        self.trend_tolerance_spin.setValue(0.01)
++        self.trend_tolerance_spin.setSuffix(" nA")
++        self.direction_check_spin = self._double_spin(0.0, 60.0, 2, 0.1)
++        self.direction_check_spin.setValue(1.0)
++        self.direction_check_spin.setSuffix(" s")
++        self.initial_direction_combo = QComboBox()
++        self.initial_direction_combo.addItem("+1 — INCREASE TC TARGET", 1)
++        self.initial_direction_combo.addItem("−1 — DECREASE TC TARGET", -1)
++
++        self.output_min_spin = self._double_spin(0.0, 9999.99, 4, 0.01)
++        self.output_max_spin = self._double_spin(0.0, 9999.99, 4, 0.05)
++        self.output_min_spin.setValue(0.0)
++        self.output_max_spin.setValue(1.0)
++        self.output_min_spin.setSuffix(" A/update")
++        self.output_max_spin.setSuffix(" A/update")
++        self.integral_min_spin = self._double_spin(0.0, 9999.99, 4, 0.01)
++        self.integral_max_spin = self._double_spin(0.0, 9999.99, 4, 0.05)
++        self.integral_min_spin.setValue(0.0)
++        self.integral_max_spin.setValue(1.0)
++
+         self.loop_period_spin = QSpinBox()
+         self.loop_period_spin.setRange(10, 5000)
+         self.loop_period_spin.setValue(100)
+         self.loop_period_spin.setSuffix(" ms")
+         self.derivative_tau_spin = self._double_spin(0.0, 10.0, 4, 0.01)
+         self.derivative_tau_spin.setValue(0.05)
++        self.derivative_tau_spin.setSuffix(" s")
++        self.tc_min_spin = self._double_spin(0.0, 9999.99, 2, 1.0)
++        self.tc_max_spin = self._double_spin(0.0, 9999.99, 2, 1.0)
++        self.tc_min_spin.setValue(0.0)
++        self.tc_max_spin.setValue(800.0)
++        self.tc_min_spin.setSuffix(" A")
++        self.tc_max_spin.setSuffix(" A")
++        self.beam_stale_spin = self._double_spin(0.05, 60.0, 2, 0.1)
++        self.beam_stale_spin.setValue(1.0)
++        self.beam_stale_spin.setSuffix(" s")
+ 
+         fields = [
+-            ("Setpoint", self.setpoint_spin, 0, 0),
++            ("Beam Setpoint", self.setpoint_spin, 0, 0),
+             ("Kp", self.kp_spin, 0, 2),
+             ("Ki", self.ki_spin, 0, 4),
+             ("Kd", self.kd_spin, 0, 6),
+-            ("Output Min", self.output_min_spin, 1, 0),
+-            ("Output Max", self.output_max_spin, 1, 2),
+-            ("Integral Min", self.integral_min_spin, 1, 4),
+-            ("Integral Max", self.integral_max_spin, 1, 6),
+-            ("Loop Period", self.loop_period_spin, 2, 0),
+-            ("Derivative Filter τ", self.derivative_tau_spin, 2, 2),
++            ("Deadband", self.deadband_spin, 1, 0),
++            ("Trend Tolerance", self.trend_tolerance_spin, 1, 2),
++            ("Direction Check", self.direction_check_spin, 1, 4),
++            ("Initial Direction", self.initial_direction_combo, 1, 6),
++            ("ΔTC Magnitude Min", self.output_min_spin, 2, 0),
++            ("ΔTC Magnitude Max", self.output_max_spin, 2, 2),
++            ("Integral Min", self.integral_min_spin, 2, 4),
++            ("Integral Max", self.integral_max_spin, 2, 6),
++            ("PID Poll Period", self.loop_period_spin, 3, 0),
++            ("Derivative Filter τ", self.derivative_tau_spin, 3, 2),
++            ("TC Target Min", self.tc_min_spin, 3, 4),
++            ("TC Target Max", self.tc_max_spin, 3, 6),
++            ("Beam Stale Limit", self.beam_stale_spin, 4, 0),
+         ]
+         for label_text, widget, row, col in fields:
+             label = QLabel(label_text)
+@@ -417,13 +539,28 @@
+             grid.addWidget(widget, row, col + 1)
+         layout.addLayout(grid)
+ 
++        behavior_row = QHBoxLayout()
++        self.reset_i_deadband_check = QCheckBox("RESET INTEGRAL INSIDE DEADBAND")
++        self.reset_i_reverse_check = QCheckBox("RESET INTEGRAL WHEN DIRECTION REVERSES")
++        behavior_row.addWidget(self.reset_i_deadband_check)
++        behavior_row.addWidget(self.reset_i_reverse_check)
++        behavior_row.addStretch()
++        layout.addLayout(behavior_row)
++
+         component_grid = QGridLayout()
+         self.output_display = self._component_display(T.cyan)
++        self.magnitude_display = self._component_display(T.amber)
+         self.p_display = self._component_display(T.text)
+         self.i_display = self._component_display(T.text)
+         self.d_display = self._component_display(T.text)
+         for col, (name, display) in enumerate(
+-            (("OUTPUT", self.output_display), ("P", self.p_display), ("I", self.i_display), ("D", self.d_display))
++            (
++                ("SIGNED ΔTC", self.output_display),
++                ("PID MAGNITUDE", self.magnitude_display),
++                ("P(|e|)", self.p_display),
++                ("I(|e|)", self.i_display),
++                ("D(|e|)", self.d_display),
++            )
+         ):
+             label = QLabel(name)
+             label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+@@ -432,13 +569,36 @@
+             component_grid.addWidget(display, 1, col)
+         layout.addLayout(component_grid)
+ 
++        target_grid = QGridLayout()
++        self.baseline_display = self._component_display(T.cyan)
++        self.current_target_display = self._component_display(T.text)
++        self.proposed_target_display = self._component_display(T.orange)
++        for col, (name, display) in enumerate(
++            (
++                ("CAPTURED BASELINE TC TARGET", self.baseline_display),
++                ("CURRENT TC TARGET", self.current_target_display),
++                ("NEXT PROPOSED TC TARGET", self.proposed_target_display),
++            )
++        ):
++            label = QLabel(name)
++            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
++            label.setStyleSheet(f"color: {T.muted}; font-size: 11px;")
++            target_grid.addWidget(label, 0, col)
++            target_grid.addWidget(display, 1, col)
++        layout.addLayout(target_grid)
++
+         controls = QHBoxLayout()
+-        self.load_target_button = QPushButton("LOAD TARGET AS SETPOINT")
+-        self.load_target_button.setStyleSheet(secondary_button_css())
+-        self.load_target_button.clicked.connect(self._load_target_as_setpoint)
+-        controls.addWidget(self.load_target_button)
++        self.load_actual_button = QPushButton("LOAD ACTUAL BEAM AS SETPOINT")
++        self.load_actual_button.setStyleSheet(secondary_button_css())
++        self.load_actual_button.clicked.connect(self._load_actual_as_setpoint)
++        controls.addWidget(self.load_actual_button)
++
++        self.capture_baseline_button = QPushButton("CAPTURE TC BASELINE")
++        self.capture_baseline_button.setStyleSheet(secondary_button_css())
++        self.capture_baseline_button.clicked.connect(self._capture_baseline)
++        controls.addWidget(self.capture_baseline_button)
+ 
+-        self.reset_button = QPushButton("RESET INTEGRATOR")
++        self.reset_button = QPushButton("RESET PID STATE")
+         self.reset_button.setStyleSheet(secondary_button_css())
+         self.reset_button.clicked.connect(self.reset_pid)
+         controls.addWidget(self.reset_button)
+@@ -446,7 +606,7 @@
+ 
+         self.arm_output_check = QCheckBox("ARM HARDWARE OUTPUT")
+         self.arm_output_check.setToolTip(
+-            "Output is still blocked when no integration callback is connected."
++            "When checked, signed ΔTC commands are added to the selected TC target through the existing control queue."
+         )
+         controls.addWidget(self.arm_output_check)
+ 
+@@ -608,61 +768,150 @@
+ 
+     # ------------------------------------------------------------ Context
+     def _connect_context(self) -> None:
+-        self.context.selected_channel_changed.connect(self._on_channel_changed)
+         self.context.target_changed.connect(self._on_target_changed)
+-        self.context.actual_values_changed.connect(lambda _values: self._refresh_live_readouts())
++        self.context.beam_measurement_changed.connect(
++            lambda _sample: self._refresh_live_readouts()
++        )
+         self.context.mode_changed.connect(self._on_mode_changed)
+ 
+-    def _on_channel_selector_changed(self, index: int) -> None:
+-        if index < 0 or index == self.context.selected_index:
++    def _on_actuator_selector_changed(self, index: int) -> None:
++        if index < 0 or index == self._actuator_index:
+             return
+-        self.context.set_selected_index(index)
+-
+-    def _on_channel_changed(self, _index: int) -> None:
+         if self._pid_running:
+-            self.stop_pid(reason="PID STOPPED — CHANNEL CHANGED")
+-        self._load_target_as_setpoint()
++            self.stop_pid(reason="PID STOPPED — ACTUATOR CHANGED")
++        self._actuator_index = int(index)
++        self._pid_channel = self._actuator_index
++        self._baseline_target = float("nan")
++        self._last_proposed_target = float("nan")
+         self._reset_plot()
+         self.refresh()
+ 
+     def _on_target_changed(self, index: int, _value: float) -> None:
+-        if index == self.context.selected_index and not self._pid_running:
++        if int(index) == self._actuator_index:
+             self._refresh_live_readouts()
+ 
+     def _on_mode_changed(self, mode: str) -> None:
+         if self._pid_running and mode != ControlMode.PID.value:
+-            self.stop_pid(reason=f"PID STOPPED — MODE CHANGED TO {mode}", restore_manual=False)
++            self.stop_pid(
++                reason=f"PID STOPPED — MODE CHANGED TO {mode}",
++                restore_manual=False,
++            )
+ 
+     def refresh(self) -> None:
+-        if hasattr(self, "channel_selector"):
+-            self.channel_selector.blockSignals(True)
+-            self.channel_selector.setCurrentIndex(self.context.selected_index)
+-            self.channel_selector.blockSignals(False)
+-        self.channel_display.setText(self.context.channel_name())
+-        if not self._pid_running:
+-            self.setpoint_spin.setValue(self.context.target())
++        if hasattr(self, "actuator_selector"):
++            self.actuator_selector.blockSignals(True)
++            self.actuator_selector.setCurrentIndex(self._actuator_index)
++            self.actuator_selector.blockSignals(False)
+         self._refresh_live_readouts()
+         self._refresh_ga_progress()
+ 
+-    def _load_target_as_setpoint(self) -> None:
+-        self.setpoint_spin.setValue(self.context.target())
++    def _beam_stale_limit(self) -> float:
++        if hasattr(self, "beam_stale_spin"):
++            return max(0.05, float(self.beam_stale_spin.value()))
++        return 1.0
++
++    def _beam_value(self) -> float:
++        return self.context.beam_current(max_age_s=self._beam_stale_limit())
++
++    def _load_actual_as_setpoint(self) -> None:
++        actual = self._beam_value()
++        if not math.isfinite(actual):
++            self.pid_status_label.setText(
++                "SETPOINT NOT LOADED — VALID BEAM FEEDBACK IS NOT AVAILABLE"
++            )
++            return
++        self.setpoint_spin.setValue(actual)
+         self._refresh_live_readouts()
+ 
++    def _capture_baseline(self) -> None:
++        self._baseline_target = self.context.target(self._actuator_index)
++        self.baseline_display.setText(f"{self._baseline_target:.2f} A")
++        self.pid_status_label.setText(
++            f"BASELINE CAPTURED — {self.context.channel_name(self._actuator_index)} "
++            f"= {self._baseline_target:.2f} A"
++        )
++
++    @staticmethod
++    def _direction_text(direction: int) -> str:
++        return "+1  INCREASE TC" if int(direction) >= 0 else "−1  DECREASE TC"
++
++    def _set_trend_display(self, trend: str) -> None:
++        """Make the absolute-error decision visually unambiguous."""
++        text = str(trend or "UNKNOWN").upper()
++        if text == "DECREASING":
++            color = T.green
++        elif text == "INCREASING":
++            color = T.red
++        elif text == "DEADBAND":
++            color = T.cyan
++        elif text in ("STEADY", "INITIALIZING", "SETPOINT CHANGED"):
++            color = T.amber
++        else:
++            color = T.text
++        self.trend_display.setText(text)
++        self.trend_display.setStyleSheet(
++            f"color: {color}; font-size: 21px; font-weight: 600;"
++        )
++
+     def _refresh_live_readouts(self) -> None:
+-        self.channel_display.setText(self.context.channel_name())
+-        self._refresh_ga_context()
++        if not hasattr(self, "actuator_display"):
++            return
++
++        actuator_name = self.context.channel_name(self._actuator_index)
++        self.controlled_display.setText("BEAM CURRENT")
++        self.actuator_display.setText(actuator_name)
+         setpoint = self.setpoint_spin.value()
+-        actual = self.context.actual()
+-        self.setpoint_display.setText(f"{setpoint:.2f}")
+-        if math.isfinite(actual):
+-            self.actual_display.setText(f"{actual:.2f}")
+-            self.error_display.setText(f"{setpoint - actual:.2f}")
++        self.setpoint_display.setText(f"{setpoint:.4f} nA")
++
++        snapshot = self.context.beam_snapshot(max_age_s=self._beam_stale_limit())
++        actual = float(snapshot.get("value_nA", float("nan")))
++        if bool(snapshot.get("valid")) and math.isfinite(actual):
++            self.actual_display.setText(f"{actual:.4f} nA")
++            signed_error = setpoint - actual
++            magnitude = abs(signed_error)
++            self.error_display.setText(f"{signed_error:+.4f} nA")
++            self.abs_error_display.setText(f"{magnitude:.4f} nA")
++            self.beam_source_status.setText(
++                f"{snapshot.get('status', 'LIVE')}  |  {float(snapshot.get('age_s', 0.0)):.2f} s"
++            )
++            self.beam_source_status.setStyleSheet(
++                f"color: {T.green}; font-size: 14px; font-weight: 600;"
++            )
+         else:
+             self.actual_display.setText("—")
+             self.error_display.setText("—")
++            self.abs_error_display.setText("—")
++            self.beam_source_status.setText(str(snapshot.get("status", "NO DATA")))
++            self.beam_source_status.setStyleSheet(
++                f"color: {T.red}; font-size: 14px; font-weight: 600;"
++            )
++
++        result = self.pid.last_result
++        if self._pid_running:
++            self._set_trend_display(result.error_trend)
++            self.direction_display.setText(self._direction_text(result.direction))
++        else:
++            self._set_trend_display("IDLE")
++            direction = int(self.initial_direction_combo.currentData())
++            self.direction_display.setText(self._direction_text(direction))
++
++        current_target = self.context.target(self._actuator_index)
++        self.current_target_display.setText(f"{current_target:.2f} A")
++        if math.isfinite(self._baseline_target):
++            self.baseline_display.setText(f"{self._baseline_target:.2f} A")
++        else:
++            self.baseline_display.setText("—")
++        if math.isfinite(self._last_proposed_target):
++            self.proposed_target_display.setText(
++                f"{self._last_proposed_target:.2f} A"
++            )
++        else:
++            self.proposed_target_display.setText(f"{current_target:.2f} A")
+ 
+     # --------------------------------------------------------------- PID
+-    def _pid_settings(self) -> tuple[PIDGains, PIDLimits]:
++    def _pid_settings(
++        self,
++    ) -> tuple[PIDGains, PIDLimits, AdaptiveDirectionSettings]:
+         gains = PIDGains(
+             kp=self.kp_spin.value(),
+             ki=self.ki_spin.value(),
+@@ -675,120 +924,269 @@
+             integral_max=self.integral_max_spin.value(),
+             derivative_filter_tau=self.derivative_tau_spin.value(),
+         )
+-        return gains, limits
++        settings = AdaptiveDirectionSettings(
++            deadband=self.deadband_spin.value(),
++            trend_tolerance=self.trend_tolerance_spin.value(),
++            direction_check_interval=self.direction_check_spin.value(),
++            initial_direction=int(self.initial_direction_combo.currentData()),
++            reset_integral_in_deadband=self.reset_i_deadband_check.isChecked(),
++            reset_integral_on_direction_change=self.reset_i_reverse_check.isChecked(),
++        )
++        return gains, limits, settings
+ 
+     def start_pid(self) -> None:
+-        actual = self.context.actual()
++        actual = self._beam_value()
+         if not math.isfinite(actual):
+-            self.pid_status_label.setText("PID NOT STARTED — ACTUAL VALUE IS NOT AVAILABLE")
++            self.pid_status_label.setText(
++                "PID NOT STARTED — CALIBRATED BEAM FEEDBACK IS NOT AVAILABLE OR IS STALE"
++            )
+             return
++        if not 0 <= self._actuator_index < 12:
++            self.pid_status_label.setText("PID NOT STARTED — SELECT TC1 THROUGH TC12")
++            return
++        if self.tc_min_spin.value() >= self.tc_max_spin.value():
++            self.pid_status_label.setText(
++                "PID NOT STARTED — TC TARGET MIN MUST BE BELOW TC TARGET MAX"
++            )
++            return
++        if self.output_min_spin.value() > self.output_max_spin.value():
++            self.pid_status_label.setText(
++                "PID NOT STARTED — ΔTC MAGNITUDE MIN EXCEEDS MAX"
++            )
++            return
++        if self.integral_min_spin.value() > self.integral_max_spin.value():
++            self.pid_status_label.setText(
++                "PID NOT STARTED — INTEGRAL MIN EXCEEDS MAX"
++            )
++            return
++
+         try:
+-            gains, limits = self._pid_settings()
++            gains, limits, settings = self._pid_settings()
+             self.pid.set_gains(gains)
+             self.pid.set_limits(limits)
++            self.pid.set_settings(settings)
+         except ValueError as exc:
+             self.pid_status_label.setText(f"PID NOT STARTED — {exc}")
+             return
+ 
+-        self._pid_channel = self.context.selected_index
+-        self.pid.reset(measurement=actual)
++        self._pid_channel = self._actuator_index
++        self.context.set_target_limits(
++            self._pid_channel,
++            self.tc_min_spin.value(),
++            self.tc_max_spin.value(),
++        )
++        self._baseline_target = self.context.target(self._pid_channel)
++        self._last_proposed_target = self._baseline_target
++        self.pid.reset(
++            setpoint=self.setpoint_spin.value(),
++            measurement=actual,
++            direction=settings.initial_direction,
++        )
+         self._last_pid_time = time.monotonic()
++        self._last_processed_beam_timestamp = 0.0
+         self._pid_timer.setInterval(self.loop_period_spin.value())
+         self._pid_running = True
+         self.context.set_mode(ControlMode.PID)
+         self._reset_plot()
+         self._pid_timer.start()
++        self.actuator_selector.setEnabled(False)
++        self.initial_direction_combo.setEnabled(False)
+ 
+         if self.arm_output_check.isChecked() and self.output_callback is None:
+-            self.pid_status_label.setText("PID PREVIEW ACTIVE — NO HARDWARE CALLBACK CONNECTED")
++            self.pid_status_label.setText(
++                "PID PREVIEW ACTIVE — NO HARDWARE CALLBACK CONNECTED"
++            )
+         elif self.arm_output_check.isChecked():
+-            self.pid_status_label.setText("PID ACTIVE — HARDWARE OUTPUT ARMED")
++            self.pid_status_label.setText(
++                "PID ACTIVE — HARDWARE OUTPUT ARMED — ADAPTIVE DIRECTION INITIALIZING"
++            )
+         else:
+-            self.pid_status_label.setText("PID PREVIEW ACTIVE — HARDWARE OUTPUT BLOCKED")
++            self.pid_status_label.setText(
++                "PID PREVIEW ACTIVE — HARDWARE OUTPUT BLOCKED — ADAPTIVE DIRECTION INITIALIZING"
++            )
++        self._refresh_live_readouts()
+ 
+-    def stop_pid(self, *, reason: str = "PID STOPPED", restore_manual: bool = True) -> None:
++    def stop_pid(
++        self,
++        *,
++        reason: str = "PID STOPPED",
++        restore_manual: bool = True,
++    ) -> None:
+         self._pid_timer.stop()
+         self._pid_running = False
++        self._last_processed_beam_timestamp = 0.0
++        if hasattr(self, "actuator_selector"):
++            self.actuator_selector.setEnabled(True)
++        if hasattr(self, "initial_direction_combo"):
++            self.initial_direction_combo.setEnabled(True)
+         self.pid_status_label.setText(reason)
+         if restore_manual and self.context.can_write(ControlMode.PID):
+             self.context.set_mode(ControlMode.MANUAL)
++        self._refresh_live_readouts()
+ 
+     def reset_pid(self) -> None:
+-        actual = self.context.actual()
+-        self.pid.reset(measurement=actual if math.isfinite(actual) else None)
+-        self.output_display.setText("0.0000")
++        actual = self._beam_value()
++        direction = int(self.initial_direction_combo.currentData())
++        self.pid.reset(
++            setpoint=self.setpoint_spin.value() if math.isfinite(actual) else None,
++            measurement=actual if math.isfinite(actual) else None,
++            direction=direction,
++        )
++        self.output_display.setText("0.0000 A")
++        self.magnitude_display.setText("0.0000 A")
+         self.p_display.setText("0.0000")
+         self.i_display.setText("0.0000")
+         self.d_display.setText("0.0000")
+-        self.pid_status_label.setText("PID INTEGRATOR RESET")
++        self._last_proposed_target = self.context.target(self._actuator_index)
++        self.pid_status_label.setText("PID STATE RESET")
++        self._refresh_live_readouts()
+ 
+     def _pid_step(self) -> None:
+         if not self._pid_running:
+             return
+         if not self.context.can_write(ControlMode.PID):
+-            self.stop_pid(reason="PID STOPPED — CONTROL MODE LOST", restore_manual=False)
++            self.stop_pid(
++                reason="PID STOPPED — CONTROL MODE LOST",
++                restore_manual=False,
++            )
+             return
+-        if self.context.selected_index != self._pid_channel:
+-            self.stop_pid(reason="PID STOPPED — CHANNEL CHANGED")
++        if self._actuator_index != self._pid_channel:
++            self.stop_pid(reason="PID STOPPED — ACTUATOR CHANGED")
+             return
+ 
+         now = time.monotonic()
+-        dt = now - self._last_pid_time
+-        self._last_pid_time = now
+-        actual = self.context.actual(self._pid_channel)
+-        if not math.isfinite(actual):
+-            self.stop_pid(reason="PID STOPPED — ACTUAL DATA LOST")
++        snapshot = self.context.beam_snapshot(max_age_s=self._beam_stale_limit())
++        actual = float(snapshot.get("value_nA", float("nan")))
++        sample_timestamp = float(snapshot.get("timestamp", 0.0))
++        if not bool(snapshot.get("valid")) or not math.isfinite(actual):
++            self.stop_pid(reason="PID STOPPED — BEAM FEEDBACK LOST OR STALE")
++            return
++
++        # Execute the control law once per genuinely new beam sample.  The main
++        # GUI can display/poll faster than its packet fan-out, so reusing the same
++        # sample here would otherwise apply several TC increments with no new
++        # evidence about whether |error| improved or worsened.
++        if (
++            sample_timestamp <= 0.0
++            or math.isclose(
++                sample_timestamp,
++                self._last_processed_beam_timestamp,
++                rel_tol=0.0,
++                abs_tol=1e-12,
++            )
++        ):
+             return
+ 
++        if self._last_processed_beam_timestamp > 0.0:
++            dt = max(1e-6, sample_timestamp - self._last_processed_beam_timestamp)
++        else:
++            # The first available sample has no prior receive timestamp in this
++            # PID run.  Use the configured poll period only for that first step.
++            dt = max(1e-6, self.loop_period_spin.value() / 1000.0)
++        self._last_processed_beam_timestamp = sample_timestamp
++        self._last_pid_time = now
++
++        # Permit deliberate live gain/deadband changes while running, while the
++        # adaptive direction state itself remains intact.
+         try:
++            gains, limits, settings = self._pid_settings()
++            self.pid.set_gains(gains)
++            self.pid.set_limits(limits)
++            self.pid.set_settings(settings)
+             result = self.pid.update(self.setpoint_spin.value(), actual, dt)
+         except ValueError as exc:
+             self.stop_pid(reason=f"PID STOPPED — {exc}")
+             return
+ 
+-        self.output_display.setText(f"{result.output:.4f}")
+-        self.p_display.setText(f"{result.proportional:.4f}")
+-        self.i_display.setText(f"{result.integral:.4f}")
+-        self.d_display.setText(f"{result.derivative:.4f}")
+-        self.error_display.setText(f"{result.error:.3f}")
++        self.output_display.setText(f"{result.output:+.4f} A")
++        self.magnitude_display.setText(f"{result.pid_magnitude:.4f} A")
++        self.p_display.setText(f"{result.proportional:.6f}")
++        self.i_display.setText(f"{result.integral:.6f}")
++        self.d_display.setText(f"{result.derivative:.6f}")
++        self.error_display.setText(f"{result.error:+.4f} nA")
++        self.abs_error_display.setText(f"{result.error_magnitude:.4f} nA")
++        self._set_trend_display(result.error_trend)
++        self.direction_display.setText(self._direction_text(result.direction))
++
++        current_target = self.context.target(self._pid_channel)
++        requested_target = current_target + result.output
++        proposed_target = self.context.clamp_target(
++            self._pid_channel, requested_target
++        )
++        self._last_proposed_target = proposed_target
++        self.current_target_display.setText(f"{current_target:.2f} A")
++        self.proposed_target_display.setText(f"{proposed_target:.2f} A")
+ 
+         elapsed = now - self._plot_t0
+         self._plot_t.append(elapsed)
+         self._plot_setpoint.append(self.setpoint_spin.value())
+         self._plot_actual.append(actual)
+-        self.plot.set_data(self._plot_t, self._plot_setpoint, self._plot_actual)
++        self._plot_abs_error.append(result.error_magnitude)
++        self._plot_deadband.append(self.deadband_spin.value())
++        self.plot.set_data(
++            self._plot_t,
++            self._plot_setpoint,
++            self._plot_actual,
++        )
++        self.error_plot.set_data(
++            self._plot_t,
++            self._plot_deadband,
++            self._plot_abs_error,
++        )
+ 
+-        self.pid_output_calculated.emit(self._pid_channel, result.output, result)
++        self.pid_output_calculated.emit(
++            self._pid_channel, result.output, result
++        )
+ 
++        output_mode = "PID PREVIEW ACTIVE"
+         if self.arm_output_check.isChecked() and self.output_callback is not None:
+             try:
+-                accepted = self.output_callback(self._pid_channel, result.output, result)
+-            except Exception as exc:  # pragma: no cover - integration safety boundary
+-                self.stop_pid(reason=f"PID STOPPED — OUTPUT CALLBACK FAILED: {exc}")
++                accepted = self.output_callback(
++                    self._pid_channel, result.output, result
++                )
++            except Exception as exc:  # pragma: no cover - hardware boundary
++                self.stop_pid(
++                    reason=f"PID STOPPED — OUTPUT CALLBACK FAILED: {exc}"
++                )
+                 return
+             if accepted is False:
+-                self.stop_pid(reason="PID STOPPED — OUTPUT CALLBACK REJECTED COMMAND")
++                self.stop_pid(
++                    reason="PID STOPPED — OUTPUT CALLBACK REJECTED COMMAND"
++                )
+                 return
+-            self.pid_status_label.setText(
+-                "PID ACTIVE — OUTPUT ARMED" + (" — SATURATED" if result.saturated else "")
++            output_mode = "PID ACTIVE — OUTPUT ARMED"
++            self.current_target_display.setText(
++                f"{self.context.target(self._pid_channel):.2f} A"
+             )
+         elif self.arm_output_check.isChecked():
+-            self.pid_status_label.setText("PID PREVIEW ACTIVE — NO HARDWARE CALLBACK CONNECTED")
+-        else:
+-            self.pid_status_label.setText(
+-                "PID PREVIEW ACTIVE" + (" — OUTPUT SATURATED" if result.saturated else "")
+-            )
++            output_mode = "PID PREVIEW ACTIVE — NO HARDWARE CALLBACK"
++
++        flags = [output_mode, f"d={result.direction:+d}", f"|e| {result.error_trend}"]
++        if result.in_deadband:
++            flags.append("TARGET HELD IN DEADBAND")
++        if result.direction_changed:
++            flags.append("DIRECTION REVERSED")
++        if result.saturated:
++            flags.append("PID MAGNITUDE LIMITED")
++        self.pid_status_label.setText(" — ".join(flags))
+ 
+     def _reset_plot(self) -> None:
+         self._plot_t0 = time.monotonic()
+         self._plot_t.clear()
+         self._plot_setpoint.clear()
+         self._plot_actual.clear()
+-        self.plot.clear()
++        self._plot_abs_error.clear()
++        self._plot_deadband.clear()
++        if hasattr(self, "plot"):
++            self.plot.clear()
++        if hasattr(self, "error_plot"):
++            self.error_plot.clear()
+ 
+     def _refresh_ga_context(self) -> None:
+         if hasattr(self, "ga_channel_display"):
+-            self.ga_channel_display.setText(self.context.channel_name())
++            self.ga_channel_display.setText(
++                self.context.channel_name(self._actuator_index)
++            )
+         if hasattr(self, "ga_seed_display") and all(
+             hasattr(self, name) for name in ("kp_spin", "ki_spin", "kd_spin")
+         ):
+--- before/controller_context.py
++++ after/controller_context.py
+@@ -4,6 +4,7 @@
+ from __future__ import annotations
+ 
+ import math
++import time
+ from enum import Enum
+ from typing import Callable, Iterable, MutableSequence, Sequence
+ 
+@@ -30,6 +31,7 @@
+     target_changed = pyqtSignal(int, float)
+     targets_changed = pyqtSignal(object)
+     actual_values_changed = pyqtSignal(object)
++    beam_measurement_changed = pyqtSignal(object)
+     power_states_changed = pyqtSignal(object)
+     enable_states_changed = pyqtSignal(object)
+     plot_flags_changed = pyqtSignal(object)
+@@ -57,6 +59,14 @@
+         count = len(self.channel_names)
+         self.actual_values = [0.0] * count
+ 
++        # Beam feedback is physically separate from the selected magnetic
++        # actuator.  The value is stored in calibrated nA with a monotonic
++        # receive timestamp so the PID page can reject stale data.
++        self._beam_current_nA = float("nan")
++        self._beam_timestamp = 0.0
++        self._beam_valid = False
++        self._beam_status = "NO DATA"
++
+         # Preserve the old controller's initial bit behavior: both button lists
+         # start False unless a caller explicitly supplies remembered states.
+         self.power_states = self._coerce_bool_list(
+@@ -206,6 +216,68 @@
+                 self.actual_values[i] = value
+         self.actual_values_changed.emit(list(self.actual_values))
+ 
++    def update_beam_measurement(
++        self,
++        value_nA: float,
++        *,
++        timestamp: float | None = None,
++        valid: bool = True,
++        status: str = "LIVE",
++    ) -> None:
++        """Store one calibrated beam-current sample in nA.
++
++        ``timestamp`` uses ``time.monotonic()`` by default.  The controller
++        compares the stored age against its stale-data limit before each PID
++        evaluation.
++        """
++        try:
++            value = float(value_nA)
++        except (TypeError, ValueError):
++            self.invalidate_beam_measurement("INVALID BEAM VALUE")
++            return
++
++        is_valid = bool(valid) and math.isfinite(value)
++        self._beam_current_nA = value if is_valid else float("nan")
++        self._beam_timestamp = (
++            time.monotonic() if timestamp is None else float(timestamp)
++        )
++        self._beam_valid = is_valid
++        self._beam_status = str(status) if status else ("LIVE" if is_valid else "INVALID")
++        self.beam_measurement_changed.emit(self.beam_snapshot())
++
++    def invalidate_beam_measurement(self, status: str = "NO DATA") -> None:
++        self._beam_valid = False
++        self._beam_status = str(status)
++        self.beam_measurement_changed.emit(self.beam_snapshot())
++
++    def beam_age_s(self) -> float:
++        if self._beam_timestamp <= 0.0:
++            return float("inf")
++        return max(0.0, time.monotonic() - self._beam_timestamp)
++
++    def beam_current(self, *, max_age_s: float | None = None) -> float:
++        if not self._beam_valid or not math.isfinite(self._beam_current_nA):
++            return float("nan")
++        if max_age_s is not None and self.beam_age_s() > max(0.0, float(max_age_s)):
++            return float("nan")
++        return float(self._beam_current_nA)
++
++    def beam_snapshot(self, *, max_age_s: float | None = None) -> dict:
++        fresh = self._beam_valid
++        if max_age_s is not None:
++            fresh = fresh and self.beam_age_s() <= max(0.0, float(max_age_s))
++        value = self._beam_current_nA if fresh else float("nan")
++        status = self._beam_status if fresh else (
++            "STALE" if self._beam_valid else self._beam_status
++        )
++        return {
++            "value_nA": float(value),
++            "timestamp": float(self._beam_timestamp),
++            "age_s": float(self.beam_age_s()),
++            "valid": bool(fresh and math.isfinite(value)),
++            "status": str(status),
++        }
++
+     def set_power_state(self, index: int, state: bool, *, send: bool = True) -> None:
+         self.power_states[index] = bool(state)
+         self.plot_config["power_states"] = list(self.power_states)
+--- before/MagneticFieldControllerWindow.py
++++ after/MagneticFieldControllerWindow.py
+@@ -41,6 +41,7 @@
+ )
+ 
+ from scaling import TRIM_KEYS, get_scaler
++from beam_cal import beam_cal
+ 
+ from controller_context import ControlMode, ControllerContext
+ from controller_theme import (
+@@ -250,7 +251,9 @@
+ 
+         # Full-page PID/GA workspace.  The implementation is still isolated in
+         # pid_ga_control_tab.py and calls pid_controller.py + ga_pid_tuner.py.
+-        self.pid_tab = PIDGAControlTab(self.context, output_callback=None)
++        self.pid_tab = PIDGAControlTab(
++            self.context, output_callback=self._apply_pid_delta_output
++        )
+         tabs.addTab(self.pid_tab, "PID / GA AUTO-TUNE")
+ 
+         tabs.addTab(
+@@ -632,8 +635,17 @@
+ 
+     # ----------------------------------------------------------- Live data
+     def _poll_actual_data(self) -> None:
+-        """Update engineering-unit actuals from the shared list or data queue."""
+-        # Preferred route: the monitoring window's shared engineering-unit list.
++        """Update magnetic actuals and calibrated beam-current feedback.
++
++        The full CNL packet delivered to this controller already contains both
++        the magnetic channel array and the raw beam-meter voltage.  Magnetic
++        values continue through ``scaler.raw_to_eng``.  Beam voltage is
++        converted to nA with the same ``beam_cal`` path used by the Vacuum/Beam
++        monitoring window, including the packet's beam-range index.
++        """
++        # Preferred magnetic-only route used by some stand-alone launchers.
++        # It has no beam packet, so any previously received beam sample simply
++        # ages and is rejected by the PID stale-data check.
+         if self.current_values_ref is not None:
+             values: list[float] = []
+             for index in range(NUM_CHANNELS):
+@@ -648,13 +660,16 @@
+ 
+         if self.data_queue is None:
+             self._set_live_state(False)
++            self.context.invalidate_beam_measurement("NO CONTROLLER DATA QUEUE")
+             return
+ 
+         now = time.time()
+         last = None
++        received_new_packet = False
+         while True:
+             try:
+                 last = self.data_queue.get_nowait()
++                received_new_packet = True
+             except Exception:
+                 break
+ 
+@@ -665,11 +680,20 @@
+             last = self._last_sample
+         else:
+             self._set_live_state(False)
++            self.context.invalidate_beam_measurement("CONTROLLER DATA STALE")
+             return
+ 
+         if not isinstance(last, dict):
+             self._set_live_state(False)
++            if received_new_packet:
++                self.context.invalidate_beam_measurement("INVALID CONTROLLER PACKET")
+             return
++
++        # Update beam timestamp only for a genuinely new packet.  Reusing the
++        # held magnetic packet must not make stale beam data appear fresh.
++        if received_new_packet:
++            self._update_beam_feedback(last)
++
+         raw = list(last.get("channels", []))
+         if not raw:
+             self._set_live_state(False)
+@@ -689,6 +713,39 @@
+         self.context.update_actual_values(self.actual_values)
+         self._set_live_state(True)
+ 
++    def _update_beam_feedback(self, packet: dict) -> None:
++        """Convert the packet beam voltage to calibrated nA for PID feedback."""
++        raw_value = packet.get("beam_current")
++        if isinstance(raw_value, (list, tuple)):
++            raw_value = raw_value[0] if raw_value else None
++        if raw_value is None:
++            raw_value = packet.get("beam_v_raw", packet.get("beam"))
++        if raw_value is None:
++            self.context.invalidate_beam_measurement("BEAM FIELD MISSING")
++            return
++
++        try:
++            explicit_index = packet.get("beam_range_idx", packet.get("range_idx"))
++            if explicit_index is None:
++                range_index = int(beam_cal.select_index_for_pkt(packet))
++            else:
++                range_index = int(explicit_index)
++            ranges = list(beam_cal.cfg.ranges)
++            if not ranges:
++                raise RuntimeError("beam calibration has no ranges")
++            range_index = max(0, min(range_index, len(ranges) - 1))
++            beam_nA = float(beam_cal.volts_to_nA(float(raw_value), range_index))
++            if not math.isfinite(beam_nA):
++                raise ValueError("non-finite calibrated beam current")
++        except Exception as exc:
++            self.context.invalidate_beam_measurement(f"BEAM CALIBRATION ERROR: {exc}")
++            return
++
++        self.context.update_beam_measurement(
++            beam_nA,
++            status=f"LIVE — RANGE {range_index + 1}",
++        )
++
+     def _set_live_state(self, live: bool) -> None:
+         color = T.green if live else T.red
+         self.live_dot.set_color(color)
+@@ -732,6 +789,58 @@
+         except Exception as exc:
+             print("⚠️ control_queue.put failed:", exc)
+ 
++    def _apply_pid_delta_output(self, channel_index: int, delta_target: float, result) -> bool:
++        """Apply the paper controller's signed per-sample TC target increment.
++
++        This callback is reached only when the operator has selected
++        ``ARM HARDWARE OUTPUT``.  Preview mode never calls it.  The existing
++        engineering-target -> scaling -> control_queue path is preserved.
++        """
++        try:
++            index = int(channel_index)
++            delta = float(delta_target)
++        except (TypeError, ValueError):
++            return False
++
++        if not math.isfinite(delta) or not 0 <= index < 12:
++            return False
++        if not self.context.can_write(ControlMode.PID):
++            return False
++
++        # Require the commanded trim coil to be both powered and enabled before
++        # accepting an armed PID command.  This does not affect preview mode.
++        if not self.context.power_states[index]:
++            self.context.status_changed.emit(
++                f"PID output rejected: {self.context.channel_name(index)} power is OFF"
++            )
++            return False
++        if not self.context.enable_states[index]:
++            self.context.status_changed.emit(
++                f"PID output rejected: {self.context.channel_name(index)} is not enabled"
++            )
++            return False
++
++        if abs(delta) <= 1e-12:
++            return True
++
++        current_target = self.context.target(index)
++        requested_target = current_target + delta
++        limited_target = self.context.clamp_target(index, requested_target)
++        self.context.set_target(
++            index,
++            limited_target,
++            send=True,
++            source_mode=ControlMode.PID,
++        )
++        if not math.isclose(
++            requested_target, limited_target, rel_tol=0.0, abs_tol=1e-9
++        ):
++            self.context.status_changed.emit(
++                f"PID target clamped at {limited_target:.2f} A for "
++                f"{self.context.channel_name(index)}"
++            )
++        return True
++
+     def set_pid_output_callback(self, callback: PIDOutputCallback | None) -> None:
+         """Connect the PID output to an integration/test adapter.
+ 
+--- before/test_pid_modules.py
++++ after/test_pid_modules.py
+@@ -1,13 +1,30 @@
+ # -*- coding: utf-8 -*-
+-"""Small dependency-free smoke test for the PID and GA backends."""
++"""Dependency-free smoke tests for the conventional PID, adaptive PID, and GA.
++
++Run from the project directory with::
++
++    python test_pid_modules.py
++
++The adaptive-direction tests intentionally exercise positive and negative signed
++errors.  Direction decisions are based only on the change in ``abs(error)``.
++"""
+ 
+ from __future__ import annotations
+ 
++import math
++
+ from ga_pid_tuner import GAPIDTuner, GATuningConfig, GainBounds
+-from pid_controller import PIDController, PIDGains, PIDLimits
++from pid_controller import (
++    AdaptiveDirectionPIDController,
++    AdaptiveDirectionSettings,
++    PIDController,
++    PIDGains,
++    PIDLimits,
++)
+ 
+ 
+ def test_pid_engine() -> None:
++    """Retain the original signed-PID backend smoke test."""
+     pid = PIDController(
+         PIDGains(kp=1.2, ki=0.4, kd=0.03),
+         PIDLimits(output_min=-10.0, output_max=10.0),
+@@ -21,6 +38,177 @@
+     assert 0.75 < measurement < 1.25, measurement
+ 
+ 
++def _adaptive_controller(
++    *,
++    direction: int = 1,
++    deadband: float = 0.0,
++    tolerance: float = 0.0,
++    check_interval: float = 1.0,
++) -> AdaptiveDirectionPIDController:
++    return AdaptiveDirectionPIDController(
++        gains=PIDGains(kp=0.1, ki=0.0, kd=0.0),
++        limits=PIDLimits(
++            output_min=0.0,
++            output_max=10.0,
++            integral_min=0.0,
++            integral_max=10.0,
++            derivative_filter_tau=0.0,
++        ),
++        settings=AdaptiveDirectionSettings(
++            deadband=deadband,
++            trend_tolerance=tolerance,
++            direction_check_interval=check_interval,
++            initial_direction=direction,
++        ),
++    )
++
++
++def test_adaptive_direction_uses_absolute_error() -> None:
++    """A signed-error zero crossing must not by itself reverse direction.
++
++    Sequence at a 10 nA setpoint:
++      +10 nA error -> +8 nA error -> -2 nA error -> -4 nA error
++      |10|         -> |8|         -> |2|         -> |4|
++
++    The direction is retained through the signed-error crossing because the
++    magnitude is still decreasing.  It reverses only at the final sample, where
++    the magnitude increases from 2 nA to 4 nA.
++    """
++    pid = _adaptive_controller(direction=1, check_interval=1.0)
++    pid.reset(setpoint=10.0, measurement=0.0, direction=1)
++
++    result = pid.update(setpoint=10.0, measurement=2.0, dt=1.0)
++    assert result.error == 8.0
++    assert result.error_magnitude == 8.0
++    assert result.error_trend == "DECREASING"
++    assert result.direction == 1
++    assert not result.direction_changed
++
++    result = pid.update(setpoint=10.0, measurement=12.0, dt=1.0)
++    assert result.error == -2.0
++    assert result.error_magnitude == 2.0
++    assert result.error_trend == "DECREASING"
++    assert result.direction == 1, "signed-error crossing incorrectly changed direction"
++    assert result.output > 0.0
++
++    result = pid.update(setpoint=10.0, measurement=14.0, dt=1.0)
++    assert result.error == -4.0
++    assert result.error_magnitude == 4.0
++    assert result.error_trend == "INCREASING"
++    assert result.direction == -1
++    assert result.direction_changed
++    assert result.output < 0.0
++
++
++def test_adaptive_direction_with_negative_error() -> None:
++    """The same magnitude rule applies when the signed error starts negative."""
++    pid = _adaptive_controller(direction=1, check_interval=1.0)
++    pid.reset(setpoint=10.0, measurement=20.0, direction=1)
++
++    result = pid.update(setpoint=10.0, measurement=18.0, dt=1.0)
++    assert result.error == -8.0
++    assert result.error_magnitude == 8.0
++    assert result.error_trend == "DECREASING"
++    assert result.direction == 1
++
++    result = pid.update(setpoint=10.0, measurement=22.0, dt=1.0)
++    assert result.error == -12.0
++    assert result.error_magnitude == 12.0
++    assert result.error_trend == "INCREASING"
++    assert result.direction == -1
++    assert result.direction_changed
++
++
++def test_direction_waits_for_comparison_interval() -> None:
++    """Plant-delay protection prevents a direction reversal on every sample."""
++    pid = _adaptive_controller(direction=1, check_interval=2.0)
++    pid.reset(setpoint=10.0, measurement=0.0, direction=1)
++
++    # |e| is worse, but only one second has elapsed, so direction is retained.
++    result = pid.update(setpoint=10.0, measurement=-1.0, dt=1.0)
++    assert result.error_magnitude == 11.0
++    assert result.direction == 1
++    assert not result.direction_changed
++
++    # At the two-second comparison point, |e| is still worse than the reference.
++    result = pid.update(setpoint=10.0, measurement=-1.5, dt=1.0)
++    assert result.error_magnitude == 11.5
++    assert result.direction == -1
++    assert result.direction_changed
++
++
++def test_deadband_holds_target() -> None:
++    pid = _adaptive_controller(direction=-1, deadband=0.5, check_interval=1.0)
++    pid.reset(setpoint=10.0, measurement=9.8, direction=-1)
++    result = pid.update(setpoint=10.0, measurement=9.8, dt=1.0)
++    assert result.in_deadband
++    assert result.error_magnitude <= 0.5
++    assert result.output == 0.0
++    assert result.pid_magnitude == 0.0
++    assert result.error_trend == "DEADBAND"
++
++
++def test_trend_tolerance_rejects_small_noise() -> None:
++    pid = _adaptive_controller(direction=1, tolerance=0.05, check_interval=1.0)
++    pid.reset(setpoint=10.0, measurement=0.0, direction=1)
++
++    # The magnitude changes by only 0.02 nA, below the 0.05 nA tolerance.
++    result = pid.update(setpoint=10.0, measurement=-0.02, dt=1.0)
++    assert math.isclose(result.error_magnitude, 10.02)
++    assert result.error_trend == "STEADY"
++    assert result.direction == 1
++    assert not result.direction_changed
++
++
++def test_unknown_plant_sign_is_learned() -> None:
++    """The adaptive rule converges for either local TC-to-beam response sign."""
++    for plant_gain in (1.0, -1.0):
++        pid = AdaptiveDirectionPIDController(
++            gains=PIDGains(kp=0.10, ki=0.0, kd=0.0),
++            limits=PIDLimits(
++                output_min=0.0,
++                output_max=1.0,
++                integral_min=0.0,
++                integral_max=1.0,
++                derivative_filter_tau=0.0,
++            ),
++            settings=AdaptiveDirectionSettings(
++                deadband=0.05,
++                trend_tolerance=0.001,
++                direction_check_interval=0.1,
++                initial_direction=1,
++            ),
++        )
++        beam_setpoint = 1.0
++        tc_target = 0.0
++        beam_measurement = plant_gain * tc_target
++        pid.reset(
++            setpoint=beam_setpoint,
++            measurement=beam_measurement,
++            direction=1,
++        )
++
++        result = pid.last_result
++        for _ in range(200):
++            result = pid.update(
++                setpoint=beam_setpoint,
++                measurement=beam_measurement,
++                dt=0.1,
++            )
++            tc_target += result.output
++            beam_measurement = plant_gain * tc_target
++            if result.in_deadband:
++                break
++
++        assert abs(beam_setpoint - beam_measurement) <= 0.06, (
++            plant_gain,
++            beam_measurement,
++            result,
++        )
++        expected_direction = 1 if plant_gain > 0.0 else -1
++        assert result.direction == expected_direction
++
++
+ def test_ga_engine() -> None:
+     tuner = GAPIDTuner(
+         bounds=GainBounds(kp=(0.0, 2.0), ki=(0.0, 2.0), kd=(0.0, 1.0)),
+@@ -48,7 +236,17 @@
+     assert float(best.fitness) < 0.08, best
+ 
+ 
+-if __name__ == "__main__":
++def run_all_tests() -> None:
+     test_pid_engine()
++    test_adaptive_direction_uses_absolute_error()
++    test_adaptive_direction_with_negative_error()
++    test_direction_waits_for_comparison_interval()
++    test_deadband_holds_target()
++    test_trend_tolerance_rejects_small_noise()
++    test_unknown_plant_sign_is_learned()
+     test_ga_engine()
+-    print("PID and GA backend smoke tests passed.")
++
++
++if __name__ == "__main__":
++    run_all_tests()
++    print("Conventional PID, adaptive-direction PID, and GA backend tests passed.")
+--- original/controller_theme.py
++++ after/controller_theme.py
+@@ -232,6 +232,7 @@
+         self,
+         parent: QWidget | None = None,
+         y_axis_label: str = "CURRENT (A)",
++        x_axis_label: str = "TIME (s)",
+         target_color: str = T.cyan,
+         actual_color: str = T.orange,
+     ):
+@@ -240,6 +241,7 @@
+         self.target_data: list[float] = []
+         self.actual_data: list[float] = []
+         self.y_axis_label = y_axis_label
++        self.x_axis_label = x_axis_label
+         self.target_color = QColor(target_color)
+         self.actual_color = QColor(actual_color)
+         self.setMinimumHeight(230)
+@@ -297,7 +299,7 @@
+ 
+         painter.setPen(QColor(T.muted))
+         painter.setFont(QFont("Segoe UI", 9))
+-        painter.drawText(plot_rect.left(), self.height() - 12, "TIME (s)")
++        painter.drawText(plot_rect.left(), self.height() - 12, self.x_axis_label)
+         painter.save()
+         painter.translate(16, plot_rect.center().y() + 34)
+         painter.rotate(-90)
