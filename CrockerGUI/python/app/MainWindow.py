@@ -1,7 +1,7 @@
-from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QLabel)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget)
 from python.app.widgets.AppDialogs import AppMessageBox as QMessageBox
 from PySide6.QtCore import QMargins, QRect, QSettings, Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QKeySequence, QShortcut
 from python.app.theme import load_app_font, load_stylesheet
 from pathlib import Path
 import socket
@@ -107,6 +107,9 @@ class MainWindow(QMainWindow):
             self._window_resolution = "1280 x 820"
         self._windowed_geometry = None
         self._display_transition = 0
+        self._fullscreen_shortcut = QShortcut(QKeySequence("F11"), self)
+        self._fullscreen_shortcut.setAutoRepeat(False)
+        self._fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
         self._monitor_windows: dict[str, AssignedMonitorWindow] = {}
         raw_controller_monitors = self._settings.value(
             "display/controller_monitors", [], type=list
@@ -292,12 +295,6 @@ class MainWindow(QMainWindow):
             self._start_data_pipeline()
         for page in self.pages.values():
             self._attach_pid_recording(page)
-        self._recording_status = QLabel('A: idle | B: idle (starts with PID)')
-        self.statusBar().addPermanentWidget(self._recording_status)
-        self.statusBar().setSizeGripEnabled(False)
-        self._recording_timer = QTimer(self)
-        self._recording_timer.timeout.connect(self._update_recording_status)
-        self._recording_timer.start(500)
         app = QApplication.instance()
         if app is not None:
             app.screenAdded.connect(lambda screen: self._screens_changed())
@@ -567,6 +564,11 @@ class MainWindow(QMainWindow):
             return field_page.apply_scaling(scaling)
         return False
 
+    def toggle_fullscreen(self) -> None:
+        self.set_display_mode(
+            "Full Screen" if self._display_mode == "Windowed" else "Windowed"
+        )
+
     def set_display_mode(
         self,
         mode: str,
@@ -590,6 +592,9 @@ class MainWindow(QMainWindow):
             self._windowed_geometry = self.geometry()
 
         self._display_mode = mode
+        settings_page = self.pages.get("Settings")
+        if isinstance(settings_page, SettingsPage):
+            settings_page.mode_buttons[mode].setChecked(True)
         self._display_transition += 1
         transition = self._display_transition
         if save:
@@ -744,7 +749,6 @@ class MainWindow(QMainWindow):
         stop = getattr(self, "_simulation_plant_stop", None)
         if stop is not None:
             stop.set()
-        self._recording_status.setText('Finishing database writes…')
         self._finish_recording_close()
 
     def _finish_recording_close(self):
@@ -759,7 +763,6 @@ class MainWindow(QMainWindow):
         if not file_writer.done.is_set() or file_writer.error or file_writer.rejected:
             failures.append('CSV/JSON exports incomplete: '+(file_writer.error or 'pending or rejected records'))
         self._recording_closed = True
-        self._recording_timer.stop()
         if failures:
             self._recording_warning = QMessageBox(QMessageBox.Warning, 'Recording incomplete',
                 '\n'.join(failures), QMessageBox.Ok, self)
@@ -772,22 +775,6 @@ class MainWindow(QMainWindow):
         if isinstance(page, (PidControlPage, GAPIDPage)):
             page._database_recorder = PagePIDRecorder(page, self.database_b, self.database_a,
                                                       self.current_beam_state)
-
-    def _update_recording_status(self):
-        if self._recording_closing:
-            return
-        parts, details = [], []
-        for name, writer in (('A', self.database_a.writer), ('B', self.database_b.writer)):
-            s = writer.status()
-            state = 'ERROR' if s['error'] else 'GAPS' if s['rejected'] else 'ready' if s['started'] else 'idle'
-            parts.append(f"{name}: {state} · queued {s['queue_depth']} · lost {s['rejected']}")
-            details.append(f"{writer.path}\nLast commit: {s['last_commit']}\n{s['error']}")
-        errors = [p._database_recorder.error for p in self.findChildren(QWidget)
-                  if hasattr(p, '_database_recorder') and p._database_recorder.error]
-        self._recording_status.setText(' | '.join(parts) + (' | '+errors[0] if errors else ''))
-        if file_writer.error or file_writer.rejected:
-            self._recording_status.setText(self._recording_status.text()+' | Export error: '+file_writer.error)
-        self._recording_status.setToolTip('\n'.join(details))
 
     def _transport_snapshot(self) -> dict | None:
         field_page = self.pages.get("Field Ctrl")

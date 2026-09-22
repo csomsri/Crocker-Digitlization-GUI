@@ -122,6 +122,9 @@ class SettingsPage(DetailPage):
             self.mode_buttons[mode] = button
             mode_layout.addWidget(button, 1)
 
+        self.mode_group.buttonClicked.connect(
+            lambda button: self._set_display_mode(button.text())
+        )
         panel_layout.addWidget(mode_panel)
 
         resolution_heading = QLabel("DISPLAY RESOLUTION")
@@ -258,7 +261,8 @@ class SettingsPage(DetailPage):
 
         hint = QLabel(
             "Windowed keeps the title bar and borders. Full Screen and "
-            "Borderless Window use the full display."
+            "Borderless Window use the full display. Press F11 to toggle "
+            "between Windowed and Full Screen."
         )
         hint.setObjectName("settingsDescription")
         hint.setWordWrap(True)

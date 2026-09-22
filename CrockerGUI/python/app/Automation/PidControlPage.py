@@ -1114,8 +1114,8 @@ class PidControlPage(DetailPage):
             try:
                 self.tuning_candidate = proposal.result()[0]
             except Exception as exc:
-                self.tuner_status.setText(f"Candidate generation failed: {exc}")
                 self._stop_tuning_session()
+                self.tuner_status.setText(f"Candidate generation failed: {exc}")
                 return
             candidate = self.tuning_candidate
             self._set_candidate_values(candidate)
@@ -1155,8 +1155,8 @@ class PidControlPage(DetailPage):
         try:
             status = self._trial_status()
         except Exception as exc:
-            self.tuner_status.setText(f"The trial status could not be read: {exc}")
             self._stop_tuning_session()
+            self.tuner_status.setText(f"The trial status could not be read: {exc}")
             return
         state = str(status["state"])
         elapsed = float(status["elapsed_seconds"])
