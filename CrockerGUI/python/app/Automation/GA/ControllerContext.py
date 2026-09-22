@@ -29,6 +29,7 @@ class ControllerContext(QObject):
         self.snapshot = {}
         self.health = {}
         self._beam = {}
+        self._beam_identity = None
         self._epoch = time.time()-time.monotonic()
         self.refresh()
 
@@ -53,15 +54,22 @@ class ControllerContext(QObject):
 
     def beam_snapshot(self, max_age_s=2):
         self.refresh()
-        stamp = float(self._beam.get('timestamp',0))
-        age = time.time()-stamp
-        value = float(self._beam.get('current_ua',float('nan')))*1000
-        transport_age = time.time()-float(self.snapshot.get('timestamp',0))
+        try:
+            stamp = float(self._beam.get('timestamp',0))
+            age = time.time()-stamp
+            value = float(self._beam.get('current_ua',float('nan')))*1000
+            transport_age = time.time()-float(self.snapshot.get('timestamp',0))
+        except (TypeError, ValueError, OverflowError, AttributeError):
+            return dict(value_nA=float('nan'), timestamp=0., age_s=float('inf'),
+                        valid=False, status='INVALID BEAM FEEDBACK')
+        identity = tuple(self._beam.get(k) for k in ('range_index','calibration_revision','select_mode'))
+        changed = self._beam_identity is not None and identity != self._beam_identity
         valid = (self._beam.get('quality') == 'ok' and math.isfinite(value)
                  and 0 <= age <= max_age_s and 0 <= transport_age <= max_age_s
-                 and str(self.health.get('connection','')).lower() == 'connected')
+                 and str(self.health.get('connection','')).lower() == 'connected' and not changed)
         return dict(value_nA=value, timestamp=stamp-self._epoch, age_s=age,
-                    valid=valid, status='LIVE' if valid else 'NO FRESH CALIBRATED BEAM')
+                    valid=valid, status=('BEAM CALIBRATION CHANGED' if changed else
+                                         'LIVE' if valid else 'NO FRESH CALIBRATED BEAM'))
 
     def beam_current(self, max_age_s=2):
         sample = self.beam_snapshot(max_age_s)
@@ -74,6 +82,11 @@ class ControllerContext(QObject):
     def can_write(self,mode): return self.active_mode == mode
 
     def set_mode(self, mode):
+        if ControlMode(mode) == ControlMode.MANUAL:
+            self._beam_identity = None
+        elif self.active_mode == ControlMode.MANUAL:
+            self._beam_identity = tuple(self._beam.get(k) for k in
+                                        ('range_index','calibration_revision','select_mode'))
         self.active_mode = ControlMode(mode)
         self.mode_changed.emit(self.active_mode.value)
 

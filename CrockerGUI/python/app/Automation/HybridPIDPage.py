@@ -299,10 +299,10 @@ class HybridPIDPage(PidControlPage):
 
     def _check_hybrid_telemetry(self):
         self._refresh_beam(publish=True)
-        if not self.armed or not self.beam_valid:
-            raise ValueError('Arming or calibrated beam watchdog failed')
         if self._session_fingerprint != self._fingerprint():
             raise ValueError('Trial settings or beam calibration changed; start a new session')
+        if not self.armed or not self.beam_valid:
+            raise ValueError('Arming or calibrated beam watchdog failed')
         snapshot = self.backend.LatestSnapshot()
         age = time.time()-float(snapshot['timestamp'])
         ch = snapshot['channels'][self._channel]

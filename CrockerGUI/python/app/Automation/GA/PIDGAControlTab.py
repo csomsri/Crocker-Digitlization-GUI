@@ -2699,6 +2699,13 @@ class PIDGAControlTab(QWidget):
             return
 
         # Execute the control law only once per genuinely new beam sample.
+        if self._last_processed_beam_timestamp > 0 and sample_timestamp < self._last_processed_beam_timestamp:
+            reason = "BEAM TIMESTAMP MOVED BACKWARDS"
+            if self._ga_auto_active:
+                self._abort_automatic_ga(reason, attempt_restore=False)
+            else:
+                self.stop_pid(reason=f"PID STOPPED — {reason}")
+            return
         if (
             sample_timestamp <= 0.0
             or math.isclose(

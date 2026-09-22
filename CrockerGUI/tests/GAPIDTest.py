@@ -155,6 +155,33 @@ class GAPageTest(unittest.TestCase):
             b=cpp.workspace.pid.update(2,1+n*.01,.1)
             self.assertAlmostEqual(a.output,b.output,places=10)
 
+    def test_bad_feedback_and_calibration_change_stop_both_engines(self):
+        for kind in (PythonGAPIDPage, GAPIDPage):
+            for bad in (dict(current_ua=None), dict(timestamp='bad'), dict(calibration_revision=2)):
+                with self.subTest(kind=kind.__name__, bad=bad):
+                    p,b = self.make_page(kind)
+                    state = dict(b.beam(), calibration_revision=1, range_index=0)
+                    p.context.beam_provider = lambda: state
+                    w = p.workspace
+                    w.start_pid()
+                    self.assertTrue(w._pid_running)
+                    state.update(bad)
+                    w._pid_step()
+                    self.assertFalse(w._pid_running)
+                    self.assertEqual(b.writes, 0)
+
+    def test_backward_beam_timestamp_stops_both_engines(self):
+        for kind in (PythonGAPIDPage, GAPIDPage):
+            p,b = self.make_page(kind)
+            w = p.workspace
+            w.start_pid()
+            w._pid_step()
+            b.stamp -= .1
+            w._pid_step()
+            self.assertFalse(w._pid_running)
+            self.assertIn('BACKWARDS', w.pid_status_label.text())
+            self.assertEqual(b.writes, 0)
+
     def test_preview_rejection_and_owner(self):
         p,b=self.make_page()
         w=p.workspace

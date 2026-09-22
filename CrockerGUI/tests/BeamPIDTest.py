@@ -84,6 +84,27 @@ class BeamPageTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
 
+    def test_active_feedback_rejects_calibration_change_and_malformed_provider(self):
+        state = dict(current_ua=.0003, timestamp=time.time(), quality='ok', calibration_revision=1)
+        p = PidControlPage(lambda: None, 'simulation', get_beam_state=lambda: state)
+        try:
+            p._refresh_beam()
+            self.assertTrue(p.beam_valid)
+            p.pid_enabled = True
+            state['calibration_revision'] = 2
+            p._refresh_beam()
+            self.assertFalse(p.beam_valid)
+            p.pid_enabled = False
+            p._refresh_beam()
+            self.assertTrue(p.beam_valid)
+            p.get_beam_state = lambda: None
+            p._refresh_beam()
+            self.assertFalse(p.beam_valid)
+        finally:
+            p.pid_enabled = False
+            p.stop_backend()
+            p.deleteLater()
+
     def test_units_conversion_missing_feedback_and_python_unchanged(self):
         p = PidControlPage(lambda: None, 'simulation',
                            get_beam_state=lambda: dict(current_ua=.002, timestamp=time.time(), quality='ok'))

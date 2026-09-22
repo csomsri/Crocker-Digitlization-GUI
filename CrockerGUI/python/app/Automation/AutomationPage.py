@@ -4,10 +4,10 @@ from python.app.PageShell import CategoryPage, PageSpec
 
 
 AUTOMATION_PAGES: list[PageSpec] = [
-    ("PID Control", "Run closed-loop control on a selected channel"),
-    ("PythonPID", "Run nonlinear adaptive-direction PID in Python"),
-    ("GA + C++ PID", "Genetic gain tuning with C++ PID"),
-    ("GA + Python PID", "Genetic gain tuning with Python PID"),
+    ("PID Control", "Control measured beam current through a selected trim coil; includes BO tuning"),
+    ("PythonPID", "Control coil current directly in amps using Python PID"),
+    ("GA + C++ PID", "Tune beam-feedback C++ PID gains with GA in simulation"),
+    ("GA + Python PID", "Tune beam-feedback Python PID gains with GA in simulation"),
     ("Hybrid GA + BO PID", "GA exploration and measured Bayesian handover with C++ beam PID"),
 ]
 

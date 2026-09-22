@@ -108,6 +108,7 @@ class PidControlPage(DetailPage):
         self.beam_value = float('nan')
         self.beam_timestamp = 0.0
         self.beam_valid = False
+        self._feedback_identity = None
         self.simulation_mode = simulation_mode
         self.zmq_endpoint = zmq_endpoint
         self.tuning_enabled = (
@@ -221,12 +222,17 @@ class PidControlPage(DetailPage):
             sample = self.get_beam_state() if self.get_beam_state else {}
             value = float(sample.get('current_ua', float('nan'))) * 1000.0
             stamp = float(sample.get('timestamp', 0.0))
+            identity = tuple(sample.get(k) for k in ('range_index','calibration_revision','select_mode'))
+            active = self.pid_enabled or self.tuning_session_active
+            if not active or self._feedback_identity is None:
+                self._feedback_identity = identity
             self.beam_valid = (sample.get('quality') == 'ok' and math.isfinite(value)
-                               and math.isfinite(stamp) and 0 <= time.time()-stamp <= 1.0)
+                               and math.isfinite(stamp) and 0 <= time.time()-stamp <= 1.0
+                               and identity == self._feedback_identity)
             self.beam_timestamp = stamp
             if self.beam_valid:
                 self.beam_value = value
-        except (TypeError, ValueError, RuntimeError, KeyError):
+        except (TypeError, ValueError, RuntimeError, KeyError, AttributeError, OverflowError):
             pass
         if (publish or self.pid_enabled or self.tuning_session_active) and hasattr(self.backend, 'SetPidBeamMeasurement'):
             self.backend.SetPidBeamMeasurement(self.beam_value, self.beam_timestamp, self.beam_valid)
@@ -2068,7 +2074,7 @@ class PidControlPage(DetailPage):
             "Actual": f"{actual:.2f} {self.feedback_unit}" if math.isfinite(actual) else "Unavailable",
         }
         for name, value in status_values.items():
-            label = ({"Actual": "BEAM", "Error": "BEAM ERROR", "Channel": "TC OUTPUT"}.get(name, name.upper())
+            label = ({"Actual": "MEASURED BEAM", "Error": "BEAM ERROR", "Channel": "TC OUTPUT"}.get(name, name.upper())
                      if self.beam_feedback else name.upper())
             self.pid_status_values[name].setText(f"{label}\n{value}")
 

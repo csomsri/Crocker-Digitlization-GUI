@@ -31,7 +31,7 @@ class PythonPIDPage(PidControlPage):
             if label.text() == "PID Control":
                 label.setText("PythonPID")
             elif label.text() == "PID CHANNEL CONTROL":
-                label.setText("PYTHON NLA PID CHANNEL CONTROL")
+                label.setText("PYTHON PID · COIL-CURRENT FEEDBACK (A)")
         self._reset_pid_state()
 
     def _cpp_nla_selected(self):
