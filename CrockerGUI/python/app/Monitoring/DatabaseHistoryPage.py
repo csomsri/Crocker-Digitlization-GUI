@@ -40,15 +40,12 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
     QButtonGroup,
-    QDateEdit,
     QCalendarWidget,
-    QFileDialog,
     QFrame,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QSizePolicy,
     QSpinBox,
@@ -58,6 +55,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from python.app.widgets.AppDialogs import AppFileDialog as QFileDialog, AppMessageBox as QMessageBox
+from python.app.widgets.InlinePopups import ScreenSafeDateEdit as QDateEdit
 
 from python.app.PageShell import DetailPage
 from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH

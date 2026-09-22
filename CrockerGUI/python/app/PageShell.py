@@ -17,7 +17,6 @@ from python.app.widgets.MonitoringPlotState import monitoring_plot_state
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
-    QDialog,
     QDoubleSpinBox,
     QFormLayout,
     QFrame,
@@ -35,6 +34,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from python.app.widgets.AppDialogs import AppDialog as QDialog
 
 
 PageSpec = tuple[str, str]

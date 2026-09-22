@@ -1,4 +1,4 @@
-"""Dropdowns that do not create native popup windows in screen-filling mode."""
+"""Dropdowns that do not create native popup windows in any display mode."""
 
 from PySide6.QtCore import QEvent, QPoint, Qt
 from PySide6.QtWidgets import QApplication, QComboBox, QListView, QWidget
@@ -20,9 +20,6 @@ class ScreenSafeComboBox(QComboBox):
 
     def showPopup(self):
         host = self.window()
-        if not (host.isFullScreen() or host.windowFlags() & Qt.FramelessWindowHint):
-            self._style_menu(self.view())
-            return super().showPopup()
         if self._inline_menu is not None or not self.count():
             return
         # A child widget stays in the owner's native window and cannot trigger
@@ -85,6 +82,8 @@ class ScreenSafeComboBox(QComboBox):
                     on_combo = self.rect().contains(self.mapFromGlobal(event.globalPosition().toPoint()))
                     self.hidePopup()
                     return on_combo
+            if watched is self and event.type() == QEvent.Hide:
+                self.hidePopup()
             if watched is self.window() and event.type() in (QEvent.Resize, QEvent.Hide, QEvent.WindowDeactivate):
                 self.hidePopup()
         return super().eventFilter(watched, event)

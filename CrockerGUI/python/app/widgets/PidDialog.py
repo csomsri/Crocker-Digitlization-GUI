@@ -29,6 +29,7 @@ def setup_pid_dialog(dialog, title, *, window_controls=True, resize_grip=True):
     dialog.setStyleSheet(dialog.styleSheet() +
         f'QDateEdit::down-arrow, QSpinBox::down-arrow {{ image: url("{(icons / "chevron-down.svg").as_posix()}"); width: 10px; height: 6px; }}'
         f'QSpinBox::up-arrow {{ image: url("{(icons / "chevron-up.svg").as_posix()}"); width: 10px; height: 6px; }}')
+    dialog.setStyleSheet(dialog.styleSheet() + (icons / 'dialogs.qss').read_text(encoding='utf-8'))
     outer = QVBoxLayout(dialog)
     outer.setContentsMargins(4, 4, 4, 4)
     surface = QFrame()
@@ -38,7 +39,7 @@ def setup_pid_dialog(dialog, title, *, window_controls=True, resize_grip=True):
     frame.setContentsMargins(8, 8, 8, 4)
     frame.addWidget(DialogTitleBar(dialog, title, window_controls=window_controls))
     content = QVBoxLayout()
-    content.setContentsMargins(8, 8, 8, 0)
+    content.setContentsMargins(16, 12, 16, 12)
     content.setSpacing(12)
     frame.addLayout(content, 1)
     footer = QHBoxLayout()

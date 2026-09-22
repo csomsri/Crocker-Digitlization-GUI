@@ -26,7 +26,6 @@ from PySide6.QtGui import QColor, QBrush, QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QCheckBox,
-    QComboBox,
     QDoubleSpinBox,
     QFrame,
     QGridLayout,
@@ -39,6 +38,8 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 
 from python.app.Automation.GA.ControllerContext import ControlMode, ControllerContext
 from python.app.Automation.GA.Theme import (

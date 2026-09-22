@@ -1,9 +1,18 @@
 """BO-style presentation for C++ GA only; reuse the existing connected controls."""
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QFrame, QDialog, QScrollArea, QTabWidget, QDoubleSpinBox,
+    QWidget,
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QHBoxLayout,
+    QGridLayout,
+    QFrame,
+    QScrollArea,
+    QTabWidget,
+    QDoubleSpinBox,
 )
+from python.app.widgets.AppDialogs import AppDialog as QDialog
 from python.app.widgets.PidDialog import setup_pid_dialog
 
 

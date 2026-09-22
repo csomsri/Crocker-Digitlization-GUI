@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDoubleSpinBox,
-    QFileDialog,
     QFrame,
     QGridLayout,
     QHeaderView,
@@ -26,6 +25,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from python.app.widgets.AppDialogs import AppFileDialog as QFileDialog
 
 from python.app.PageShell import DetailPage
 from python.app.widgets.MagneticFieldWidgets import CHANNEL_NAMES

@@ -32,6 +32,11 @@ class PagePIDRecorder:
             raise RuntimeError('Database B recording is unhealthy; resolve recording status before another trial')
 
     def started(self, config):
+        config = dict(config)
+        quality = getattr(self.page, '_tuning_quality_settings', None)
+        if quality is not None and not config.get('continuous'):
+            from dataclasses import asdict
+            config['tuning_quality'] = asdict(quality)
         self.config = dict(config)
         self.last_sample = None
         if self.session is None:

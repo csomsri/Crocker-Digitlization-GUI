@@ -10,9 +10,21 @@ from dataclasses import asdict
 from uuid import uuid4
 from itertools import islice
 from PySide6.QtCore import QDate, Qt
-from PySide6.QtWidgets import (QWidget, QFrame, QSizePolicy, QVBoxLayout, QHBoxLayout, QLabel,
-                              QPushButton, QSpinBox, QDialog, QTableWidget, QTableWidgetItem,
-                              QDateEdit, QFileDialog, QHeaderView)
+from PySide6.QtWidgets import (
+    QWidget,
+    QFrame,
+    QSizePolicy,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QHeaderView,
+)
+from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as QFileDialog
+from python.app.widgets.InlinePopups import ScreenSafeDateEdit as QDateEdit
 from source.Python.Optimization.trial_metrics import evaluate_trial
 from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
