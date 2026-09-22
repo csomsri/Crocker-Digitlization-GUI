@@ -115,7 +115,7 @@ else()
 endif()
 
 if(CROCKER_BUILD_PYTHON)
-    find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+    find_package(Python 3.13...<3.14 REQUIRED COMPONENTS Interpreter Development.Module)
 
     execute_process(
         COMMAND ${Python_EXECUTABLE} -m pybind11 --cmakedir

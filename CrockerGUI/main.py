@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -85,6 +86,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 if __name__ == "__main__":
+    if sys.version_info[:2] != (3, 13):
+        raise SystemExit(
+            "This project requires Python 3.13. Create a Python 3.13 virtual "
+            "environment, install requirements.txt, and rebuild CycloViz with it."
+        )
     args = parse_args()
     preload_zmq_for_qt(args.simulation_mode)
     from python.app.MainWindow import run_app

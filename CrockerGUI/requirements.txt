@@ -1,11 +1,12 @@
-PySide6
-pybind11
-pyzmq
-torch
-botorch
-gpytorch
-numpy
-pandas
-scipy   
-
-matplotlib>=3.8
+# Python 3.13 baseline. Direct dependencies are pinned together; validate
+# upgrades with pip check and tests/StandaloneBayesianOptimizerTest.py.
+PySide6==6.11.1
+pybind11==3.0.4
+pyzmq==27.1.0
+torch==2.13.0
+botorch==0.18.1
+gpytorch==1.15.2
+numpy==2.5.1
+pandas==3.0.5
+scipy==1.18.0
+matplotlib==3.11.1
