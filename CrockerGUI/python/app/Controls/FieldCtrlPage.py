@@ -19,7 +19,6 @@ from PySide6.QtWidgets import (
     QGridLayout,
     QHeaderView,
     QLabel,
-    QMessageBox,
     QPushButton,
     QSlider,
     QSizePolicy,
@@ -31,6 +30,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from python.app.widgets.AppDialogs import AppMessageBox as QMessageBox
 
 from python.app.PageShell import DetailPage
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox

@@ -466,10 +466,10 @@
         "Centering Beam": 0.0
       },
       "abort_limits": {
-        "max_absolute_error": 3.0,
-        "max_overshoot": 0.5,
+        "max_absolute_error": 10.0,
+        "max_overshoot": 50.0,
         "max_control_output": 10.0,
-        "max_saturation_seconds": 5.0
+        "max_saturation_seconds": 60.0
       },
       "ramp_control": "labview"
     },
@@ -564,9 +564,9 @@
   },
   "approval_basis": "operator_limits",
   "operator_approval": {
-    "approved_by": "User via this Codex task",
-    "statement": "I approve these values that you propose to me so implement it and let me test. Applies to the proposed TC1-TC12 profiles, one selected coil per trial.",
-    "approved_at": "2026-09-21T19:26:22.160296+00:00",
-    "limits_sha256": "7d878b80ec977c61ef40c1671c680ad3f76867095bb57cc158e31714cf6d2a2c"
+    "approved_by": "Operator via PID profile editor",
+    "statement": "Explicitly approved the displayed operating limits for hardware testing.",
+    "approved_at": "2026-09-22T04:53:39.628821+00:00",
+    "limits_sha256": "6bb327436fee40363831a7a73259ae5fdbd93d6be42a603a79a4587c6941b909"
   }
 }

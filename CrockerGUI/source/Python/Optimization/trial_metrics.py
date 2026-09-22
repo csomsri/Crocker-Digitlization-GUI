@@ -1,6 +1,23 @@
 """Shared, time-weighted trial metrics and oscillation-aware PID cost."""
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 import math
+
+
+@dataclass(frozen=True)
+class TuningQuality:
+    """Performance criteria only; never used as hardware abort limits."""
+    settling_tolerance: float = 0.2
+    hold_seconds: float = 2.0
+    oscillation_amplitude: float = 0.2
+    oscillation_min_seconds: float = 10.0
+    oscillation_min_cycles: int = 4
+
+    def __post_init__(self):
+        for value in asdict(self).values():
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError('Tuning quality values must be finite and positive')
+        if self.oscillation_min_cycles < 2 or int(self.oscillation_min_cycles) != self.oscillation_min_cycles:
+            raise ValueError('Oscillation detection requires at least two whole cycles')
 
 
 @dataclass(frozen=True)
@@ -29,9 +46,10 @@ class TrialMetrics:
     command_movement: float | None
     saturation_time: float | None
     mean_absolute_error: float | None = None
+    quality_settings: dict | None = None
 
 
-def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
+def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5, quality=None):
     """Rows: (seconds, measurement, error, effort[, command, saturated]).
 
     Four-column response recordings lack actuator data and cannot be scored.
@@ -58,7 +76,11 @@ def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
     end = rows[-1][0]
     duration = end - rows[0][0]
 
-    tolerance = max(0.1, 0.01 * max(abs(target), 1.0), deadband)
+    tolerance = max(quality.settling_tolerance if quality else 0.1,
+                    0.01 * max(abs(target), 1.0), deadband)
+    if quality is not None:
+        hold_seconds = quality.hold_seconds
+    oscillation_threshold = quality.oscillation_amplitude if quality else tolerance
     inside = [abs(row[2]) <= tolerance for row in rows]
 
     first = next((i for i, value in enumerate(inside) if value), None)
@@ -93,35 +115,48 @@ def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5):
     extrema = [rows[0][2]]
     extreme = rows[0][2]
     trend = 0
+    initial_low = initial_high = extreme
 
     for row in rows[1:]:
         value = row[2]
         if trend == 0:
-            if abs(value-extreme) > 2*tolerance:
-                trend = 1 if value > extreme else -1
-                extreme = value
+            # Track the initial range, not just distance from the first sample.
+            # Otherwise a waveform starting at its midpoint can be missed even
+            # when its full peak-to-peak swing exceeds the threshold.
+            initial_low = min(initial_low, value)
+            initial_high = max(initial_high, value)
+            if value - initial_low > 2*oscillation_threshold:
+                extrema = [initial_low]
+                trend, extreme = 1, value
+            elif initial_high - value > 2*oscillation_threshold:
+                extrema = [initial_high]
+                trend, extreme = -1, value
         elif (value-extreme)*trend >= 0:
             extreme = value
-        elif (extreme-value)*trend > 2*tolerance:
+        elif (extreme-value)*trend > 2*oscillation_threshold:
             extrema.append(extreme)
             extreme = value
             trend *= -1
 
     # Only compare completed swings: the last, partial swing depends on the
     # sampling phase and must not make a persistent oscillation look damped.
-    swings = [abs(b-a) for a,b in zip(extrema, extrema[1:]) if abs(b-a) > 2*tolerance]
+    swings = [abs(b-a) for a,b in zip(extrema, extrema[1:]) if abs(b-a) > 2*oscillation_threshold]
     cycles = max(0.0, (len(swings)-1)/2)
 
     amplitude = max(swings[-4:], default=0.0)/2 if cycles >= 1 else 0.0
     sustained = len(swings) >= 4 and sum(swings[-2:]) >= 0.8 * sum(swings[-4:-2])
+    if quality is not None:
+        sustained = (sustained and duration >= quality.oscillation_min_seconds
+                     and cycles >= quality.oscillation_min_cycles)
 
-    penalty = 10.0 * cycles * amplitude / tolerance
+    penalty = 10.0 * cycles * amplitude / oscillation_threshold
     if sustained:
-        penalty += 100.0 * (1 + amplitude/tolerance)
+        penalty += 100.0 * (1 + amplitude/oscillation_threshold)
         
     return TrialMetrics(settling, transient, mean_error, rms, overshoot,
                         amplitude, cycles, penalty, sustained, settled, first is not None,
-                        effort, tolerance, tracking, movement, saturation, tracking / duration)
+                        effort, tolerance, tracking, movement, saturation, tracking / duration,
+                        asdict(quality) if quality is not None else None)
 
 
 def trial_cost(metrics, profile="Balanced"):

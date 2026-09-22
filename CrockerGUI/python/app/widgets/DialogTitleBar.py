@@ -7,6 +7,7 @@ class DialogTitleBar(QFrame):
 
     def __init__(self, dialog, title: str, window_controls: bool = True) -> None:
         super().__init__(dialog)
+        self._dialog = dialog
         self.setObjectName("dialogTitleBar")
         self.setFixedHeight(42)
         self._drag_offset = None
@@ -33,6 +34,9 @@ class DialogTitleBar(QFrame):
         self.setToolTip("Drag to move")
 
     def mousePressEvent(self, event) -> None:
+        if not self._dialog.isWindow():
+            event.accept()
+            return
         if event.button() == Qt.LeftButton:
             self._drag_offset = None
             window = self.window()

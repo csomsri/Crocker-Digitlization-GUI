@@ -23,9 +23,6 @@ class UIAnimationController(QObject):
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:  # noqa: N802 - Qt API name
         event_type = event.type()
-        if event_type == QEvent.Show and isinstance(watched, QWidget) and watched.property("comboPopup"):
-            # Keep the transient popup above the fullscreen owner on Windows.
-            watched.raise_()
         if event_type == QEvent.ChildAdded and isinstance(watched, QWidget):
             if self._is_app_widget(watched):
                 self._attach_subtree(watched)
@@ -59,12 +56,7 @@ class UIAnimationController(QObject):
         combo.setProperty("stablePopup", True)
         combo.setFocusPolicy(Qt.FocusPolicy.ClickFocus)
         combo.setMaxVisibleItems(10)
-        # Preserve Qt's internal popup view and its mouse/keyboard handling.
-        # Window types are enum values, not independent bit flags: testing
-        # `flags & Popup` also matches ordinary top-level windows.
-        popup = combo.view().window()
-        popup.setProperty("comboPopup", True)
-        popup.installEventFilter(self)
+        # ScreenSafeComboBox owns its child-widget dropdown and focus handling.
 
     def _prepare_button(self, button: QPushButton) -> None:
         if not self._is_app_widget(button):

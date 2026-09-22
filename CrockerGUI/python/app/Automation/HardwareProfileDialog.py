@@ -6,12 +6,24 @@ from pathlib import Path
 
 from PySide6.QtCore import QIODevice, QSaveFile, Qt, QTimer
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDoubleSpinBox, QFormLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QScrollArea, QWidget, QTabWidget,
-    QVBoxLayout, QGridLayout, QFrame, QAbstractSpinBox,
+    QCheckBox,
+    QDoubleSpinBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QScrollArea,
+    QWidget,
+    QTabWidget,
+    QVBoxLayout,
+    QGridLayout,
+    QFrame,
+    QAbstractSpinBox,
 )
+from python.app.widgets.AppDialogs import AppDialog as QDialog
 
 from python.app.widgets.PidDialog import setup_pid_dialog
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox
 from source.Python.Automation.hardware_profile import HardwareProfile, approve_operator_limits
 
 
@@ -51,7 +63,7 @@ class HardwareProfileDialog(QDialog):
         self.setStyleSheet(self.styleSheet() + '''
             QLineEdit, QDoubleSpinBox, QComboBox { background: #111e30; color: #e7eef8;
                 border: 1px solid #3b526e; border-radius: 6px; padding: 0 10px;
-                min-height: 0; font-family: 'Segoe UI'; font-size: 13px; }
+                min-height: 36px; font-family: 'Segoe UI'; font-size: 13px; }
             QLineEdit:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: #74a9df; }
             QCheckBox { color: #e7eef8; font-family: 'Segoe UI'; font-size: 12px; }
             QFrame#profileCard { background: #142235; border: 1px solid #2b405a; border-radius: 8px; }
@@ -59,15 +71,27 @@ class HardwareProfileDialog(QDialog):
             QTabWidget::pane { border: none; }
             QTabBar::tab { background: #142235; color: #9eb3cd; padding: 10px 20px; }
             QTabBar::tab:selected { color: #eef5ff; background: #243e60; }
-            QPushButton { min-height: 0; padding: 0 16px; border-radius: 6px;
+            QPushButton { min-height: 34px; padding: 0 16px; border-radius: 6px;
                 background: #23354c; color: #e7eef8; border: 1px solid #405674; font-size: 13px; }
             QPushButton#profileSave { background: #28639a; border-color: #4385bd; }
         ''')
         note = QLabel('Configure current limits and beam abort thresholds. '
                       'Draft values require review before hardware use.')
+        note.setStyleSheet('color: #9eafc4; font-size: 12px; padding: 2px 0 8px;')
         note.setWordWrap(True)
         layout.addWidget(note)
         tabs = self.tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+        tabs.tabBar().setExpanding(True)
+        tabs.tabBar().setStyleSheet('''
+            QTabBar { background: #101a29; }
+            QTabBar::tab { background: #162337; color: #9eafc4; border: none;
+                border-bottom: 2px solid #26394f; padding: 12px 18px;
+                font-family: 'Segoe UI'; font-size: 12px; font-weight: 600; }
+            QTabBar::tab:selected { background: #1c324c; color: #edf5ff;
+                border-bottom: 2px solid #65adf5; }
+            QTabBar::tab:hover { background: #223b56; color: #ffffff; }
+        ''')
         layout.addWidget(tabs, 1)
         def tab(title):
             scroll = QScrollArea()
@@ -85,15 +109,15 @@ class HardwareProfileDialog(QDialog):
             return body
         limits_tab = tab('Operating limits')
         advanced_tab = tab('Advanced limits')
-        review_tab = tab('Calibration & review')
+        review_tab = tab('Calibration / review')
         def card(body, title):
             frame = QFrame()
             frame.setObjectName('profileCard')
             frame.setStyleSheet('QFrame#profileCard { background: #142235; border: 1px solid #2b405a; border-radius: 8px; }')
             grid = QGridLayout(frame)
-            grid.setContentsMargins(12, 8, 12, 10)
+            grid.setContentsMargins(16, 12, 16, 16)
             grid.setHorizontalSpacing(18)
-            grid.setVerticalSpacing(4)
+            grid.setVerticalSpacing(8)
             heading = QLabel(title)
             heading.setObjectName('profileSection')
             heading.setFixedHeight(18)
@@ -107,16 +131,16 @@ class HardwareProfileDialog(QDialog):
             row, column = divmod(index, 2)
             text = QLabel(label)
             text.setWordWrap(True)
-            widget.setFixedHeight(32)
+            widget.setFixedHeight(38)
             widget.setMinimumWidth(0)
             grid.addWidget(text, row*2+1, column, 1, 2 if wide else 1)
             grid.addWidget(widget, row*2+2, column, 1, 2 if wide else 1)
         identity = card(limits_tab, 'PROFILE')
         self.name = QLineEdit(str(self.data.get('profile_name', 'Hardware PID profile')))
-        field(identity, 0, 'Profile name', self.name)
-        self.channel = QComboBox()
+        field(identity, 0, 'Profile name', self.name, wide=True)
+        self.channel = ScreenSafeComboBox()
         self.channel.addItems(list(self.channel_names[:12]))
-        field(identity, 1, 'Actuator coil', self.channel)
+        field(identity, 2, 'Actuator coil', self.channel)
         self.inputs = {}
         current = card(limits_tab, 'COIL CURRENT')
         abort = card(advanced_tab, 'ABORT THRESHOLDS')
@@ -135,6 +159,7 @@ class HardwareProfileDialog(QDialog):
             field(current if index < 2 else abort, index if index < 2 else index-2, short_label, widget)
         ramp_note = QLabel('LabVIEW handles current ramping. PID starts from the live coil command.\nGA/hybrid capture their recovery baseline automatically.')
         ramp_note.setWordWrap(True)
+        ramp_note.setStyleSheet('color: #91a7c0; font-size: 12px; padding: 4px;')
         limits_tab.addWidget(ramp_note)
         advanced_tab.addStretch()
         limits_tab.addStretch()
@@ -143,23 +168,34 @@ class HardwareProfileDialog(QDialog):
         for index, (key, label) in enumerate(PROVENANCE):
             widget = QLineEdit(str(self.data.get('provenance', {}).get(key, '')))
             self.provenance[key] = widget
-            field(provenance_grid, index*2, label, widget, wide=True)
+            field(provenance_grid, index, label, widget)
         review_tab.addStretch()
         self.reviewed = QCheckBox('Independently reviewed for this machine')
         if self.data.get('approval_basis') == 'operator_limits':
             self.reviewed.setText('I approve these operating limits for hardware testing')
         self.reviewed.setChecked(False)
+        self.reviewed.setStyleSheet('''
+            QCheckBox { color: #d9e7f7; spacing: 10px; font-size: 12px; padding: 8px 0; }
+            QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #5c7592;
+                border-radius: 4px; background: #142235; }
+            QCheckBox::indicator:checked { background: #3a91e8; border: 1px solid #8bc5ff; }
+            QCheckBox::indicator:hover { border-color: #9acbff; }
+        ''')
         layout.addWidget(self.reviewed)
         self.status = QLabel(f"Loaded: {self.data.get('approval_status', 'draft')}. Save defaults to draft.")
         self.status.setWordWrap(True)
+        self.status.setStyleSheet('color: #a8bbd2; font-size: 12px; padding: 0 0 6px;')
         layout.addWidget(self.status)
         buttons = QHBoxLayout()
         self.save_button = QPushButton('Save profile')
         self.save_button.setObjectName('profileSave')
-        self.save_button.setStyleSheet('background: #28639a; color: white; border: 1px solid #4385bd; border-radius: 6px; padding: 0; min-height: 0; text-align: center;')
+        self.save_button.setStyleSheet('background: #28639a; color: white; border: 1px solid #4385bd; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
         self.save_button.setFixedSize(140, 36)
         self.save_button.clicked.connect(self.save_profile)
         close = QPushButton('Close')
+        close.setAutoDefault(False)
+        self.save_button.setAutoDefault(False)
+        close.setStyleSheet('background: #1b2b40; color: #dae6f5; border: 1px solid #3d536e; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
         close.setFixedSize(100, 36)
         close.clicked.connect(self.close)
         buttons.addStretch()
@@ -183,7 +219,8 @@ class HardwareProfileDialog(QDialog):
         self._save_timer = QTimer(self)
         self._save_timer.setInterval(25)
         self._save_timer.timeout.connect(self._finish_save)
-        self.resize(700, 620)
+        layout.setContentsMargins(16, 12, 16, 12)
+        self.resize(740, 700)
 
     def _store_channel(self):
         if self.current_channel is None:

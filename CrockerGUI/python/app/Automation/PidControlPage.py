@@ -19,8 +19,6 @@ from PySide6.QtWidgets import (
     QAbstractItemView,
     QHeaderView,
     QDoubleSpinBox,
-    QDialog,
-    QFileDialog,
     QFrame,
     QFormLayout,
     QScrollArea,
@@ -36,8 +34,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as QFileDialog
 
 from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
+from python.app.Automation.TuningQualityDialog import TuningQualityDialog
 from source.Python.Automation.hardware_profile import apply_hardware_profile
 from python.app.Automation.HardwareProfileDialog import HardwareProfileDialog, PROFILE_PATH
 from python.app.Automation.RunMetrics import RunMetrics
@@ -499,9 +499,8 @@ class PidControlPage(DetailPage):
             self.cpp_nla_status.setText(f'Cannot open hardware profile: {exc}')
             self.settings_dialog.show()
             return
-        available = self.screen().availableGeometry()
-        dialog.resize(min(700, available.width()-40), min(760, available.height()-80))
-        dialog.exec()
+        from python.app.widgets.DialogOverlay import DialogOverlay
+        self._hardware_profile_overlay = DialogOverlay(dialog, self)
 
     def _cpp_nla_selected(self) -> bool:
         return self.controller_kind_input.currentData() == "nla"
@@ -545,6 +544,10 @@ class PidControlPage(DetailPage):
             widget = getattr(self, name, None)
             if widget is not None:
                 widget.setEnabled(not locked)
+        quality_dialog = getattr(self, 'tuning_quality_dialog', None)
+        if quality_dialog is not None:
+            for control in quality_dialog.inputs.values():
+                control.setEnabled(not locked)
         for bounds in getattr(self, "tuner_gain_bounds", {}).values():
             for widget in bounds:
                 widget.setEnabled(not locked)
@@ -759,6 +762,11 @@ class PidControlPage(DetailPage):
         safety_row.addWidget(safety_label)
         safety_row.addWidget(self.tuner_safety_profile, 1)
         candidate_layout.addLayout(safety_row)
+        self.tuning_quality_dialog = TuningQualityDialog(self, self.feedback_unit, beam=self.beam_feedback)
+        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
+        self.tuning_quality_button = QPushButton('Tuning quality settings')
+        self.tuning_quality_button.clicked.connect(self.tuning_quality_dialog.show)
+        candidate_layout.addWidget(self.tuning_quality_button)
         self.tuner_status = QLabel("Not started. Configure and review the safe bounds.")
         self.tuner_status.setObjectName("pidTunerStatus")
         self.tuner_status.setWordWrap(True)
@@ -1022,6 +1030,7 @@ class PidControlPage(DetailPage):
             self.tuning_surrogate_proposal.cancel()
             self.tuning_surrogate_proposal = None
         self._tuning_controller_config = self._controller_config()
+        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
         self._lock_controller_inputs(True)
         self.tuning_optimizer = BotorchPidOptimizer(
             bounds["Kp"], bounds["Ki"], bounds["Kd"], use_cuda=False,
@@ -1165,14 +1174,15 @@ class PidControlPage(DetailPage):
             elapsed=f"{elapsed:.1f} / {max(60.0, self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value():.1f} s",
             error=f"{error:+.3f}",
         )
-        if state == "Running" and elapsed >= 1.0 and len(self.tuning_samples) >= 6:
+        if state == "Running" and elapsed >= self._tuning_quality_settings.oscillation_min_seconds and len(self.tuning_samples) >= 6:
             try:
                 interim = evaluate_trial(self.tuning_samples, self.tuner_target.value(),
-                                         deadband=self._tuning_controller_config.get("nla_deadband", 0))
+                                         deadband=self._tuning_controller_config.get("nla_deadband", 0),
+                                         quality=self._tuning_quality_settings)
             except ValueError:
                 self._complete_tuning_trial(False)
                 return
-            if interim.sustained_oscillation and interim.oscillation_cycles >= 2:
+            if interim.sustained_oscillation:
                 self._oscillation_stopped = True
                 # Retain the penalized performance observation so BO learns to avoid it.
                 self._complete_tuning_trial(True)
@@ -1285,7 +1295,8 @@ class PidControlPage(DetailPage):
         metrics = None
         try:
             metrics = evaluate_trial(samples, target,
-                                     deadband=self._tuning_controller_config.get("nla_deadband", 0))
+                                     deadband=self._tuning_controller_config.get("nla_deadband", 0),
+                                         quality=self._tuning_quality_settings)
             score = trial_cost(metrics, self.tuner_profile.currentText())
         except ValueError:
             safe = False
@@ -1344,7 +1355,7 @@ class PidControlPage(DetailPage):
         self.prepare_tuning_button.setEnabled(True)
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
         if best is None:
-            self.tuner_status.setText("Tuning is complete, but no safe gain result was found.")
+            self.tuner_status.setText("No eligible gains: results oscillated, faulted, or failed validation. Review Trial History.")
             return
         self.approve_gains_button.setEnabled(True)
         self.tuner_status.setText(
@@ -1515,11 +1526,13 @@ class PidControlPage(DetailPage):
         explanation = QLabel(
             "Cost = w1 tracking IAE + w2 steady error + w3 command movement + w4 saturation time + w5 oscillation. "
             "Balanced weights: (1, 4, 0.01, 10, 1). "
-            "Settling: enter tolerance and remain there through trial end for at least 0.5 s. "
+            f"Settling: remain within tolerance through trial end for at least {self._tuning_quality_settings.hold_seconds:g} s. "
             "Transient: first entry into tolerance. Steady-state values estimate the final 20% of the run.\n"
-            f"Tolerance = max(0.1 {self.feedback_unit}, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
+            f"Tolerance = max({self._tuning_quality_settings.settling_tolerance:g} {self.feedback_unit}, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
             "Oscillation penalty is always active; sustained oscillation blocks gain approval. "
-            "After at least 1 s and 2 detected cycles, persistent oscillation stops the trial and its penalized result is retained. "
+            f"Oscillation detection: amplitude above {self._tuning_quality_settings.oscillation_amplitude:g} {self.feedback_unit}, "
+            f"at least {self._tuning_quality_settings.oscillation_min_seconds:g} s and "
+            f"{self._tuning_quality_settings.oscillation_min_cycles} persistent cycles. Penalized results are retained. "
             "These estimates use fresh status samples; very fast oscillations can be missed."
         )
         explanation.setWordWrap(True)
@@ -1565,37 +1578,14 @@ class PidControlPage(DetailPage):
 
     def _show_tuning_history(self) -> None:
         dialog = QDialog(self)
-        dialog.setWindowFlag(Qt.FramelessWindowHint, True)
-        dialog.setAttribute(Qt.WA_TranslucentBackground)
-        dialog.setObjectName("pidHistoryDialog")
-        dialog.setStyleSheet("""
-            QDialog#pidHistoryDialog { background: transparent; }
-            QFrame#pidHistorySurface { background: #101a29;
-                border: 2px solid #516a86; border-radius: 16px; }
-            QFrame#dialogTitleBar { background: #24364c; border-radius: 6px; }
-            QDialog#pidHistoryDialog QLabel { color: #dbe5f1; font-family: 'Segoe UI'; font-size: 13px; }
-            QTableWidget#pidTrialHistory { background: #142235; alternate-background-color: #1b2c42;
-                color: #e7eef8; border: 1px solid #34465d; border-radius: 6px;
-                font-family: 'Segoe UI'; font-size: 13px; selection-background-color: #315477; }
-            QTableWidget#pidTrialHistory QHeaderView::section { background: #24364c;
-                color: #b9cce1; border: none; padding: 8px; font-family: 'Segoe UI'; font-size: 12px; }
-        """)
-        dialog.setWindowTitle("PID Gain Tuning Trial History")
         dialog.resize(1120, 540)
-        outer = QVBoxLayout(dialog)
-        outer.setContentsMargins(0, 0, 0, 0)
-        surface = QFrame(dialog)
-        surface.setObjectName("pidHistorySurface")
-        outer.addWidget(surface)
-        layout = QVBoxLayout(surface)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
-        layout.addWidget(DialogTitleBar(dialog, "PID Gain Tuning Trial History"))
-        safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)]
+        layout = setup_pid_dialog(dialog, 'PID Gain Tuning Trial History', window_controls=False)
+        safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)
+                and not (r.metrics and r.metrics.sustained_oscillation)]
         best = min(safe, key=lambda r: r.score) if safe else None
         summary = QLabel(
-            f"{len(self.tuning_results)} trials  \xb7  {len(safe)} safe  \xb7  "
-            + (f"Best cost: {best.score:.4f}" if best else "No safe result yet")
+            f"{len(self.tuning_results)} trials  \xb7  {len(safe)} non-oscillating  \xb7  "
+            + (f"Best cost: {best.score:.4f}" if best else "No non-oscillating result yet")
         )
         summary.setObjectName("pidSectionTitle")
         layout.addWidget(summary)

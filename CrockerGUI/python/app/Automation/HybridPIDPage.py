@@ -10,9 +10,22 @@ from uuid import uuid4
 
 from PySide6.QtCore import Qt, QPointF, QRectF
 from PySide6.QtGui import QColor, QPainter, QPen
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
-    QPushButton, QSpinBox, QDoubleSpinBox, QTableWidget, QTableWidgetItem, QTabWidget,
-    QWidget, QScrollArea, QFileDialog, QAbstractItemView)
+from PySide6.QtWidgets import (
+    QVBoxLayout,
+    QHBoxLayout,
+    QFormLayout,
+    QLabel,
+    QPushButton,
+    QSpinBox,
+    QDoubleSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QWidget,
+    QScrollArea,
+    QAbstractItemView,
+)
+from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as QFileDialog
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Automation.ControlOwnership import active_controller
 from python.app.widgets.PidDialog import setup_pid_dialog
@@ -270,6 +283,7 @@ class HybridPIDPage(PidControlPage):
             return
         self._stop_pid('Starting hybrid session')
         self._tuning_controller_config = self._controller_config()
+        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
         self._session_metadata = dict(target_nA=self.tuner_target.value(),channel=self._channel,
             profile=self.tuner_profile.currentText(),dry_run=self.dry_run_check.isChecked(),
             feedback_units='nA',actuator_units='A',beam_calibration=dict(self._beam_identity),
@@ -386,7 +400,8 @@ class HybridPIDPage(PidControlPage):
         complete = bool(samples and samples[-1][0] >= duration-.5 and len(samples) >= 3)
         safe = safe and complete and not self._oscillation_stopped
         try:
-            metrics = evaluate_trial(samples,self.tuner_target.value(),deadband=self._tuning_controller_config['nla_deadband'])
+            metrics = evaluate_trial(samples,self.tuner_target.value(),deadband=self._tuning_controller_config['nla_deadband'],
+                                     quality=self._tuning_quality_settings)
             score = trial_cost(metrics,self.tuner_profile.currentText())
         except ValueError:
             safe,score = False,1e12

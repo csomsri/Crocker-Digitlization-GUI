@@ -3,7 +3,7 @@ import math
 from html import escape
 from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPainterPath
-from PySide6.QtWidgets import QToolTip
+from python.app.widgets.InlinePopups import InlineToolTip as QToolTip
 from .TrendPlot import AxisTrendPlot
 
 

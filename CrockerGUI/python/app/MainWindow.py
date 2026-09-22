@@ -1,11 +1,5 @@
-from PySide6.QtWidgets import (
-    QApplication,
-    QMainWindow,
-    QStackedWidget,
-    QWidget,
-    QLabel,
-    QMessageBox,
-)
+from PySide6.QtWidgets import (QApplication, QMainWindow, QStackedWidget, QWidget, QLabel)
+from python.app.widgets.AppDialogs import AppMessageBox as QMessageBox
 from PySide6.QtCore import QMargins, QRect, QSettings, Qt, QTimer
 from PySide6.QtGui import QFont
 from python.app.theme import load_app_font, load_stylesheet
@@ -880,6 +874,8 @@ def run_app(
     # otherwise do not share those objects. Set this before creating the app.
     QApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
     app = QApplication([])
+    from python.app.widgets.InlinePopups import install_popup_service
+    install_popup_service(app)
     # Use Qt's own popup implementation consistently across Windows displays.
     # The native Windows style can open a menu without committing mouse clicks
     # in a screen-filling window. The existing stylesheet supplies our theme.

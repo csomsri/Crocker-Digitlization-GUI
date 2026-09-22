@@ -1,0 +1,38 @@
+/* Shared appearance for in-window tools, confirmations, and file pickers. */
+QLabel { color: #cbd9ea; font-family: "Segoe UI"; font-size: 13px; }
+QLineEdit, QSpinBox, QDoubleSpinBox, QDateEdit {
+    background: #142235; color: #e7eef8; border: 1px solid #405a77;
+    border-radius: 6px; padding: 4px 10px; font-family: "Segoe UI"; font-size: 13px;
+}
+QLineEdit:focus, QAbstractSpinBox:focus { border-color: #76b8f7; }
+QPushButton { background: #1d3048; color: #e3edf9; border: 1px solid #405b78;
+    border-radius: 6px; padding: 6px 16px; min-height: 22px;
+    font-family: "Segoe UI"; font-size: 13px; text-align: center; }
+QPushButton:hover { background: #294560; border-color: #7eb5ed; }
+QPushButton:focus { border-color: #8dc7ff; }
+QPushButton:disabled { background: #172335; color: #788ba2; border-color: #2a3e56; }
+QPushButton#dialogPrimaryAction { background: #28639a; border-color: #4385bd; }
+QTabWidget::pane { border: none; background: #101a29; }
+QTabBar::tab { background: #162337; color: #9eafc4; border: none;
+    border-bottom: 2px solid #26394f; padding: 11px 18px;
+    font-family: "Segoe UI"; font-size: 12px; font-weight: 600; }
+QTabBar::tab:selected { background: #1c324c; color: #edf5ff; border-bottom-color: #65adf5; }
+QTabBar::tab:hover { background: #223b56; }
+QCheckBox { color: #d9e7f7; spacing: 8px; font-family: "Segoe UI"; font-size: 12px; }
+QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #5c7592;
+    border-radius: 4px; background: #142235; }
+QCheckBox::indicator:checked { background: #3a91e8; border-color: #8bc5ff; }
+QCheckBox::indicator:focus { border-color: #c1e1ff; }
+QScrollArea { border: none; background: #101a29; }
+QTreeView, QListView, QTableView { background: #142235; alternate-background-color: #1b2c42;
+    color: #e7eef8; border: 1px solid #344b66; selection-background-color: #315477;
+    font-family: "Segoe UI"; font-size: 12px; }
+QHeaderView::section { background: #24364c; color: #b9cce1; padding: 8px; border: none; }
+
+QWidget[dialogScrollContents="true"] { background: #101a29; }
+QScrollBar:vertical { width: 10px; background: #111e30; margin: 0; }
+QScrollBar:horizontal { height: 10px; background: #111e30; margin: 0; }
+QScrollBar::handle { background: #3c5775; border-radius: 4px; min-width: 24px; min-height: 24px; }
+QScrollBar::handle:hover { background: #5b7da3; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }

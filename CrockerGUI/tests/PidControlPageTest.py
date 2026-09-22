@@ -62,9 +62,9 @@ def main() -> int:
             raise RuntimeError("Unvalidated tuner gains must not be applicable to PID Control")
         for combo in (page.tuner_channel, page.tuner_profile, page.tuner_safety_profile):
             if not combo.property("stablePopup"):
-                raise RuntimeError(f"{combo.objectName()} does not preserve its native clickable popup")
+                raise RuntimeError(f"{combo.objectName()} does not preserve its clickable popup")
         page.tuner_safety_profile.setCurrentIndex(1)
-        if page.tuner_safety_profile.currentText() != "Trim coils / existing scaling":
+        if page.tuner_safety_profile.currentText() != "Reviewed hardware profile":
             raise RuntimeError("Safety-profile dropdown did not accept a selection")
         page.tuner_safety_profile.setCurrentIndex(0)
 
