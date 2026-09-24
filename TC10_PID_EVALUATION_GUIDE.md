@@ -159,24 +159,30 @@ BO optimizes the score it is given. It does not prove stability or guarantee the
 Lower score is better. The shared scoring function uses:
 
 ```text
-score = time_weight × (settling_time + 0.25 × transient_time)
+score = tracking_weight × tracking_IAE
       + precision_weight × steady_error
-      + effort_weight × control_effort
+      + movement_weight × command_movement
+      + saturation_weight × saturation_time
       + oscillation_weight × oscillation_penalty
-      + 25 if not settled
 ```
 
-The final `+25` applies only to an unsettled trial. When the target was never reached or never settled, the corresponding numeric time falls back to the recording end; always read the Boolean flags with the times.
+This implements `J(theta) = w1 J_track + w2 J_ss + w3 J_move + w4 J_sat + w5 J_osc`, with `theta = (Kp, Ki, Kd)`. The supplied reference gives the structure but not component formulas or weights; the following are explicit project definitions and engineering defaults.
+
+Tracking IAE is `sum(abs(error_i) * dt_i)`. Steady error is the time-weighted mean absolute error over the final 20% of the sampled window. Command movement is `sum(abs(command_i - command_(i-1)))`, using the bounded, ramp-limited selected-channel command, not PID output magnitude. Saturation time is `sum(saturated_i * dt_i)`, where saturation means requested actuator commands were clipped to command bounds. Slew limiting and internal NLA limits are distinct and do not count here.
+
+Integrals use right-endpoint samples, starting at the first captured controller update. GUI polling can miss movement or saturation between samples. Dry-run commands are virtual. Compare trials with matching duration, initial conditions, target, bounds, and sampling. There is no additional unsettled penalty. Unsafe or invalid trials retain the separate failure sentinel `1e12`; missing actuator telemetry invalidates a tuning score.
 
 | Profile | Change from Balanced |
 |---|---|
-| Balanced | Time 1; precision 4; effort 0.01; oscillation 1 |
-| Fast response | Time weight becomes 3 |
+| Balanced | Tracking 1; precision 4; movement 0.01; saturation 10; oscillation 1 |
+| Fast response | Tracking weight becomes 3 |
 | High precision | Precision weight becomes 8 |
-| Low control effort | Effort weight becomes 0.08 |
+| Low control movement | Movement weight becomes 0.08 |
 | Suppress oscillation | Oscillation weight becomes 2 |
 
-The oscillation penalty grows with detected cycles and amplitude relative to tolerance, with an additional penalty for sustained oscillation. **Overshoot and RMS are diagnostic metrics, not direct terms in this score.** Trial abort limits may separately reject a response. The ordinary response recorder does not measure command effort or publish a BO score.
+The oscillation penalty is `10 * cycles * amplitude / tolerance`, plus `100 * (1 + amplitude / tolerance)` for sustained oscillation. **Settling time, first-entry time, integrated output effort, overshoot and RMS are diagnostics, not direct terms in this score.** Trial abort limits may separately reject a response. The ordinary response recorder has no actuator telemetry and does not publish a BO score.
+
+NLA retains deadband, derivative filtering, anti-windup, command limits, and ramp constraints. Current trials measure and command the selected coil channel. Beam-current regulation using TC10 as a separate actuator still requires a beam-current measurement and explicit actuator mapping; this cost change does not establish that mapping.
 
 ## 7. Comparison worksheet
 
@@ -197,3 +203,18 @@ Choose an acceptable response based on your accuracy, overshoot, and oscillation
 - `CrockerGUI/source/Python/Control/NLAPID.py`: NLA reference algorithm.
 
 These descriptions reflect the code reviewed for this guide; metric definitions should be checked again if the implementation changes.
+
+## Gain validation before application
+
+The lowest BO trial cost is a candidate, not proof of stable continuous operation.
+Use **Validate best gains** after stopping or finishing the search. This runs a
+fresh controller instance for at least 60 seconds (or the configured trial duration
+if longer). Apply remains disabled unless that measured run is safe, settled, and
+free of detected sustained oscillation. The validation uses the current plant
+state; it does not prove convergence from every initial condition. No automatic
+reset to zero or disturbance is performed. Trial and validation samples remain
+separate, and validation does not change the BO training objective.
+
+Applied gains retain 12 decimal places, and Apply restores the validated channel,
+setpoint, current limits, and NLA configuration. A flat BO trace between trials
+is an output hold while the optimizer is thinking, not evidence of PID convergence.

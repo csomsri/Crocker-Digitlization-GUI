@@ -3,37 +3,10 @@ from __future__ import annotations
 import time
 
 
-MONITOR_VARIABLES: dict[str, list[str]] = {
-    "Beam Transport Monitoring": [
-        "Beam X",
-        "Beam Y",
-        "Current",
-        "Loss",
-        "Steerer A",
-        "Steerer B",
-    ],
-    "Beam Source & Extraction": [
-        "Source Current",
-        "Extractor Voltage",
-        "Arc",
-        "Plasma",
-        "Interlock",
-    ],
-    "Vacuum / Beam Monitoring": [
-        "Vacuum A",
-        "Vacuum B",
-        "Beam Current",
-        "RF Forward",
-        "RF Reflected",
-    ],
-    "RF Power Monitoring": [
-        "Forward Power",
-        "Reflected Power",
-        "Phase",
-        "Duty",
-        "RF Status",
-    ],
-}
+from python.app.Monitoring.TelemetryFields import MONITOR_FIELDS
+
+
+MONITOR_VARIABLES = {title: [field[0] for field in fields] for title, fields in MONITOR_FIELDS.items()}
 
 MONITOR_CONTROL_TABS: list[tuple[str, str]] = [
     ("Magnetic Field Monitoring", "Field"),

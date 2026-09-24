@@ -1,5 +1,28 @@
 # Field Control Behavior
 
+## Snapshot and Recall
+
+The top-right Snapshot button freezes the latest received telemetry when opened.
+Save captures every available category, including TC1–TC12, auxiliary magnets,
+source, extraction and angles, transport, vacuum, RF, beam, mapped signals, and
+the complete original telemetry payload. Missing readings remain null/empty;
+simulation status, connection state and telemetry timestamp are retained.
+Optional names default to Snapshot1, Snapshot2, etc.; duplicate names are rejected.
+
+Snapshots are JSON documents stored transactionally in `snapshots.db` beside the
+configured telemetry database. SQLite is the primary library; Excel is better
+suited to a later reporting/export workflow than nested telemetry storage.
+Recall can export an individual record as a standalone JSON file.
+
+Recall filters by local capture date and name, previews selected categories,
+and defaults to Trim Coils. Trim coils and auxiliary magnets populate only
+their Target fields. Actual, Output, Enable, and applied commands are untouched;
+Apply is still required. Invalid or out-of-range targets reject the entire recall.
+Running automation blocks target recall. Categories without target controls
+appear in a saved reference table, clearly separated from live readings.
+Only values actually supplied by the telemetry source can be captured; extension
+arrays retain their packet order because per-device labels are not yet mapped.
+
 This page defines the intended meaning of the Field Ctrl controls and the
 expected startup behavior for the running-machine simulation.
 

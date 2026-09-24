@@ -9,7 +9,7 @@ The project requires:
 - Git with submodule support
 - CMake 3.22 or newer
 - A C++20 compiler
-- Python 3.11 or 3.12, including development headers
+- Python 3.13, including matching development headers
 - OpenGL development libraries and a working graphics driver
 
 An NVIDIA GPU and CUDA are **not currently required** by the active CMake
@@ -24,7 +24,7 @@ Install the following applications:
 
 1. **Git for Windows**: <https://git-scm.com/download/win>
 2. **CMake**: <https://cmake.org/download/>
-3. **Python 3.12, 64-bit**: <https://www.python.org/downloads/windows/>
+3. **Python 3.13, 64-bit**: <https://www.python.org/downloads/windows/>
 4. **Visual Studio 2022 or Build Tools 2022**:
    <https://visualstudio.microsoft.com/downloads/>
 
@@ -47,9 +47,9 @@ python --version
 where.exe python
 ```
 
-`python --version` must report the interpreter you intend to use. Python 3.11
-and 3.12 extensions are not interchangeable: a `cp311` `CycloViz` module only
-loads in Python 3.11, and a `cp312` module only loads in Python 3.12.
+The project stays on Python 3.13 (any 3.13 patch release). Use `py -3.13`
+to select it explicitly. CMake and the GUI launcher reject other minor versions.
+Rebuild `CycloViz` for 3.13: existing `cp311` or `cp312` extensions cannot be reused.
 
 If Windows keeps selecting the Microsoft Store Python 3.11 alias, open
 **Settings > Apps > Advanced app settings > App execution aliases** and disable
@@ -77,13 +77,21 @@ git submodule update --init --recursive
 Run these commands from the repository root:
 
 ```powershell
-python -m venv .venv
+py -3.13 -m venv .venv
 & .\.venv\Scripts\python.exe -m pip install --upgrade pip
 & .\.venv\Scripts\python.exe -m pip install -r .\CrockerGUI\requirements.txt
+& .\.venv\Scripts\python.exe -m pip check
+& .\.venv\Scripts\python.exe .\CrockerGUI\tests\StandaloneBayesianOptimizerTest.py
 ```
 
 Using the virtual environment's full Python path avoids accidentally building
 with a different Python installation.
+
+If `.venv` already uses another Python minor version, rename it before creating
+the 3.13 environment. Use a fresh CMake build directory when changing Python
+minor versions so cached interpreter paths and extension binaries are not reused.
+The requirements pin the direct dependencies to the verified local 3.13 baseline;
+they are not a complete lock of transitive dependencies.
 
 ### 4. Configure and build everything
 
@@ -162,10 +170,9 @@ sudo apt install -y \
   build-essential \
   cmake \
   git \
-  python3 \
-  python3-dev \
-  python3-pip \
-  python3-venv \
+  python3.13 \
+  python3.13-dev \
+  python3.13-venv \
   libgl1-mesa-dev \
   libegl1 \
   libxkbcommon-x11-0 \
@@ -179,12 +186,15 @@ Verify the tools:
 ```bash
 git --version
 cmake --version
-python3 --version
+python3.13 --version
 c++ --version
 ```
 
 If Ubuntu's CMake is older than 3.22, install a newer CMake release before
 continuing.
+
+If your distribution does not provide the Python 3.13 packages above, install
+Python 3.13 with its matching headers and venv support before continuing.
 
 ### 2. Clone the repository and submodules
 
@@ -207,7 +217,7 @@ git submodule update --init --recursive
 Run these commands from the repository root:
 
 ```bash
-python3 -m venv .venv
+python3.13 -m venv .venv
 ./.venv/bin/python -m pip install --upgrade pip
 ./.venv/bin/python -m pip install -r CrockerGUI/requirements.txt
 ```

@@ -3,11 +3,14 @@ from __future__ import annotations
 from python.app.Automation.ControlOwnership import active_controller
 
 import json
+import sqlite3
 import time
 from collections.abc import Callable
 from pathlib import Path
 
 from python.app.ResponsiveLayout import ResponsiveRow
+from python.app.Controls.SnapshotStore import SnapshotStore, make_snapshot, target_updates
+from python.app.Controls.SnapshotDialogs import CaptureDialog, RecallDialog, populate_tree, value_tree
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QKeySequence, QShortcut
@@ -70,6 +73,8 @@ class FieldCtrlPage(DetailPage):
         zmq_endpoint: str = "tcp://0.0.0.0:5555",
         manual_max_change: float = 10.0,
         confirm_large_changes: bool = True,
+        snapshot_source: Callable | None = None,
+        snapshot_db_path: Path | None = None,
     ) -> None:
         super().__init__(
             "Field Ctrl",
@@ -79,6 +84,8 @@ class FieldCtrlPage(DetailPage):
         )
 
         self.backend_mode = backend_mode.lower()
+        self.snapshot_source = snapshot_source
+        self.snapshot_store = SnapshotStore(snapshot_db_path or Path(__file__).resolve().parents[3] / "data" / "snapshots.db")
         self.zmq_endpoint = zmq_endpoint
         self.manual_max_change = max(0.01, float(manual_max_change))
         self.confirm_large_changes = bool(confirm_large_changes)
@@ -148,6 +155,16 @@ class FieldCtrlPage(DetailPage):
         self.control_stack.addWidget(self._build_sequencer_panel())
 
         workspace.addWidget(self.control_stack, 1)
+        self.recalled_reference = QFrame()
+        reference_layout = QVBoxLayout(self.recalled_reference)
+        self.recalled_reference_label = QLabel()
+        self.recalled_reference_label.setTextFormat(Qt.PlainText)
+        reference_layout.addWidget(self.recalled_reference_label)
+        self.recalled_reference_tree = value_tree()
+        self.recalled_reference_tree.setMaximumHeight(220)
+        reference_layout.addWidget(self.recalled_reference_tree)
+        self.recalled_reference.hide()
+        workspace.addWidget(self.recalled_reference)
 
         self._refresh_toggle_lock()
         self._refresh_selection()
@@ -464,6 +481,52 @@ class FieldCtrlPage(DetailPage):
         if back_button is not None:
             nav_layout.addWidget(back_button)
         nav_layout.addWidget(self._build_control_tabs(), 1)
+        for title, callback in (("Snapshot", self._capture_snapshot), ("Recall", self._recall_snapshot)):
+            button = QPushButton(title)
+            button.setObjectName("fieldBulk")
+            button.clicked.connect(callback)
+            nav_layout.addWidget(button)
+
+    def _capture_snapshot(self) -> None:
+        try:
+            telemetry = self.snapshot_source() if self.snapshot_source else self.transport_snapshot()
+            if not telemetry or not (telemetry.get("sequence_number", 0) or telemetry.get("timestamp", 0)):
+                raise ValueError("No telemetry received yet. Connect to LabVIEW or start the simulator.")
+            record = make_snapshot(telemetry, CHANNEL_NAMES, self.backend_mode)
+            dialog = CaptureDialog(self, self.snapshot_store, record)
+            if dialog.exec():
+                saved = self.snapshot_store.load(dialog.saved_id)
+                self.backend_label.setText(f"Saved {saved['name']} — all telemetry categories captured")
+            dialog.deleteLater()
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            QMessageBox.warning(self, "Snapshot", str(exc))
+
+    def _recall_snapshot(self) -> None:
+        try:
+            dialog = RecallDialog(self, self.snapshot_store, self._stage_snapshot)
+            dialog.exec()
+            dialog.deleteLater()
+        except (ValueError, OSError, sqlite3.Error) as exc:
+            QMessageBox.warning(self, "Recall", str(exc))
+
+    def _stage_snapshot(self, record, categories) -> None:
+        updates = target_updates(record, categories, CHANNEL_NAMES, MAX_GAUGE_VALUE)
+        if updates:
+            if active_controller(self.backend, self) is not None:
+                raise ValueError("Stop PID/BO/GA before recalling targets.")
+            if self.backend is not None and hasattr(self.backend, "SequenceStatus"):
+                if str(self.backend.SequenceStatus().get("state", "")).lower() in {"running", "dwelling"}:
+                    raise ValueError("Stop the sequence before recalling targets.")
+        for index, value in updates.items():
+            self.target_values[index] = value
+        self._refresh_target_display()
+        references = {name: values for name, values in categories.items()
+                      if name not in {"Trim Coils", "Auxiliary Magnets"}}
+        populate_tree(self.recalled_reference_tree, references)
+        self.recalled_reference_label.setText(f"Saved reference • {record['name']} • {record['captured_at']} (not live)")
+        self.recalled_reference.setVisible(bool(references))
+        self.backend_label.setText(f"Recalled {record['name']} — targets staged; press Apply to send" if updates
+                                   else f"Recalled {record['name']} — saved reference only")
 
     def _build_channel_matrix(self) -> QWidget:
         body = QWidget()

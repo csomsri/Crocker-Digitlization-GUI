@@ -1,14 +1,8 @@
 from collections.abc import Callable
 
-from python.app.PageShell import MonitoringDetailPage
+from python.app.Monitoring.LiveTelemetryPage import LiveTelemetryPage
 
 
-class RfPowerMonitoringPage(MonitoringDetailPage):
+class RfPowerMonitoringPage(LiveTelemetryPage):
     def __init__(self, go_back: Callable[[], None]) -> None:
-        super().__init__(
-            "RF Power Monitoring",
-            "RF power monitoring routed through Field Ctrl for now",
-            ["Forward Power", "Reflected Power", "Phase", "Duty", "RF Status"],
-            "Back to Monitoring",
-            go_back,
-        )
+        super().__init__('RF Power Monitoring', go_back)

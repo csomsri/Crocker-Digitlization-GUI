@@ -614,19 +614,19 @@ MONITOR_PREVIEWS: dict[str, list[str]] = {
         "Magnet temperature bands",
     ],
     "Beam Transport Monitoring": [
-        "Transport channel profile",
-        "Quadrupole response map",
-        "Beamline stability view",
+        "Ten transport readings",
+        "Selected-reading trend",
+        "Live and stale status",
     ],
     "Beam Source & Extraction": [
-        "Source current telemetry",
-        "Extraction aperture trend",
-        "Ion source health scan",
+        "Six source readings",
+        "Extraction and optional angles",
+        "Raw readings and trends",
     ],
     "Vacuum / Beam Monitoring": [
-        "Vacuum pressure timeline",
-        "Beam intensity overlay",
-        "Interlock status preview",
+        "Five raw vacuum readings",
+        "Beam detector and calibrated current",
+        "Selected-reading trend",
     ],
     "Database History": [
         "Logged channel timelines",
@@ -634,9 +634,9 @@ MONITOR_PREVIEWS: dict[str, list[str]] = {
         "SQLite readings review",
     ],
     "RF Power Monitoring": [
-        "Forward/reflected RF power",
-        "Cavity phase response",
-        "Amplifier status preview",
+        "Raw RF reading",
+        "Recent reading trend",
+        "Live and stale status",
     ],
 }
 

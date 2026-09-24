@@ -1,14 +1,8 @@
 from collections.abc import Callable
 
-from python.app.PageShell import MonitoringDetailPage
+from python.app.Monitoring.LiveTelemetryPage import LiveTelemetryPage
 
 
-class BeamSourceExtractionPage(MonitoringDetailPage):
+class BeamSourceExtractionPage(LiveTelemetryPage):
     def __init__(self, go_back: Callable[[], None]) -> None:
-        super().__init__(
-            "Beam Source & Extraction",
-            "Source/extraction monitoring",
-            ["Source Current", "Extractor Voltage", "Arc", "Plasma", "Interlock"],
-            "Back to Monitoring",
-            go_back,
-        )
+        super().__init__('Beam Source & Extraction', go_back)

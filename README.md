@@ -47,11 +47,16 @@ https://github.com/g-truc/glm
 
 
 ### Python Dependencies
-We should have all the requirements to build inside requirements.txt
-```python 
-pip install -r requirements.txt
+Use **Python 3.13 (64-bit)**. From the repository root on Windows:
+```powershell
+py -3.13 -m venv .venv
+& .\.venv\Scripts\python.exe -m pip install --upgrade pip
+& .\.venv\Scripts\python.exe -m pip install -r .\CrockerGUI\requirements.txt
+& .\.venv\Scripts\python.exe -m pip check
 ```
-If at any point there are any issues, a solution can be going through the list and manually installing each python library
+Build CycloViz with this same environment. See [the build guide](HowToBuildTEMP.md)
+for setup and migration from an older interpreter. Direct dependency versions
+are pinned to the project's Python 3.13 baseline.
 
 ## Credits
 

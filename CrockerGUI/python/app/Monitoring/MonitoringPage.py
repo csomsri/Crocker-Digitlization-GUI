@@ -7,8 +7,8 @@ MONITORING_PAGES: list[PageSpec] = [
     ("Magnetic Field Monitoring", "Magnetic field live monitoring"),
     ("Beam Transport Monitoring", "Beam transport live monitoring"),
     ("Beam Source & Extraction", "Source/extraction monitoring"),
-    ("Vacuum / Beam Monitoring", "Vacuum, beam, and RF-style HUD monitoring"),
-    ("RF Power Monitoring", "Currently routed to the Field Ctrl window"),
+    ("Vacuum / Beam Monitoring", "Vacuum readings and beam current"),
+    ("RF Power Monitoring", "Live RF reading and trend"),
     ("Display Controller", "Choose the monitoring view shown on managed displays"),
 ]
 

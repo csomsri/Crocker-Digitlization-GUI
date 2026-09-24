@@ -174,6 +174,8 @@ class MainWindow(QMainWindow):
                         page_kwargs["get_beam_state"] = self.current_beam_state
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
+                    page_kwargs["snapshot_source"] = self._transport_snapshot
+                    page_kwargs["snapshot_db_path"] = pipeline_db_path.with_name("snapshots.db")
                     page_kwargs["confirm_large_changes"] = (
                         self._confirm_large_manual_changes and self.simulation_mode is None
                     )
@@ -295,6 +297,8 @@ class MainWindow(QMainWindow):
             self._start_data_pipeline()
         for page in self.pages.values():
             self._attach_pid_recording(page)
+            if hasattr(page, "set_snapshot_source"):
+                page.set_snapshot_source(self._transport_snapshot)
         app = QApplication.instance()
         if app is not None:
             app.screenAdded.connect(lambda screen: self._screens_changed())
@@ -489,6 +493,9 @@ class MainWindow(QMainWindow):
                         page_kwargs["get_beam_state"] = self.current_beam_state
                 else:
                     page_kwargs["manual_max_change"] = self._manual_max_change
+                    page_kwargs["snapshot_source"] = self._transport_snapshot
+                    snapshot_path = self.db_path if self.db_path.is_absolute() else self._crocker_root / self.db_path
+                    page_kwargs["snapshot_db_path"] = snapshot_path.with_name("snapshots.db")
                     page_kwargs["confirm_large_changes"] = (
                         self._confirm_large_manual_changes and self.simulation_mode is None
                     )
@@ -550,7 +557,10 @@ class MainWindow(QMainWindow):
                     confirm_large_manual_changes=self._confirm_large_manual_changes,
                     apply_manual_control_safety=self.apply_manual_control_safety,
                 )
-            return builder(go_back)
+            page = builder(go_back)
+            if hasattr(page, "set_snapshot_source"):
+                page.set_snapshot_source(self._transport_snapshot)
+            return page
         fallback = QWidget()
         return fallback
 
