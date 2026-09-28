@@ -46,6 +46,7 @@ GUI renders them.
 Good first functions:
 
 ```text
+compute_lineplot(values, bins)
 compute_histogram(values, bins)
 compute_heatmap(x_values, y_values, bins_x, bins_y)
 compute_density_grid(x_values, y_values, weights, bins_x, bins_y)

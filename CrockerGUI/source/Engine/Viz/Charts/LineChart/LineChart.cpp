@@ -11,6 +11,7 @@
 
 namespace {
 std::string FormatTick(float value, float span) {
+    // This can be done in cuda
     if (std::abs(value) < std::max(std::abs(span), 1.0f) * 0.0001f) value = 0.0f;
     const float absoluteSpan = std::abs(span);
     const int precision = absoluteSpan >= 20.0f ? 0 : (absoluteSpan >= 2.0f ? 1 : 2);

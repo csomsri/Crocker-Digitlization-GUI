@@ -1,5 +1,5 @@
 #include "Engine/Viz/Charts/ChartTypes/HistogramChart.hpp"
-
+// Inherits from BarChart.cpp
 #include <algorithm>
 #include <limits>
 

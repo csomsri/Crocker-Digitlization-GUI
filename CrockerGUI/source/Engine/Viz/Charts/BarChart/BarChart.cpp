@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <limits>
 #include <sstream>
+#include <chrono>
 
 namespace {
 std::string FormatTick(float value, float span) {
@@ -25,12 +26,20 @@ std::string FormatTick(float value, float span) {
 } // namespace
 
 BarChart::~BarChart() {
+    if (queriesInitialized) {
+        glDeleteQueries(2, gpuQueries);
+    }
     chart_gl::DestroyResources(vertexArray, vertexBuffer, shaderProgram);
 }
 
 void BarChart::SetData(const DataTable& data) {
+    auto start = std::chrono::high_resolution_clock::now();
+
     chart_gl::Validate(data);
     table = data;
+
+    auto end = std::chrono::high_resolution_clock::now();
+    setDataCpuMs = std::chrono::duration<double, std::milli>(end - start).count();
 }
 
 void BarChart::SetValueRange(float minimum, float maximum) {
@@ -51,11 +60,32 @@ void BarChart::EnsureOpenGLResources() {
     if (shaderProgram == 0) {
         chart_gl::CreateResources(vertexArray, vertexBuffer, shaderProgram);
     }
+    if (!queriesInitialized) {
+        glGenQueries(2, gpuQueries);
+        queriesInitialized = true;
+    }
 }
 
 void BarChart::Render(const ChartRect& area) {
     if (table.rows.empty() || table.ColumnCount() == 0 || area.width <= 0.0f || area.height <= 0.0f) return;
     EnsureOpenGLResources();
+
+    // Calculate fps
+    auto now = std::chrono::high_resolution_clock::now();
+    if (lastFrameTime.time_since_epoch().count() > 0) {
+        float deltaSec = std::chrono::duration<float>(now - lastFrameTime).count();
+        fpsTimer += deltaSec;
+        frameCount++;
+        if (fpsTimer >= 0.5f) {
+            fps = static_cast<float>(frameCount) / fpsTimer;
+            frameCount = 0;
+            fpsTimer = 0.0f;
+        }
+    }
+    lastFrameTime = now;
+
+    auto cpuRenderStart = std::chrono::high_resolution_clock::now();
+    glBeginQuery(GL_TIME_ELAPSED, gpuQueries[currentQueryIdx]);
 
     const std::size_t valueColumn = table.ColumnCount() >= 2 ? 1 : 0;
     float minimum = hasValueRange ? rangeMinimum : 0.0f;
@@ -123,4 +153,32 @@ void BarChart::Render(const ChartRect& area) {
     }
     chart_gl::DrawLabels(vertexArray, vertexBuffer, shaderProgram, area, plot, viewport,
                          style, title, xAxisTitle, yAxisTitle);
+    glEndQuery(GL_TIME_ELAPSED);
+
+    GLuint prevQuery = gpuQueries[(currentQueryIdx + 1) % 2];
+    GLint available = 0;
+    glGetQueryObjectiv(prevQuery, GL_QUERY_RESULT_AVAILABLE, &available);
+    if (available) {
+        GLuint64 timeNs = 0;
+        glGetQueryObjectui64v(prevQuery, GL_QUERY_RESULT, &timeNs);
+        renderGpuMs = static_cast<double>(timeNs) / 1000000.0;
+    }
+    currentQueryIdx = (currentQueryIdx + 1) % 2;
+
+    auto cpuRenderEnd = std::chrono::high_resolution_clock::now();
+    renderCpuMs = std::chrono::duration<double, std::milli>(cpuRenderEnd - cpuRenderStart).count();
+
+    // Statoverlay
+    std::ostringstream statsText;
+    statsText << std::fixed << std::setprecision(2)
+              << "FPS: " << fps 
+              << " | SetData CPU: " << setDataCpuMs << "ms"
+              << " | Render CPU: " << renderCpuMs << "ms"
+              << " | GPU: " << renderGpuMs << "ms";
+
+    font_renderer::DrawText(
+        statsText.str(),
+        plot.left + 10.0f, plot.top - 20.0f,
+        12.0f, false, style.textColor, 1.0f, style.fontPath
+    );
 }
