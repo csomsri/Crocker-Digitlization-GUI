@@ -1,4 +1,5 @@
 from __future__ import annotations
+from python.app.widgets.NativeRenderLifecycle import NativeRenderLifecycle
 
 import math
 import time
@@ -124,7 +125,7 @@ class ClickableValue(QLabel):
         super().mousePressEvent(event)
 
 
-class NativeSpeedometer(QOpenGLWidget):
+class NativeSpeedometer(NativeRenderLifecycle, QOpenGLWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         surface_format = self.format()
@@ -230,6 +231,7 @@ class NativeSpeedometer(QOpenGLWidget):
                 self._convergence_seconds,
                 self._timing_active,
             )
+            self._connect_native_cleanup()
             self._ready = True
         except Exception as exc:
             self._ready = False
@@ -240,9 +242,11 @@ class NativeSpeedometer(QOpenGLWidget):
         if not self._ready or self._native is None:
             return
         pixel_ratio = self.devicePixelRatio()
+        self._activate_native_context()
         self._native.render(
             max(1, int(round(self.width() * pixel_ratio))),
             max(1, int(round(self.height() * pixel_ratio))),
+            pixel_ratio,
         )
 
 
@@ -273,7 +277,7 @@ class MissingNativeSpeedometer(QLabel):
         return
 
 
-class TimeDomainPlot(QOpenGLWidget):
+class TimeDomainPlot(NativeRenderLifecycle, QOpenGLWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         surface_format = self.format()
@@ -307,6 +311,7 @@ class TimeDomainPlot(QOpenGLWidget):
             CycloViz.load_opengl(get_proc)
             self._native = CycloViz.TimeDomainLinePlot(getattr(self, "coil_response", False))
             self._native.set_samples(self._samples)
+            self._connect_native_cleanup()
             self._ready = True
         except Exception as exc:
             self._ready = False
@@ -326,9 +331,11 @@ class TimeDomainPlot(QOpenGLWidget):
             painter.end()
             return
         pixel_ratio = self.devicePixelRatio()
+        self._activate_native_context()
         self._native.render(
             max(1, int(round(self.width() * pixel_ratio))),
             max(1, int(round(self.height() * pixel_ratio))),
+            pixel_ratio,
         )
 
 

@@ -84,7 +84,10 @@ const char* ToString(Controls::SequenceRunState state)
 {
     switch (state) {
     case Controls::SequenceRunState::Idle: return "Idle";
+    case Controls::SequenceRunState::Applying: return "Applying";
     case Controls::SequenceRunState::Running: return "Running";
+    case Controls::SequenceRunState::Settling: return "Settling";
+    case Controls::SequenceRunState::Stopping: return "Stopping";
     case Controls::SequenceRunState::Dwelling: return "Dwelling";
     case Controls::SequenceRunState::Completed: return "Completed";
     case Controls::SequenceRunState::Stopped: return "Stopped";
@@ -299,6 +302,8 @@ Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
 Controls::SequenceRunConfig SequenceRunConfigFromDict(const py::dict& source)
 {
     Controls::SequenceRunConfig config;
+    if (source.contains("minimum_targets")) ReadDoubleArray(source, "minimum_targets", config.limits.minimum);
+    if (source.contains("maximum_targets")) ReadDoubleArray(source, "maximum_targets", config.limits.maximum);
     if (source.contains("update_rate_hz")) {
         config.updateRateHz = source["update_rate_hz"].cast<double>();
     }
@@ -315,6 +320,9 @@ Controls::SequenceRunConfig SequenceRunConfigFromDict(const py::dict& source)
         config.disableChannelsOnStop = source["disable_channels_on_stop"].cast<bool>();
     }
 
+    if (source.contains("telemetry_timeout_seconds")) config.telemetryTimeoutSeconds = source["telemetry_timeout_seconds"].cast<double>();
+    if (source.contains("settle_seconds")) config.settleSeconds = source["settle_seconds"].cast<double>();
+    if (source.contains("disable_channels_on_fault")) config.disableChannelsOnFault = source["disable_channels_on_fault"].cast<bool>();
     const py::sequence steps = source["steps"].cast<py::sequence>();
     config.sequence.reserve(static_cast<std::size_t>(steps.size()));
     for (const py::handle item : steps) {
@@ -395,6 +403,8 @@ py::dict SequenceStatusToDict(const Controls::SequenceRunStatus& status)
     out["step_count"] = status.stepCount;
     out["elapsed_seconds"] = status.elapsedSeconds;
     out["dwell_remaining_seconds"] = status.dwellRemainingSeconds;
+    out["fault_code"] = status.fault ? status.fault->code : "";
+    out["fault_channel"] = status.fault && status.fault->channel ? py::cast(*status.fault->channel) : py::none();
     out["target_reached"] = status.targetReached;
     out["watchdog_healthy"] = status.watchdogHealthy;
     return out;
@@ -592,6 +602,18 @@ void BindControlService(py::module_& module)
             return PidTrialStatusToDict(service.PidTrialStatusSnapshot());
         })
         .def("SetPidBeamMeasurement", &Controls::ControlService::SetPidBeamMeasurement)
+        .def("SequenceEvents", [](const Controls::ControlService& service) {
+            py::list events;
+            for (const auto& event : service.SequenceEventsSnapshot()) {
+                py::dict item;
+                item["state"] = ToString(event.state);
+                item["step_index"] = event.stepIndex;
+                item["elapsed_seconds"] = event.elapsedSeconds;
+                item["message"] = event.message;
+                events.append(item);
+            }
+            return events;
+        })
         .def("StartSequence", [](Controls::ControlService& service, const py::dict& config) {
             service.StartSequence(SequenceRunConfigFromDict(config));
         }, py::arg("config"))

@@ -22,6 +22,83 @@ def result(candidate,cost=10,safe=True,settled=True,beam_mae=None):
 
 
 class PolicyTest(unittest.TestCase):
+    def test_reference_repeats_preserve_ga_slot_and_update_noise(self):
+        o=self.make(reference_interval=2)
+        for _ in range(4):
+            self.feed(o)
+        index=o.ga.index
+        self.assertEqual(self.feed(o,9),'Reference')
+        self.assertEqual(self.feed(o,11),'Reference')
+        self.assertEqual(o.ga.index,index)
+        self.assertEqual(o.state,'GA')
+        self.assertAlmostEqual(o.noise,math.sqrt(2))
+        self.assertAlmostEqual(o.error_noise,math.sqrt(2)*.001)
+        self.assertFalse(o.records[-1]['reference_check']['cost']['drift'])
+        self.assertEqual(o.results[-1].candidate,o.seed_gains)
+        self.assertEqual(len(o.optimizer.safe_observations),6)
+
+    def test_reference_cost_or_error_drift_stops_and_invalidates_best(self):
+        for cost,error in ((20,.01),(10,.02)):
+            o=self.make(reference_interval=2)
+            for _ in range(4):
+                self.feed(o)
+            self.feed(o,cost,beam_mae=error)
+            self.feed(o,cost,beam_mae=error)
+            self.assertTrue(o.reference_drift_detected)
+            self.assertEqual(o.state,'Stopped')
+            self.assertIsNone(o.best_result)
+            with self.assertRaises(RuntimeError):
+                o.propose_batch(1)
+
+    def test_exploration_trains_bo_even_when_poor_without_consuming_ga(self):
+        candidates=[]
+        for _ in range(2):
+            o=self.make(exploration_interval=2)
+            for _ in range(4):
+                self.feed(o)
+            index=o.ga.index
+            self.assertEqual(self.feed(o,100),'Exploration')
+            self.assertEqual(o.ga.index,index)
+            self.assertEqual(len(o.optimizer.safe_observations),5)
+            candidate=o.results[-1].candidate
+            candidates.append(candidate)
+            self.assertTrue(all(0<=v<=2 for v in (candidate.kp,candidate.ki,candidate.kd)))
+            self.assertNotIn(candidate,[r.candidate for r in o.results[:-1]])
+        self.assertEqual(*candidates)
+
+    def test_confirmation_order_balanced_reproducible_and_not_interrupted(self):
+        orders=[]
+        for _ in range(2):
+            o=self.make()
+            self.warm(o)
+            self.feed(o,5)
+            o.config=replace(o.config,reference_interval=1,exploration_interval=1)
+            order=o.records[-1]['confirmation_order']
+            orders.append(order)
+            pairs=[order[i:i+2] for i in range(0,6,2)]
+            self.assertTrue(all(set(p)=={'Confirm incumbent','Confirm BO'} for p in pairs))
+            self.assertIn(sum(p[0]=='Confirm BO' for p in pairs),(1,2))
+            for source in order:
+                self.assertEqual(self.feed(o,5 if source=='Confirm BO' else 10),source)
+            self.assertEqual(o.state,'BO')
+            self.assertEqual(self.feed(o),'Reference')
+        self.assertEqual(*orders)
+
+    def test_reference_batch_not_started_if_budget_cannot_cover_it(self):
+        o=self.make(reference_interval=100,budget=7)
+        self.warm(o)
+        o.config=replace(o.config,reference_interval=1)
+        self.assertNotEqual(self.feed(o),'Reference')
+        with self.assertRaises(RuntimeError):
+            o.propose_batch(1)
+
+    def test_invalid_response_labels_are_json_serializable(self):
+        import json
+        o=self.make()
+        self.feed(o,safe=False)
+        self.assertFalse(o.feasibility_observations[0]['valid'])
+        json.dumps(o.feasibility_observations,allow_nan=False)
+
     def test_mae_is_time_weighted_and_not_integrated_error(self):
         m = evaluate_trial([(0,0,0,0,50,0),(1,0,4,0,50,0),(3,0,1,0,50,0)],1)
         self.assertEqual(m.tracking_error, 6)
@@ -33,7 +110,7 @@ class PolicyTest(unittest.TestCase):
                 o=self.make()
                 self.warm(o)
                 self.feed(o,1,beam_mae=error)
-                self.assertEqual(o.phase,'GA')
+                self.assertEqual(o.state,'GA')
                 self.assertFalse(o.records[-1]['beam_error_gate']['passed'])
 
     def test_beam_noise_can_reject_challenger_despite_clear_cost_improvement(self):
@@ -43,7 +120,7 @@ class PolicyTest(unittest.TestCase):
         for _ in range(4):
             self.feed(o,10,beam_mae=.01)
         self.feed(o,1,beam_mae=.001)
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
         self.assertGreater(o.records[-1]['beam_error_gate']['required_nA'], .009)
 
     def test_confirmation_rejects_error_regression_and_inconsistent_improvement(self):
@@ -52,7 +129,7 @@ class PolicyTest(unittest.TestCase):
                 o=self.make()
                 self.warm(o)
                 self.feed(o,5,beam_mae=.005)
-                self.assertEqual(o.phase,'Confirmation')
+                self.assertEqual(o.state,'Confirmation')
                 index=0
                 for _ in range(6):
                     c=o.propose_batch(1)[0]
@@ -60,7 +137,7 @@ class PolicyTest(unittest.TestCase):
                     error=errors[index] if is_bo else .01
                     index += int(is_bo)
                     o.record_results([result(c,5 if is_bo else 10,beam_mae=error)])
-                self.assertEqual(o.phase,'GA')
+                self.assertEqual(o.state,'GA')
                 self.assertFalse(o.records[-1]['beam_error_gate']['passed'])
 
     def test_missing_error_metric_cannot_confirm(self):
@@ -69,12 +146,14 @@ class PolicyTest(unittest.TestCase):
         c=o.propose_batch(1)[0]
         r=result(c,1)
         o.record_results([replace(r,metrics=replace(r.metrics,mean_absolute_error=None))])
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
         self.assertIsNone(o.records[-1]['beam_error_gate']['improvement_nA'])
 
     def make(self, **overrides):
-        config=HybridConfig(population=4,baseline_repeats=2,minimum_distinct=4,coverage=.05,
-                            plateau_trials=2,budget=40,**overrides)
+        settings=dict(population=4,baseline_repeats=2,minimum_distinct=4,coverage=.05,
+                      plateau_trials=2,budget=40,reference_interval=100,exploration_interval=100)
+        settings.update(overrides)
+        config=HybridConfig(**settings)
         return HybridPIDOptimizer([(0,2)]*3,PidGainCandidate(.5,.5,.5),config,
             proposer=lambda:(PidGainCandidate(.2,.2,.2),5,.1))
 
@@ -87,17 +166,17 @@ class PolicyTest(unittest.TestCase):
     def warm(self,o):
         for _ in range(6):
             self.feed(o)
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
         self.assertTrue(o.readiness()[0])
 
     def promote(self,o):
         self.warm(o)
         self.assertEqual(self.feed(o,5),'BO challenger')
-        self.assertEqual(o.phase,'Confirmation')
+        self.assertEqual(o.state,'Confirmation')
         for _ in range(6):
             c=o.propose_batch(1)[0]
             o.record_results([result(c,5 if o.pending_source == 'Confirm BO' else 10)])
-        self.assertEqual(o.phase,'BO')
+        self.assertEqual(o.state,'BO')
 
     def test_ga_seeds_bo_without_any_sobol_proposals(self):
         o=self.make()
@@ -106,24 +185,24 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(len(o.optimizer.safe_observations),6)
         c=o.propose_batch(1)[0]
         self.assertEqual(o.pending_source,'BO challenger')
-        self.assertEqual(o.phase,'BO challenger')
-        self.assertNotEqual(o.phase,'BO')
+        self.assertEqual(o.state,'BO challenger')
+        self.assertNotEqual(o.state,'BO')
         o.record_results([result(c,12)])
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
 
     def test_measured_paired_handover_and_plateau_fallback(self):
         o=self.make()
         self.promote(o)
         self.feed(o,8)
         self.feed(o,8)
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
         self.assertEqual(self.feed(o),'GA')
 
     def test_unsettled_challenger_never_takes_over(self):
         o=self.make()
         self.warm(o)
         self.feed(o,1,settled=False)
-        self.assertEqual(o.phase,'GA')
+        self.assertEqual(o.state,'GA')
 
     def test_noise_and_uncertainty_prevent_challenger_trial(self):
         o=self.make()
@@ -140,7 +219,7 @@ class PolicyTest(unittest.TestCase):
     def test_fault_stops_and_is_excluded_from_training(self):
         o=self.make()
         self.feed(o,safe=False)
-        self.assertEqual(o.phase,'Stopped')
+        self.assertEqual(o.state,'Stopped')
         self.assertEqual(len(o.safe_results),0)
         self.assertIsNone(o.records[0]['cost'])
         with self.assertRaises(RuntimeError):
@@ -154,7 +233,7 @@ class PolicyTest(unittest.TestCase):
         self.feed(o,10)
         with self.assertRaises(RuntimeError):
             o.propose_batch(1)
-        self.assertEqual(o.phase,'Confirmation')
+        self.assertEqual(o.state,'Confirmation')
 
     def test_unstable_confirmation_and_mismatched_result(self):
         o=self.make()
@@ -162,8 +241,9 @@ class PolicyTest(unittest.TestCase):
         self.feed(o,5)
         for i in range(6):
             c=o.propose_batch(1)[0]
-            o.record_results([result(c,5 if o.pending_source=='Confirm BO' else 10,settled=i!=5)])
-        self.assertEqual(o.phase,'GA')
+            is_bo=o.pending_source=='Confirm BO'
+            o.record_results([result(c,5 if is_bo else 10,settled=not is_bo)])
+        self.assertEqual(o.state,'GA')
         o.propose_batch(1)
         with self.assertRaises(ValueError):
             o.record_results([result(PidGainCandidate(99,99,99))])
@@ -303,6 +383,52 @@ class PageTest(unittest.TestCase):
         self.assertEqual(len(AUTOMATION_PAGES),5)
         self.assertIs(DETAIL_BUILDERS['Hybrid GA + BO PID'][1],type(self.p))
 
+    def test_history_displays_and_exports_sparse_decision_records(self):
+        from unittest.mock import patch, mock_open
+        from PySide6.QtWidgets import QTableWidget, QPushButton
+        from python.app.Automation.HybridPIDPage import QDialog, QFileDialog
+        p=self.p
+        policy=PolicyTest()
+        p.hybrid=policy.make(reference_interval=2)
+        for _ in range(6):
+            policy.feed(p.hybrid)
+        captured=[]
+        def inspect(dialog):
+            table=dialog.findChild(QTableWidget)
+            self.assertEqual(table.rowCount(),6)
+            for button in dialog.findChildren(QPushButton):
+                if button.text()=='Export shared history CSV':
+                    button.click()
+                    captured.append(button.text())
+            return 0
+        output=mock_open()
+        with patch.object(QDialog,'exec',inspect), patch.object(QFileDialog,'getSaveFileName',return_value=('history.csv','CSV')), patch('builtins.open',output):
+            p._show_hybrid_history()
+        self.assertEqual(captured,['Export shared history CSV'])
+        text=''.join(c.args[0] for c in output().write.call_args_list)
+        self.assertIn('reference_check',text)
+        self.assertIn('Reference',text)
+
+    def test_reference_drift_disables_native_output_and_validation(self):
+        p=self.p
+        p.hybrid_fields['reference_interval'].setValue(1)
+        p._start_auto_tuning()
+        self.tick_until(lambda:len(p.tuning_results)>=2)
+        # Inject a large historical mean shift so the next real reference
+        # batch detects a changed response, without driving the plant harder.
+        for row in p.hybrid.records:
+            if row['source']=='Baseline':
+                row['cost']=1e6
+        self.tick_until(lambda:not p.tuning_session_active,timeout=15)
+        self.assertTrue(p.hybrid.reference_drift_detected,p.tuner_status.text())
+        self.assertEqual(p.hybrid.records[-1]['source'],'Reference')
+        self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
+        self.assertFalse(p.approve_gains_button.isEnabled())
+        self.assertFalse(p.apply_tuned_gains_button.isEnabled())
+        self.assertIn('drift',p.tuner_status.text())
+        p._validate_best_gains()
+        self.assertFalse(p.tuning_session_active)
+
     def test_final_validation_requires_full_trial_and_recovery_before_apply(self):
         p=self.p
         p._start_auto_tuning()
@@ -311,7 +437,9 @@ class PageTest(unittest.TestCase):
         self.tick_until(lambda:p.tuning_candidate is not None)
         p._stop_tuning_session()
         p._enable_selected_tc()
-        self.tick_until(lambda:p.backend.LatestSnapshot()['channels'][0]['enabled'])
+        # Enabled status can precede the simulated current returning to baseline.
+        self.tick_until(lambda:p.backend.LatestSnapshot()['channels'][0]['enabled']
+                        and abs(p.backend.LatestSnapshot()['channels'][0]['actual']-p.reference.actual_map[0])<.03)
         p._validate_best_gains()
         self.assertTrue(p._validating_gains,p.tuner_status.text())
         self.assertFalse(p.apply_tuned_gains_button.isEnabled())

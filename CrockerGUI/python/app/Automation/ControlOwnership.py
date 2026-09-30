@@ -8,6 +8,7 @@ def active_controller(backend, requester=None):
     for page in QApplication.allWidgets():
         if page is requester or getattr(page,'backend',None) is not backend:
             continue
-        if getattr(page,'pid_enabled',False) or getattr(page,'tuning_session_active',False):
+        if (getattr(page,'pid_enabled',False) or getattr(page,'tuning_session_active',False)
+                or getattr(page,'_sequence_running',False)):
             return page
     return None

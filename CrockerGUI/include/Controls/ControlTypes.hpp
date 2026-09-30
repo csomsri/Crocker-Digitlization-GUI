@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Controls/ControlSystem/NLAPID.hpp"
+#include "Controls/ChannelId.hpp"
+#include "Controls/Sequencer/SequenceTypes.hpp"
 
 #include <array>
 #include <cstddef>
@@ -12,8 +14,6 @@
 // Control Variables
 namespace crocker::controls {
 
-inline constexpr std::size_t ChannelCount = 14;
-using ChannelId = std::size_t;
 
 enum class ChannelStatus {
     Unknown,
@@ -43,15 +43,6 @@ enum class AlarmSeverity {
 enum class PidTrialState {
     Idle,
     Running,
-    Completed,
-    Stopped,
-    Faulted
-};
-
-enum class SequenceRunState {
-    Idle,
-    Running,
-    Dwelling,
     Completed,
     Stopped,
     Faulted
@@ -186,34 +177,6 @@ struct HealthStatus {
     std::uint64_t droppedPackets = 0;
     std::uint64_t decodeErrors = 0;
     bool simulated = false;
-};
-
-// A sparse sequence point. nullopt means "leave this channel unchanged".
-struct SequencePoint {
-    double timeSeconds = 0.0;
-    std::array<std::optional<double>, ChannelCount> targets{};
-};
-
-using Sequence = std::vector<SequencePoint>;
-
-struct SequenceRunConfig {
-    Sequence sequence;
-    double updateRateHz = 20.0;
-    double targetTolerance = 0.5;
-    double stepTimeoutSeconds = 30.0;
-    bool requireConnected = true;
-    bool disableChannelsOnStop = false;
-};
-
-struct SequenceRunStatus {
-    SequenceRunState state = SequenceRunState::Idle;
-    std::string message = "Idle";
-    std::size_t stepIndex = 0;
-    std::size_t stepCount = 0;
-    double elapsedSeconds = 0.0;
-    double dwellRemainingSeconds = 0.0;
-    bool targetReached = false;
-    bool watchdogHealthy = false;
 };
 
 [[nodiscard]] constexpr bool IsValidChannel(ChannelId channel) noexcept {

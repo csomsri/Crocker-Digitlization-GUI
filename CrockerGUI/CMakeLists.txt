@@ -34,26 +34,31 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/cppzmq/CMakeLists.txt")
 endif()
 
 add_library(crocker_engine STATIC
+    source/Engine/Graphics/RenderContext.cpp
+    source/Engine/Graphics/Canvas2D.cpp
+    source/Engine/Graphics/OpenGL/ShaderProgram.cpp
+    source/Engine/Graphics/OpenGL/StateGuard.cpp
+    source/Engine/Text/FontManager.cpp
+    source/Engine/Text/TextLayout.cpp
+    source/Engine/Text/TextRenderer.cpp
+    source/Engine/Text/Internal/FontRasterizer.cpp
+    source/Engine/Text/Internal/GlyphAtlas.cpp
+    source/Engine/Visualization/Plots/FieldPlots.cpp
+
     source/Controls/ControlSystem/NLAPID.cpp
     source/Simulation/CyclotronModel.cpp
-    source/Engine/Engine.cpp
-    source/Engine/Render/Camera.cpp
-    source/Engine/Render/Renderer.cpp
-    source/Engine/Render/Buffers/VAO.cpp
-    source/Engine/Render/Buffers/VBO.cpp
-    source/Engine/Render/Shader/Shader.cpp
-    source/Engine/Viz/Charts/LineChart/LineChart.cpp
-    source/Engine/Viz/Charts/TimeSeriesChart/TimeSeriesChart.cpp
-    source/Engine/Viz/Charts/ScatterPlot/ScatterPlot.cpp
-    source/Engine/Viz/Charts/HistogramChart/HistogramChart.cpp
-    source/Engine/Viz/Charts/SpectrumChart/SpectrumChart.cpp
-    source/Engine/Viz/Charts/HeatmapChart/HeatmapChart.cpp
-    source/Engine/Viz/Charts/AlarmTimelineChart/AlarmTimelineChart.cpp
-    source/Engine/Viz/Charts/BulletChart/BulletChart.cpp
-    source/Engine/Viz/Charts/StarPlot/StarPlot.cpp
-    source/Engine/Viz/Charts/BarChart/BarChart.cpp
-    source/Engine/Viz/Text/FontRenderer.cpp
-    source/Engine/Viz/Gauges/Speedometer/MagneticFieldSpeedometer.cpp
+    source/Engine/Visualization/Charts/TickFormatter.cpp
+    source/Engine/Visualization/Charts/LineChart.cpp
+    source/Engine/Visualization/Charts/TimeSeriesChart.cpp
+    source/Engine/Visualization/Charts/ScatterPlot.cpp
+    source/Engine/Visualization/Charts/HistogramChart.cpp
+    source/Engine/Visualization/Charts/SpectrumChart.cpp
+    source/Engine/Visualization/Charts/HeatmapChart.cpp
+    source/Engine/Visualization/Charts/AlarmTimelineChart.cpp
+    source/Engine/Visualization/Charts/BulletChart.cpp
+    source/Engine/Visualization/Charts/StarPlot.cpp
+    source/Engine/Visualization/Charts/BarChart.cpp
+    source/Engine/Visualization/Gauges/MagneticFieldSpeedometer.cpp
     source/Controls/Network/ZMQProtocol.cpp
     source/Controls/Network/ZMQReceiver.cpp
     source/Controls/Network/ZMQSender.cpp
@@ -61,6 +66,10 @@ add_library(crocker_engine STATIC
     source/Controls/Transport/SimulatorTransport.cpp
     source/Controls/Transport/ServerTransport.cpp
     source/Controls/Service/ControlService.cpp
+    source/Controls/Service/CommandGateway.cpp
+    source/Controls/Sequencer/SequenceValidator.cpp
+    source/Controls/Sequencer/Sequencer.cpp
+    source/Controls/Sequencer/SequenceRunner.cpp
     external/glad/src/glad.c
 )
 
@@ -88,6 +97,10 @@ endif()
 include(CTest)
 
 if(BUILD_TESTING)
+    add_executable(TextLayoutTest tests/TextLayoutTest.cpp)
+    target_link_libraries(TextLayoutTest PRIVATE crocker_engine)
+    add_test(NAME TextLayoutTest COMMAND TextLayoutTest)
+
     add_executable(CyclotronModelTest
         tests/CyclotronModelTest.cpp
         source/Simulation/CyclotronModel.cpp
@@ -100,6 +113,12 @@ if(BUILD_TESTING)
     )
     target_link_libraries(ControlServicePidTrialTest PRIVATE crocker_engine)
     add_test(NAME ControlServicePidTrialTest COMMAND ControlServicePidTrialTest)
+
+    foreach(sequence_test SequencerTest SequenceRunnerTest)
+        add_executable(${sequence_test} tests/${sequence_test}.cpp)
+        target_link_libraries(${sequence_test} PRIVATE crocker_engine)
+        add_test(NAME ${sequence_test} COMMAND ${sequence_test})
+    endforeach()
 
     add_executable(ControlServiceSequenceTest
         tests/ControlServiceSequenceTest.cpp
@@ -167,7 +186,14 @@ if(CROCKER_BUILD_OPENGL_TEST)
         find_package(glfw3 CONFIG REQUIRED)
     endif()
 
-    add_executable(CrockerOpenGLTest tests/OpenGLTest.cpp)
+    add_executable(CrockerOpenGLTest tests/OpenGLTest.cpp
+        examples/Triangle/Camera.cpp
+        examples/Triangle/Renderer.cpp
+        examples/Triangle/Buffers/VAO.cpp
+        examples/Triangle/Buffers/VBO.cpp
+        examples/Triangle/Shader/Shader.cpp
+    )
+    target_include_directories(CrockerOpenGLTest PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/examples/Triangle)
     target_link_libraries(CrockerOpenGLTest PRIVATE crocker_engine glfw)
 
     add_custom_command(TARGET CrockerOpenGLTest POST_BUILD

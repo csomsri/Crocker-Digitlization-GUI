@@ -24,6 +24,9 @@ def main() -> int:
     zmq = parse_args(["-ZMQ"])
     assert zmq.backend_mode == "zmq"
     assert zmq.simulation_mode is None
+    assert not zmq.show_fps
+    for flags in (["-simulation", "-smoke2"], ["-ZMQ"]):
+        assert parse_args([*flags, "-FPS"]).show_fps
 
     pipeline = parse_args(["-simulation", "-smoke", "--data-pipeline"])
     assert pipeline.data_pipeline is True

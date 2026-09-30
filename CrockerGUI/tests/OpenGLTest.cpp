@@ -4,9 +4,10 @@
         Standalone OpenGL 4.6 render pipeline smoke test
 */
 
-#include "Engine/Render/Renderer.hpp"
-#include "Engine/Viz/Charts/ChartTypes/BarChart.hpp"
-#include "Engine/Viz/Charts/ChartTypes/LineChart.hpp"
+#include "Renderer.hpp"
+#include "Engine/Graphics/RenderContext.hpp"
+#include "Engine/Visualization/Charts/BarChart.hpp"
+#include "Engine/Visualization/Charts/LineChart.hpp"
 
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
@@ -86,6 +87,7 @@ int main(int argc, char* argv[]) {
 
     try {
         Renderer::LoadOpenGL(reinterpret_cast<GLADloadproc>(glfwGetProcAddress));
+        crocker::engine::RenderContext::SetCurrentContext(reinterpret_cast<std::uintptr_t>(window));
 
         glEnable(GL_DEBUG_OUTPUT);
         glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
@@ -139,6 +141,8 @@ int main(int argc, char* argv[]) {
             glfwPollEvents();
         }
 
+        lineChart.ReleaseResources();
+        barChart.ReleaseResources();
         renderer.Shutdown();
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

@@ -14,6 +14,7 @@
 #include "Controls/Service/ControlService.hpp"
 
 #include "Controls/ControlSystem/NLAPID.hpp"
+#include "Controls/Sequencer/SequenceValidator.hpp"
 #include "Controls/Transport/ServerTransport.hpp"
 #include "Controls/Transport/SimulatorTransport.hpp"
 
@@ -43,6 +44,7 @@ ControlService::~ControlService()
  */
 void ControlService::StartSimulator(double updateRateHz)
 {
+    std::lock_guard operationLock(operationMutex_);
     StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
@@ -76,6 +78,7 @@ void ControlService::StartServer(const std::string& endpoint)
  */
 void ControlService::StartServer(const std::string& endpoint, const ControlScaling& scaling)
 {
+    std::lock_guard operationLock(operationMutex_);
     StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
@@ -93,6 +96,7 @@ void ControlService::StartServer(const std::string& endpoint, const ControlScali
  */
 void ControlService::Stop() noexcept
 {
+    std::lock_guard operationLock(operationMutex_);
     StopSequence();
     StopPidTrial();
     std::lock_guard<std::mutex> lifecycleLock(lifecycleMutex_);
@@ -140,7 +144,9 @@ void ControlService::SetChannelTarget(ChannelId channel, double target)
     ValidateChannel(channel);
 
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingCommand_[channel].target = target;
+    auto next = commandGateway_.Command();
+    next[channel].target = target;
+    commandGateway_.Replace(CommandOwner::Manual, next);
 }
 
 /**
@@ -154,7 +160,9 @@ void ControlService::SetChannelOn(ChannelId channel, bool on)
     ValidateChannel(channel);
 
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingCommand_[channel].on = on;
+    auto next = commandGateway_.Command();
+    next[channel].on = on;
+    commandGateway_.Replace(CommandOwner::Manual, next);
 }
 
 /**
@@ -168,7 +176,9 @@ void ControlService::SetChannelEnabled(ChannelId channel, bool enabled)
     ValidateChannel(channel);
 
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingCommand_[channel].enabled = enabled;
+    auto next = commandGateway_.Command();
+    next[channel].enabled = enabled;
+    commandGateway_.Replace(CommandOwner::Manual, next);
 }
 
 /**
@@ -182,7 +192,9 @@ void ControlService::SetChannelCommand(ChannelId channel, const ChannelCommand& 
     ValidateChannel(channel);
 
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingCommand_[channel] = command;
+    auto next = commandGateway_.Command();
+    next[channel] = command;
+    commandGateway_.Replace(CommandOwner::Manual, next);
 }
 
 /**
@@ -193,7 +205,7 @@ void ControlService::SetChannelCommand(ChannelId channel, const ChannelCommand& 
 void ControlService::SetCommand(const ControlCommand& command)
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    pendingCommand_ = command;
+    commandGateway_.Replace(CommandOwner::Manual, command);
 }
 
 /**
@@ -203,15 +215,9 @@ void ControlService::SetCommand(const ControlCommand& command)
  */
 void ControlService::SetScaling(const ControlScaling& scaling)
 {
-    std::shared_ptr<ControlTransportBase> transport;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        transport = transport_;
-    }
-
-    if (transport) {
-        transport->SetScaling(scaling);
-    }
+    std::lock_guard<std::mutex> lock(mutex_);
+    commandGateway_.Require(CommandOwner::Manual);
+    if (transport_) transport_->SetScaling(scaling);
 }
 
 /**
@@ -222,7 +228,7 @@ void ControlService::SetScaling(const ControlScaling& scaling)
 ControlCommand ControlService::PendingCommand() const
 {
     std::lock_guard<std::mutex> lock(mutex_);
-    return pendingCommand_;
+    return commandGateway_.Command();
 }
 
 /**
@@ -233,19 +239,10 @@ ControlCommand ControlService::PendingCommand() const
  */
 bool ControlService::ApplyCommand()
 {
-    std::shared_ptr<ControlTransportBase> transport;
-    ControlCommand command;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (!transport_) {
-            return false;
-        }
-
-        transport = transport_;
-        command = pendingCommand_;
-    }
-
-    return transport->SendCommand(command);
+    std::lock_guard lock(mutex_);
+    commandGateway_.Require(CommandOwner::Manual);
+    if (transport_) commandGateway_.CheckInterlocks(transport_->LatestSnapshot());
+    return transport_ && transport_->SendCommand(commandGateway_.Command());
 }
 
 /**
@@ -256,24 +253,21 @@ bool ControlService::ApplyCommand()
  */
 bool ControlService::DisableAll()
 {
-    std::shared_ptr<ControlTransportBase> transport;
-    ControlCommand command;
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (ChannelCommand& channel : pendingCommand_) {
-            channel.on = false;
-            channel.enabled = false;
-        }
+    std::lock_guard operationLock(operationMutex_);
+    StopSequence();
+    StopPidTrial(false);
+    return DisableAllFromWorker();
+}
 
-        if (!transport_) {
-            return false;
-        }
-
-        transport = transport_;
-        command = pendingCommand_;
-    }
-
-    return transport->SendCommand(command);
+bool ControlService::DisableAllFromWorker() noexcept
+{
+    try {
+        std::lock_guard lock(mutex_);
+        std::array<bool, ChannelCount> channels;
+        channels.fill(true);
+        commandGateway_.Disable(channels);
+        return transport_ && transport_->SendCommand(commandGateway_.Command());
+    } catch (...) { return false; }
 }
 
 // REVIEW THIS BEHAVIOR 
@@ -312,9 +306,13 @@ HealthStatus ControlService::Health() const
 
 void ControlService::StartPidTrial(const PidTrialConfig& config)
 {
+    std::lock_guard operationLock(operationMutex_);
     ValidatePidTrialConfig(config);
+    {
+        std::lock_guard lock(mutex_);
+        commandGateway_.Require(CommandOwner::Manual);
+    }
     StopPidTrial(false);
-    StopSequence(false);
 
     const TelemetrySnapshot snapshot = LatestSnapshot();
     if (snapshot.connection != ConnectionState::Connected) {
@@ -347,12 +345,23 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
             pidAllocatedChannels_[channel] = std::abs(config.allocation[channel]) > 0.0;
         }
     }
+    {
+        std::lock_guard lock(mutex_);
+        pidLease_ = commandGateway_.Acquire(CommandOwner::Pid);
+    }
     pidTrialRunning_.store(true);
-    pidTrialWorker_ = std::thread(&ControlService::RunPidTrial, this, config);
+    try { pidTrialWorker_ = std::thread(&ControlService::RunPidTrial, this, config); }
+    catch (...) {
+        pidTrialRunning_.store(false);
+        std::lock_guard lock(mutex_);
+        commandGateway_.Release(CommandOwner::Pid, pidLease_);
+        throw;
+    }
 }
 
 void ControlService::StopPidTrial(bool disableAllocatedChannels) noexcept
 {
+    std::lock_guard operationLock(operationMutex_);
     pidTrialRunning_.store(false);
     if (pidTrialWorker_.joinable() && pidTrialWorker_.get_id() != std::this_thread::get_id()) {
         pidTrialWorker_.join();
@@ -374,15 +383,9 @@ void ControlService::StopPidTrial(bool disableAllocatedChannels) noexcept
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
-    for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-        if (allocated[channel]) {
-            pendingCommand_[channel].on = false;
-            pendingCommand_[channel].enabled = false;
-        }
-    }
-    if (transport_) {
-        transport_->SendCommand(pendingCommand_);
-    }
+    if (commandGateway_.Owner() == CommandOwner::Sequence) return;
+    commandGateway_.Disable(allocated);
+    if (transport_) transport_->SendCommand(commandGateway_.Command());
 }
 
 void ControlService::SetPidBeamMeasurement(double nanoamps, double timestampUnixSeconds, bool valid)
@@ -451,7 +454,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 SetPidTrialFault(!telemetryFresh ? "Telemetry watchdog expired"
                     : !connectionHealthy ? "Control transport disconnected"
                     : "Measurement channel fault or interlock");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
@@ -481,13 +484,13 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             const double error = config.setpoint - measurement.actual;
             if (std::abs(error) > config.maxAbsoluteError) {
                 SetPidTrialFault("Absolute error abort limit exceeded");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
             if (measurement.actual - config.setpoint > config.maxOvershoot) {
                 SetPidTrialFault("Overshoot abort limit exceeded");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
@@ -499,7 +502,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             if (!std::isfinite(output)) throw std::runtime_error("Nonfinite PID output");
             if (std::abs(output) > config.maxControlOutput) {
                 SetPidTrialFault("Control-output abort limit exceeded");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
@@ -534,7 +537,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             saturationSeconds = saturated ? saturationSeconds + dt : 0.0;
             if (saturationSeconds > config.maxSaturationSeconds) {
                 SetPidTrialFault("Command saturation persisted beyond abort limit");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
@@ -543,12 +546,14 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             const double commandDelta = target - lastCommand[config.measurementChannel].target;
             bool sent = true;
             if (!config.dryRun) {
-                SetCommand(command);
-                sent = ApplyCommand();
+                std::lock_guard lock(mutex_);
+                commandGateway_.Replace(CommandOwner::Pid, command);
+                if (transport_) commandGateway_.CheckInterlocks(transport_->LatestSnapshot());
+                sent = transport_ && transport_->SendCommand(commandGateway_.Command());
             }
             if (!sent) {
                 SetPidTrialFault("Control command was not acknowledged");
-                if (!config.dryRun) DisableAll();
+                if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
@@ -577,12 +582,16 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
         }
     } catch (const std::exception& error) {
         SetPidTrialFault(error.what());
-        if (!config.dryRun) DisableAll();
+        if (!config.dryRun) DisableAllFromWorker();
         pidTrialRunning_.store(false);
     } catch (...) {
         SetPidTrialFault("Unknown PID worker failure");
-        if (!config.dryRun) DisableAll();
+        if (!config.dryRun) DisableAllFromWorker();
         pidTrialRunning_.store(false);
+    }
+    {
+        std::lock_guard lock(mutex_);
+        commandGateway_.Release(CommandOwner::Pid, pidLease_);
     }
 }
 
@@ -654,234 +663,65 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
 
 void ControlService::StartSequence(const SequenceRunConfig& config)
 {
-    ValidateSequenceRunConfig(config);
-    StopPidTrial();
-    StopSequence(false);
-
-    const TelemetrySnapshot snapshot = LatestSnapshot();
-    if (config.requireConnected && snapshot.connection != ConnectionState::Connected) {
-        throw std::runtime_error("sequence requires a connected control transport");
-    }
-
+    const auto definition = SequenceValidator::FromConfig(config);
+    std::lock_guard operationLock(operationMutex_);
+    std::uint64_t lease;
     {
-        std::lock_guard<std::mutex> lock(sequenceMutex_);
-        sequenceStatus_ = {};
-        sequenceStatus_.state = SequenceRunState::Running;
-        sequenceStatus_.message = "Sequence running";
-        sequenceStatus_.stepCount = config.sequence.size();
-        sequenceTouchedChannels_.fill(false);
-        for (const SequencePoint& point : config.sequence) {
-            for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-                sequenceTouchedChannels_[channel] = sequenceTouchedChannels_[channel] || point.targets[channel].has_value();
-            }
-        }
+        std::lock_guard lock(mutex_);
+        lease = commandGateway_.Acquire(CommandOwner::Sequence);
     }
-
-    sequenceRunning_.store(true);
-    sequenceWorker_ = std::thread(&ControlService::RunSequence, this, config);
+    std::array<bool, ChannelCount> touched{};
+    for (const auto& step : definition.steps)
+        for (ChannelId ch = 0; ch < ChannelCount; ++ch)
+            touched[ch] = touched[ch] || step.targets[ch].has_value();
+    try {
+        if (LatestSnapshot().connection != ConnectionState::Connected)
+            throw std::runtime_error("Connect to the machine or start the simulator before running a sequence.");
+        sequenceRunner_.Start(definition,
+            [this] { return SequenceInput{LatestSnapshot(), Health()}; },
+            [this, limits = definition.limits](const auto& targets) {
+                std::lock_guard lock(mutex_);
+                if (!transport_) return false;
+                commandGateway_.MergeSequence(targets, transport_->LatestSnapshot(), limits);
+                commandGateway_.CheckInterlocks(transport_->LatestSnapshot());
+                return transport_->SendCommand(commandGateway_.Command());
+            },
+            [this, lease, touched](StopPolicy policy) {
+                std::lock_guard lock(mutex_);
+                bool sent = true;
+                try {
+                    if (policy == StopPolicy::DisableChannels) {
+                        commandGateway_.Disable(touched);
+                        sent = transport_ && transport_->SendCommand(commandGateway_.Command());
+                    }
+                } catch (...) {
+                    commandGateway_.Release(CommandOwner::Sequence, lease);
+                    throw;
+                }
+                commandGateway_.Release(CommandOwner::Sequence, lease);
+                return sent;
+            });
+    } catch (...) {
+        std::lock_guard lock(mutex_);
+        commandGateway_.Release(CommandOwner::Sequence, lease);
+        throw;
+    }
 }
 
 void ControlService::StopSequence(bool disableChannels) noexcept
 {
-    sequenceRunning_.store(false);
-    if (sequenceWorker_.joinable() && sequenceWorker_.get_id() != std::this_thread::get_id()) {
-        sequenceWorker_.join();
-    }
-
-    std::array<bool, ChannelCount> touched{};
-    {
-        std::lock_guard<std::mutex> lock(sequenceMutex_);
-        touched = sequenceTouchedChannels_;
-        if (sequenceStatus_.state == SequenceRunState::Running || sequenceStatus_.state == SequenceRunState::Dwelling) {
-            sequenceStatus_.state = SequenceRunState::Stopped;
-            sequenceStatus_.message = "Sequence stopped";
-        }
-    }
-
-    if (!disableChannels) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lock(mutex_);
-    for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-        if (touched[channel]) {
-            pendingCommand_[channel].on = false;
-            pendingCommand_[channel].enabled = false;
-        }
-    }
-    if (transport_) {
-        transport_->SendCommand(pendingCommand_);
-    }
+    std::lock_guard operationLock(operationMutex_);
+    sequenceRunner_.Stop(disableChannels);
 }
 
 SequenceRunStatus ControlService::SequenceStatusSnapshot() const
 {
-    std::lock_guard<std::mutex> lock(sequenceMutex_);
-    return sequenceStatus_;
+    return sequenceRunner_.StatusSnapshot();
 }
 
-void ControlService::RunSequence(SequenceRunConfig config) noexcept
+std::vector<SequenceEvent> ControlService::SequenceEventsSnapshot() const
 {
-    using clock = std::chrono::steady_clock;
-    const auto period = std::chrono::duration<double>(1.0 / config.updateRateHz);
-    const auto started = clock::now();
-    ControlCommand command = PendingCommand();
-
-    for (std::size_t stepIndex = 0; stepIndex < config.sequence.size() && sequenceRunning_.load(); ++stepIndex) {
-        const SequencePoint& point = config.sequence[stepIndex];
-        for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-            if (point.targets[channel].has_value()) {
-                command[channel] = ChannelCommand{*point.targets[channel], true, true};
-            }
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            pendingCommand_ = command;
-        }
-        if (!ApplyCommand()) {
-            SetSequenceFault("Sequence command was not acknowledged");
-            sequenceRunning_.store(false);
-            break;
-        }
-
-        const auto stepStarted = clock::now();
-        auto nextTick = stepStarted;
-        bool reached = false;
-        while (sequenceRunning_.load()) {
-            const TelemetrySnapshot snapshot = LatestSnapshot();
-            const HealthStatus health = Health();
-            const double elapsed = std::chrono::duration<double>(clock::now() - started).count();
-            const double stepElapsed = std::chrono::duration<double>(clock::now() - stepStarted).count();
-            const bool connectionHealthy = snapshot.connection == ConnectionState::Connected;
-            const bool telemetryFresh = health.packetAgeMilliseconds <= config.stepTimeoutSeconds * 1000.0;
-            if (config.requireConnected && (!connectionHealthy || !telemetryFresh)) {
-                SetSequenceFault(!connectionHealthy ? "Control transport disconnected" : "Sequence telemetry watchdog expired");
-                sequenceRunning_.store(false);
-                break;
-            }
-
-            reached = true;
-            for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
-                if (!point.targets[channel].has_value()) {
-                    continue;
-                }
-                const ChannelTelemetry& telemetry = snapshot.channels[channel];
-                if (telemetry.interlocked || telemetry.status == ChannelStatus::Fault || telemetry.status == ChannelStatus::Interlocked) {
-                    SetSequenceFault("Sequence channel fault or interlock");
-                    sequenceRunning_.store(false);
-                    reached = false;
-                    break;
-                }
-                reached = reached && std::abs(telemetry.actual - *point.targets[channel]) <= config.targetTolerance;
-            }
-
-            {
-                std::lock_guard<std::mutex> lock(sequenceMutex_);
-                sequenceStatus_.state = SequenceRunState::Running;
-                sequenceStatus_.message = "Ramping to sequence target";
-                sequenceStatus_.stepIndex = stepIndex;
-                sequenceStatus_.stepCount = config.sequence.size();
-                sequenceStatus_.elapsedSeconds = elapsed;
-                sequenceStatus_.dwellRemainingSeconds = point.timeSeconds;
-                sequenceStatus_.targetReached = reached;
-                sequenceStatus_.watchdogHealthy = true;
-            }
-
-            if (!sequenceRunning_.load() || reached) {
-                break;
-            }
-            if (stepElapsed >= config.stepTimeoutSeconds) {
-                SetSequenceFault("Sequence step timed out before reaching target");
-                sequenceRunning_.store(false);
-                break;
-            }
-
-            nextTick += std::chrono::duration_cast<clock::duration>(period);
-            std::this_thread::sleep_until(nextTick);
-        }
-
-        if (!sequenceRunning_.load()) {
-            break;
-        }
-
-        const auto dwellStarted = clock::now();
-        auto dwellNextTick = dwellStarted;
-        while (sequenceRunning_.load()) {
-            const double dwellElapsed = std::chrono::duration<double>(clock::now() - dwellStarted).count();
-            const double remaining = std::max(0.0, point.timeSeconds - dwellElapsed);
-            {
-                std::lock_guard<std::mutex> lock(sequenceMutex_);
-                sequenceStatus_.state = SequenceRunState::Dwelling;
-                sequenceStatus_.message = "Dwelling at sequence target";
-                sequenceStatus_.stepIndex = stepIndex;
-                sequenceStatus_.stepCount = config.sequence.size();
-                sequenceStatus_.elapsedSeconds = std::chrono::duration<double>(clock::now() - started).count();
-                sequenceStatus_.dwellRemainingSeconds = remaining;
-                sequenceStatus_.targetReached = true;
-                sequenceStatus_.watchdogHealthy = true;
-            }
-            if (dwellElapsed >= point.timeSeconds) {
-                break;
-            }
-            dwellNextTick += std::chrono::duration_cast<clock::duration>(period);
-            std::this_thread::sleep_until(dwellNextTick);
-        }
-    }
-
-    if (sequenceRunning_.load()) {
-        std::lock_guard<std::mutex> lock(sequenceMutex_);
-        sequenceStatus_.state = SequenceRunState::Completed;
-        sequenceStatus_.message = "Sequence completed";
-        sequenceStatus_.stepIndex = config.sequence.empty() ? 0 : config.sequence.size() - 1;
-        sequenceStatus_.stepCount = config.sequence.size();
-        sequenceStatus_.dwellRemainingSeconds = 0.0;
-        sequenceStatus_.targetReached = true;
-        sequenceStatus_.watchdogHealthy = true;
-    }
-    sequenceRunning_.store(false);
-}
-
-void ControlService::SetSequenceFault(const std::string& message) noexcept
-{
-    std::lock_guard<std::mutex> lock(sequenceMutex_);
-    sequenceStatus_.state = SequenceRunState::Faulted;
-    sequenceStatus_.message = message;
-    sequenceStatus_.watchdogHealthy = false;
-}
-
-void ControlService::ValidateSequenceRunConfig(const SequenceRunConfig& config)
-{
-    const double scalars[] = {config.updateRateHz, config.targetTolerance, config.stepTimeoutSeconds};
-    for (double value : scalars) {
-        if (!std::isfinite(value)) {
-            throw std::invalid_argument("sequence timing and tolerance values must be finite");
-        }
-    }
-    if (config.sequence.empty()) {
-        throw std::invalid_argument("sequence requires at least one step");
-    }
-    if (config.updateRateHz <= 0.0 || config.targetTolerance < 0.0 || config.stepTimeoutSeconds <= 0.0) {
-        throw std::invalid_argument("sequence timing values must be positive and tolerance must be non-negative");
-    }
-    for (const SequencePoint& point : config.sequence) {
-        if (!std::isfinite(point.timeSeconds) || point.timeSeconds < 0.0) {
-            throw std::invalid_argument("sequence dwell times must be finite and non-negative");
-        }
-        bool hasTarget = false;
-        for (const std::optional<double>& target : point.targets) {
-            if (!target.has_value()) {
-                continue;
-            }
-            hasTarget = true;
-            if (!std::isfinite(*target)) {
-                throw std::invalid_argument("sequence targets must be finite");
-            }
-        }
-        if (!hasTarget) {
-            throw std::invalid_argument("each sequence step requires at least one target");
-        }
-    }
+    return sequenceRunner_.EventsSnapshot();
 }
 
 /**

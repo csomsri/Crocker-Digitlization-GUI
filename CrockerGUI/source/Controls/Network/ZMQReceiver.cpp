@@ -14,7 +14,12 @@
 
 #include <algorithm>
 #include <cstring>
+#include <cstdlib>
+#include <iomanip>
 #include <iostream>
+#include <limits>
+#include <sstream>
+#include <syncstream>
 #include <utility>
 
 namespace Protocol = Crocker::Controls::Network::ZMQProtocol;
@@ -29,7 +34,49 @@ ZMQReceiver::ZMQReceiver(std::string endpoint)
       context_(1),
       socket_(context_, zmq::socket_type::rep)
 {
+    const char* logging = std::getenv("CROCKER_ZMQ_PACKET_LOG");
+    packetLogging_ = logging && std::string(logging) == "1";
     ConfigureSocket();
+}
+
+// Diagnostic only: terminal I/O can affect timing, so enable for short captures.
+void ZMQReceiver::LogFrame(const char* direction, const zmq::message_t& message)
+{
+    if (!packetLogging_) return;
+    const auto now = std::chrono::steady_clock::now();
+    const bool receiving = std::strcmp(direction, "RX") == 0;
+    std::ostringstream line;
+    line << std::setprecision(std::numeric_limits<double>::max_digits10)
+         << "[ZMQ " << direction << "] endpoint=" << endpoint_;
+    if (receiving) {
+        ++exchange_;
+        receivedAt_ = now;
+    }
+    line << " exchange=" << exchange_
+         << " unix_s=" << std::chrono::duration<double>(
+                std::chrono::system_clock::now().time_since_epoch()).count()
+         << " bytes=" << message.size();
+    if (receiving && lastReceive_ != std::chrono::steady_clock::time_point{}) {
+        line << " rx_gap_ms=" << std::chrono::duration<double, std::milli>(now - lastReceive_).count();
+    } else if (!receiving && receivedAt_ != std::chrono::steady_clock::time_point{}) {
+        line << " reply_ms=" << std::chrono::duration<double, std::milli>(now - receivedAt_).count();
+    }
+    if (receiving) lastReceive_ = now;
+    if (message.size() % sizeof(double) == 0) {
+        const auto values = Protocol::UnpackDoubles(message);
+        if (receiving) line << " inferred_channels=" << Protocol::InferChannelCount(values.size());
+        line << " values=[";
+        for (std::size_t i = 0; i < values.size(); ++i) {
+            if (i) line << ',';
+            line << values[i];
+        }
+        line << ']';
+    } else {
+        line << " invalid_frame_hex=" << std::hex << std::setfill('0');
+        const auto* bytes = static_cast<const unsigned char*>(message.data());
+        for (std::size_t i = 0; i < message.size(); ++i) line << std::setw(2) << unsigned(bytes[i]);
+    }
+    std::osyncstream(std::cout) << line.str() << std::endl;
 }
 
 /**
@@ -79,6 +126,7 @@ zmq::message_t ZMQReceiver::ReceiveMessage()
         return {};
     }
 
+    LogFrame("RX", message);
     return message;
 }
 
@@ -116,6 +164,7 @@ bool ZMQReceiver::TryReceivePacket(Protocol::Packet& packet)
         return false;
     }
 
+    LogFrame("RX", message);
     if (!Protocol::IsValidFrameSize(message.size())) {
         return true;
     }
@@ -164,7 +213,11 @@ void ZMQReceiver::SendReply(
 
     zmq::message_t reply(replyValues.size() * sizeof(double));
     std::memcpy(reply.data(), replyValues.data(), reply.size());
-    socket_.send(reply, zmq::send_flags::none);
+    // A successful ZeroMQ send consumes the message, so retain the wire bytes.
+    zmq::message_t loggedReply;
+    if (packetLogging_) loggedReply.copy(reply);
+    const auto sent = socket_.send(reply, zmq::send_flags::none);
+    LogFrame(sent.has_value() ? "TX" : "TX_TIMEOUT", loggedReply);
 }
 
 

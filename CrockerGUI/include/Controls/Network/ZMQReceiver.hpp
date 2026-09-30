@@ -3,6 +3,7 @@
 #include "Controls/Network/ZMQProtocol.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <string>
 
@@ -84,6 +85,12 @@ public:
 private:
     std::string BindWithFallBack(const std::string& preferredEndpoint);
     void ConfigureSocket();
+    void LogFrame(const char* direction, const zmq::message_t& message);
+
+    bool packetLogging_ = false;
+    std::uint64_t exchange_ = 0;
+    std::chrono::steady_clock::time_point lastReceive_{};
+    std::chrono::steady_clock::time_point receivedAt_{};
 
     std::string endpoint_;
     zmq::context_t context_;

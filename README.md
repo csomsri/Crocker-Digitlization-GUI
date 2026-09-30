@@ -71,7 +71,24 @@ python main.py -simulation -smoke
 python main.py -simulation -smoke2
 python main.py -simulation -cyclotron
 python main.py -ZMQ
+python main.py -simulation -smoke2 -FPS
+python main.py -ZMQ -FPS
 ```
+
+Add `-FPS` to any backend mode to open a movable, always-on-top performance
+panel. Close hides it; F10 reopens it. It follows page changes and automatically
+discovers OpenGL charts, including assigned monitor windows. Counters update
+once per second: GUI repaint FPS, per-chart FPS range, average/p95 presentation intervals,
+device-wide NVIDIA GPU utilization and VRAM (via a background `nvidia-smi`
+query), telemetry packets/s and receive age, process CPU usage, and UI timer
+delay. Missing GPU/backend data is shown as unavailable. Idle charts may show
+zero. Presentation intervals are not GPU render duration; CUDA kernel timing
+is not instrumented.
+
+GUI repaint FPS counts paint-event batches across the main and assigned-monitor
+windows, excluding the performance panel. Multiple child paints in one batch
+count once. It measures GUI repaint activity, not screen refresh rate; an idle
+GUI can correctly show zero.
 
 `-smoke2` starts a running-machine simulator: channels begin at nonzero live
 currents, Field Ctrl reads those values on connect, and simulated control only

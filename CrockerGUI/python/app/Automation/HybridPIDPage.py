@@ -47,9 +47,9 @@ class HybridCostPlot(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.fillRect(self.rect(), QColor('#101a29'))
-        colors = {'Baseline':'#a5b4fc','GA':'#fb923c','BO':'#38bdf8','Confirm':'#4ade80'}
+        colors = {'Baseline':'#a5b4fc','Reference':'#a5b4fc','Exploration':'#facc15','GA':'#fb923c','BO':'#38bdf8','Confirm':'#4ade80'}
         p.setPen(QColor('#dce7f5'))
-        p.drawText(16,24,'Measured cost: baseline (purple), GA (orange), BO (blue), confirmation (green)')
+        p.drawText(16,24,'Baseline/reference: purple · Exploration: yellow · GA: orange · BO: blue · Confirmation: green')
         p.drawText(16,44,'Prediction: hollow gray point ±1 model standard deviation. Failed trials have no comparable cost.')
         rows = [r for r in self.records if r['cost'] is not None]
         values = [r['cost'] for r in rows]
@@ -117,6 +117,9 @@ class HybridPIDPage(PidControlPage):
                     ('mutation_probability','Mutation probability',.25,0,1,3),('mutation_scale','Mutation scale / gain span',.1,0,1,3),('seed','Random seed',1729,0,999999,0)]),
             ('Handover', [('minimum_distinct','Distinct points before BO',12,4,100,0),('coverage','Minimum span / gain bound',.35,.05,1,3),
                     ('improvement_fraction','Minimum improvement: cost AND beam MAE',.05,.001,1,3),('confirmation_pairs','Paired confirmations',3,3,10,0),('plateau_trials','BO trials without improvement',5,1,30,0)]),
+            ('Data quality', [('reference_interval','Trials between reference batches',8,1,100,0),
+                    ('exploration_interval','Search trials between exploration points',5,1,100,0),
+                    ('drift_fraction','Reference drift fraction',.2,.001,1,3)]),
             ('Trials and recovery', [('warmup','Warmup within trial (s)',5,0,120,2),('max_error','Beam error abort (nA)',3,.01,1000,3),
                     ('excursion','Maximum TC excursion from baseline (A)',.5,.01,100,3),('saturation','Saturation abort (s)',5,.1,60,2),
                     ('recovery_step','Recovery command step (A)',.02,.001,1,3),('recovery_hold','Baseline stable hold (s)',2,.1,30,2),
@@ -154,10 +157,10 @@ class HybridPIDPage(PidControlPage):
         self.hybrid_settings.resize(660,510)
         strip = QWidget()
         row = QHBoxLayout(strip)
-        self.phase_label = QLabel('Baseline → GA → BO challenger → Confirmation → BO → Validation')
-        self.phase_label.setStyleSheet('color: #dce7f5; padding: 4px;')
-        self.phase_label.setWordWrap(True)
-        row.addWidget(self.phase_label,1)
+        self.state_label = QLabel('Baseline → GA → BO challenger → Confirmation → BO → Validation')
+        self.state_label.setStyleSheet('color: #dce7f5; padding: 4px;')
+        self.state_label.setWordWrap(True)
+        row.addWidget(self.state_label,1)
         settings = QPushButton('Hybrid settings')
         settings.clicked.connect(self.hybrid_settings.show)
         row.addWidget(settings)
@@ -374,13 +377,14 @@ class HybridPIDPage(PidControlPage):
                 super()._poll_tuning_workflow()
             if not self.tuning_session_active:
                 return
-            phase = 'Recovery' if self.recovering else 'Validation' if self._validating_gains else self.hybrid.phase
+            state = 'Recovery' if self.recovering else 'Validation' if self._validating_gains else self.hybrid.state
+            source = f' · Trial source: {self.hybrid.pending_source}' if self.hybrid.pending_source else ''
             g,pop,index,total = self.hybrid.ga.progress()
             prediction = ''
             if self.hybrid.prediction and (self.tuning_trial_candidate or self.tuning_candidate):
                 mu,sigma = self.hybrid.prediction
                 prediction = f' · BO prediction {mu:.4g} ± {sigma:.3g}'
-            self.phase_label.setText(f'{phase} · Trial {len(self.hybrid.results)}/{self.hybrid.config.budget} · GA generation {g}, candidate {index}/{total}{prediction}\n{self.hybrid.reason}')
+            self.state_label.setText(f'State: {state}{source} · Trial {len(self.hybrid.results)}/{self.hybrid.config.budget} · GA generation {g}, candidate {index}/{total}{prediction}\n{self.hybrid.reason}')
         except Exception as exc:
             self.hybrid._transition('Stopped',f'Experiment stopped: {exc}')
             self._stop_tuning_session()
@@ -423,6 +427,13 @@ class HybridPIDPage(PidControlPage):
         self.tuning_trial_candidate = None
         self.review_history_button.setEnabled(True)
         self._save_session(samples)
+        if self.hybrid.reference_drift_detected:
+            reason = self.hybrid.reason
+            self._stop_tuning_session()
+            self.tuner_status.setText(reason)
+            self.apply_tuned_gains_button.setEnabled(False)
+            self.approve_gains_button.setEnabled(False)
+            return
         if not safe:
             self._stop_tuning_session()
             self.tuner_status.setText('Hybrid stopped: failed trials are excluded from performance training.')
@@ -466,7 +477,7 @@ class HybridPIDPage(PidControlPage):
             super()._run_tuning_trial()
         elif action == 'validation':
             super()._finish_gain_validation(*self._validation_result)
-            self.phase_label.setText('Validation passed · applying gains leaves PID stopped.' if self.apply_tuned_gains_button.isEnabled()
+            self.state_label.setText('Validation passed · applying gains leaves PID stopped.' if self.apply_tuned_gains_button.isEnabled()
                                     else 'Validation failed · gains cannot be applied.')
             self._save_session()
         else:
@@ -514,7 +525,7 @@ class HybridPIDPage(PidControlPage):
     def _finish_tuning_session(self):
         super()._finish_tuning_session()
         self.restore_button.setEnabled(False)
-        self.phase_label.setText('Search complete · Validate best gains before applying')
+        self.state_label.setText('Search complete · Validate best gains before applying')
         self._save_session()
 
     def _record_abort(self, reason):
@@ -552,8 +563,9 @@ class HybridPIDPage(PidControlPage):
         if hasattr(self,'restore_button'):
             self.restore_button.setEnabled(False)
         if self.hybrid:
-            self.hybrid.reason = 'Session stopped; restart creates a new comparison history.'
-            self.phase_label.setText('Stopped · no further trials will run. '+self.last_safety_message)
+            if not self.hybrid.reference_drift_detected:
+                self.hybrid.reason = 'Session stopped; restart creates a new comparison history.'
+            self.state_label.setText('Stopped · no further trials will run. '+self.last_safety_message)
             self._save_session()
 
     def _save_session(self,samples=None):
@@ -562,6 +574,7 @@ class HybridPIDPage(PidControlPage):
         try:
             payload = dict(self._session_metadata,config=asdict(self.hybrid.config),trial_settings=self._settings,
                 records=self.hybrid.records,events=self.hybrid.events,
+                feasibility_observations=self.hybrid.feasibility_observations,
                 validation_passed=self.apply_tuned_gains_button.isEnabled(),
                 validation_candidate=asdict(self._validation_result[0]) if self._validation_result else None,
                 validation_metrics=asdict(self._validation_result[1]) if self._validation_result and self._validation_result[1] else None)
@@ -574,7 +587,7 @@ class HybridPIDPage(PidControlPage):
                 file_writer.submit(write_csv, self._session_path/'validation.csv',
                                    tuple(tuple(r) for r in self.tuning_samples), header)
         except (OSError,ValueError) as exc:
-            self.phase_label.setText(f'Export failed: {exc}')
+            self.state_label.setText(f'Export failed: {exc}')
 
     def _show_hybrid_history(self):
         records = list(self.hybrid.records) if self.hybrid else []
@@ -582,16 +595,16 @@ class HybridPIDPage(PidControlPage):
         layout = setup_pid_dialog(dialog,'Hybrid measured history',window_controls=False)
         tabs = QTabWidget()
         tabs.addTab(HybridCostPlot(records),'Measured costs / predictions')
-        keys = ['trial','source','phase','kp','ki','kd','cost','beam_mae_nA','steady_error_nA','safe','settled','prediction','prediction_std','beam_error_gate','reason']
+        keys = ['trial','source','state','kp','ki','kd','cost','beam_mae_nA','steady_error_nA','safe','valid_response','settled','prediction','prediction_std','beam_error_gate','reference_check','confirmation_order','reason']
         table = QTableWidget(len(records),len(keys))
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setHorizontalHeaderLabels(keys)
         for i,r in enumerate(records):
             for j,k in enumerate(keys):
-                table.setItem(i,j,QTableWidgetItem('—' if r[k] is None else str(r[k])))
+                table.setItem(i,j,QTableWidgetItem('—' if r.get(k) is None else str(r[k])))
         table.resizeColumnsToContents()
         tabs.addTab(table,'Trials')
-        decisions = QLabel('\n\n'.join(f"After trial {e['after_trial']} · {e['phase']}\n{e['reason']}" for e in self.hybrid.events) if self.hybrid else 'No decisions yet')
+        decisions = QLabel('\n\n'.join(f"After trial {e['after_trial']} · {e['state']}\n{e['reason']}" for e in self.hybrid.events) if self.hybrid else 'No decisions yet')
         decisions.setWordWrap(True)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)

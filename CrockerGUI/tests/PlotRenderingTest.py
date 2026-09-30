@@ -30,7 +30,7 @@ page.resize(1280, 820)
 page.last_safety_message = "No hardware profile for TC1. Open Edit Hardware Profile and configure/review this coil's limits. Existing profiles: TC10."
 page._refresh_status()
 widgets.append(('pid-status', page, [page.time_plot.beam, page.time_plot.coil]))
-profile = HardwareProfileDialog(None, CHANNEL_NAMES)
+profile = HardwareProfileDialog(page, CHANNEL_NAMES)
 profile.resize(720, 740)
 widgets.append(('profile', profile, []))
 beam = BeamResponsePlot()

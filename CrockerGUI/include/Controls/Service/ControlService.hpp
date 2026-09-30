@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Controls/ControlTypes.hpp"
+#include "Controls/Sequencer/SequenceRunner.hpp"
+#include "Controls/Service/CommandGateway.hpp"
 #include "Controls/Transport/ControlTransportBase.hpp"
 
 #include <memory>
@@ -49,6 +51,7 @@ public:
     void StartSequence(const SequenceRunConfig& config);
     void StopSequence(bool disableChannels = false) noexcept;
     [[nodiscard]] SequenceRunStatus SequenceStatusSnapshot() const;
+    [[nodiscard]] std::vector<SequenceEvent> SequenceEventsSnapshot() const;
 
 private:
     double pidBeamNanoamps_ = 0.0;
@@ -58,9 +61,7 @@ private:
     void RunPidTrial(PidTrialConfig config) noexcept;
     void SetPidTrialFault(const std::string& message) noexcept;
     static void ValidatePidTrialConfig(const PidTrialConfig& config);
-    void RunSequence(SequenceRunConfig config) noexcept;
-    void SetSequenceFault(const std::string& message) noexcept;
-    static void ValidateSequenceRunConfig(const SequenceRunConfig& config);
+    bool DisableAllFromWorker() noexcept;
 
     static void ValidateChannel(ChannelId channel);
     static TelemetrySnapshot DisconnectedSnapshot();
@@ -70,7 +71,9 @@ private:
     std::mutex lifecycleMutex_;
     mutable std::mutex mutex_;
     std::shared_ptr<ControlTransportBase> transport_;
-    ControlCommand pendingCommand_{};
+    CommandGateway commandGateway_;
+    std::recursive_mutex operationMutex_;
+    std::uint64_t pidLease_ = 0;
 
     mutable std::mutex pidTrialMutex_;
     std::thread pidTrialWorker_;
@@ -79,11 +82,8 @@ private:
     bool pidTrialDryRun_ = true; // Protected by pidTrialMutex_.
     std::array<bool, ChannelCount> pidAllocatedChannels_{};
 
-    mutable std::mutex sequenceMutex_;
-    std::thread sequenceWorker_;
-    std::atomic_bool sequenceRunning_{false};
-    SequenceRunStatus sequenceStatus_{};
-    std::array<bool, ChannelCount> sequenceTouchedChannels_{};
+    SequenceRunner sequenceRunner_;
+
 };
 
 } // namespace crocker::controls

@@ -51,6 +51,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Use the cyclotron model as the ZMQ control plant.",
     )
     parser.add_argument(
+        "-FPS",
+        action="store_true",
+        dest="show_fps",
+        help="Display live presentation FPS for visible OpenGL charts.",
+    )
+    parser.add_argument(
         "--zmq-endpoint",
         default="tcp://0.0.0.0:5555",
         help="Endpoint used with -ZMQ. Default: tcp://0.0.0.0:5555",
@@ -102,5 +108,6 @@ if __name__ == "__main__":
             args.simulation_mode,
             enable_data_pipeline=args.data_pipeline,
             db_path=args.db_path,
+            show_fps=args.show_fps,
         )
     )

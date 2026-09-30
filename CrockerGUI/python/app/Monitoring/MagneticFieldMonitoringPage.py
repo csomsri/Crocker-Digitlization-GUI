@@ -1,4 +1,5 @@
 from __future__ import annotations
+from python.app.widgets.NativeRenderLifecycle import NativeRenderLifecycle
 
 import math
 from collections.abc import Callable
@@ -286,7 +287,7 @@ class QtMagneticLinePlot(QWidget):
         return bucketed
 
 
-class NativeMagneticBarPlot(QOpenGLWidget):
+class NativeMagneticBarPlot(NativeRenderLifecycle, QOpenGLWidget):
     def __init__(
         self,
         title: str,
@@ -321,6 +322,7 @@ class NativeMagneticBarPlot(QOpenGLWidget):
 
             CycloViz.load_opengl(get_proc)
             self._native = CycloViz.MagneticFieldBarPlot()
+            self._connect_native_cleanup()
             self._ready = True
         except Exception as exc:
             self._ready = False
@@ -335,13 +337,15 @@ class NativeMagneticBarPlot(QOpenGLWidget):
         values = [float(self.state.actual_values[index]) for index in enabled]
         self._native.set_data(self.title, labels, values)
         pixel_ratio = self.devicePixelRatio()
+        self._activate_native_context()
         self._native.render(
             max(1, int(round(self.width() * pixel_ratio))),
             max(1, int(round(self.height() * pixel_ratio))),
+            pixel_ratio,
         )
 
 
-class NativeMagneticLinePlot(QOpenGLWidget):
+class NativeMagneticLinePlot(NativeRenderLifecycle, QOpenGLWidget):
     def __init__(
         self,
         title: str,
@@ -375,6 +379,7 @@ class NativeMagneticLinePlot(QOpenGLWidget):
 
             CycloViz.load_opengl(get_proc)
             self._native = CycloViz.MagneticFieldLinePlot()
+            self._connect_native_cleanup()
             self._ready = True
         except Exception as exc:
             self._ready = False
@@ -389,9 +394,11 @@ class NativeMagneticLinePlot(QOpenGLWidget):
         samples = self._line_samples(enabled)
         self._native.set_data(self.title, labels, samples)
         pixel_ratio = self.devicePixelRatio()
+        self._activate_native_context()
         self._native.render(
             max(1, int(round(self.width() * pixel_ratio))),
             max(1, int(round(self.height() * pixel_ratio))),
+            pixel_ratio,
         )
 
     def _line_samples(self, enabled: list[int]) -> list[list[float]]:

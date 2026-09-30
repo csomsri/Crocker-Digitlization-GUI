@@ -65,4 +65,33 @@ int main()
         assert(rejected);
         service.StopSequence();
     }
+
+    {
+        ControlService service;
+        service.StartSimulator(120.0);
+        auto config = SingleChannelSequence();
+        config.sequence[0].timeSeconds = 10;
+        config.disableChannelsOnStop = true;
+        service.StartSequence(config);
+        bool rejected = false;
+        try { service.SetChannelTarget(0, 200); }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
+        rejected = false;
+        try { service.StartSequence(config); }
+        catch (const std::runtime_error&) { rejected = true; }
+        assert(rejected);
+        // Repeated StopPidTrial must not disturb the active sequence.
+        service.StopPidTrial();
+        service.StopSequence();
+        assert(service.SequenceStatusSnapshot().state == SequenceRunState::Stopped);
+        assert(!service.PendingCommand()[0].enabled);
+        service.SetChannelTarget(0, 25); // Ownership returned after joining.
+        assert(service.PendingCommand()[0].target == 25);
+        config.disableChannelsOnStop = false;
+        service.StartSequence(config);
+        service.DisableAll();
+        assert(service.SequenceStatusSnapshot().state == SequenceRunState::Stopped);
+        for (const auto& command : service.PendingCommand()) assert(!command.on && !command.enabled);
+    }
 }

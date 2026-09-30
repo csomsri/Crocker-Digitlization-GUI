@@ -865,6 +865,7 @@ def run_app(
     simulation_mode: str | None = None,
     enable_data_pipeline: bool = False,
     db_path: str | Path = DEFAULT_DB_PATH,
+    show_fps: bool = False,
 ) -> int:
     # The native font atlas, shader and buffer are shared process-wide. Assigned
     # monitor pages live in separate top-level windows, whose OpenGL contexts
@@ -885,6 +886,9 @@ def run_app(
         db_path,
     )
     window.show()
+    if show_fps:
+        from python.app.widgets.FPSMonitor import FPSMonitor
+        window._fps_monitor = FPSMonitor(window)
     return app.exec()
 
 
