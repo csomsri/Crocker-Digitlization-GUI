@@ -21,7 +21,6 @@ from python.app.widgets.MagneticFieldWidgets import (
     magnetic_field_plot_state,
 )
 
-
 PLOT_COLORS = (
     QColor("#60a5fa"),
     QColor("#22c55e"),
@@ -33,11 +32,14 @@ MAGNETIC_PAGE_REFRESH_MS = round(1000 / MAGNETIC_PAGE_REFRESH_FPS)
 
 try:
     import CycloViz
+    import time
 except Exception:
     CycloViz = None
 
 
 class QtMagneticBarPlot(QWidget):
+    selected_chart = None
+
     def __init__(
         self,
         title: str,
@@ -53,8 +55,23 @@ class QtMagneticBarPlot(QWidget):
         self.setMinimumHeight(minimum_height)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setObjectName("magneticChart")
+        self._last_paint_time = time.perf_counter()
+        self.current_fps = 0.0
+        self.frame_time_ms = 0.0
+
+    # On the event a chart is selected, show the FPS for that graph
+    def mousePressEvent(self, event) -> None:
+        QtMagneticBarPlot.selected_chart = self
+        super().mousePressEvent(event)
 
     def paintEvent(self, event) -> None:
+        now = time.perf_counter()
+        delta = now - self._last_paint_time
+        if delta > 0:
+            self.current_fps = 1.0 / delta
+            self.frame_time_ms = delta * 1000.0
+        self._last_paint_time = now
+
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
@@ -444,6 +461,7 @@ def _native_magnetic_charts_available() -> bool:
     return (
         CycloViz is not None
         and hasattr(CycloViz, "load_opengl")
+        and hasattr(CycloViz, "set_current_render_context")
         and hasattr(CycloViz, "MagneticFieldBarPlot")
         and hasattr(CycloViz, "MagneticFieldLinePlot")
     )
