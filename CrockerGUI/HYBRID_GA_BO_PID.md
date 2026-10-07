@@ -27,6 +27,107 @@ changing its last optimizer state, and cannot promote an incomplete confirmation
 New history, event, CSV and database JSON records use the `state` key. Existing
 export files are retained as originally written.
 
+### State machine and transitions
+
+Read each transition as **current state + event + condition → next state + action**.
+An event is usually a completed trial. The exception is GA → CHALLENGER, which
+happens when a promising BO candidate is proposed, before its response is measured.
+Only one candidate may be outstanding; its result must be recorded before another
+is proposed. Remaining in a state means continuing its work, not restarting it.
+
+```mermaid
+stateDiagram-v2
+    [*] --> BASELINE: Create a new session
+    BASELINE --> BASELINE: More baseline repeats needed
+    BASELINE --> GA: Baseline repeats complete
+    GA --> GA: Evaluate population and evolve generations
+    GA --> CHALLENGER: Enough diverse data and prediction clears margin
+    CHALLENGER --> CONFIRMATION: Measured cost and error improve; response passes
+    CHALLENGER --> GA: Valid trial fails improvement or response checks
+    CONFIRMATION --> CONFIRMATION: More paired trials needed
+    CONFIRMATION --> BO: All pairs complete and handover checks pass
+    CONFIRMATION --> GA: Completed pairs fail handover checks
+    BO --> BO: Neither fallback threshold reached
+    BO --> GA: Cost stalls or three consecutive prediction misses
+    BASELINE --> STOPPED: Invalid trial
+    GA --> STOPPED: Invalid trial or reference drift
+    CHALLENGER --> STOPPED: Invalid trial
+    CONFIRMATION --> STOPPED: Invalid trial
+    BO --> STOPPED: Invalid trial or reference drift
+    STOPPED --> [*]: End this search session
+```
+
+The diagram shows optimizer decisions. Page-level watchdog errors can also stop
+execution. Budget exhaustion and operator stop end execution separately; they
+do not necessarily assign the optimizer's STOPPED enum. Final validation belongs
+to the page workflow and is not another optimizer transition.
+
+| Current state | Event and condition | Next state and action |
+| --- | --- | --- |
+| BASELINE | A valid starting-gain trial finishes, but fewer than `baseline_repeats` have finished. | Stay BASELINE; repeat starting gains. |
+| BASELINE | All baseline repeats finish (default three). | Enter GA; use baseline cost and beam-MAE variability as separate noise estimates. |
+| GA | A valid GA candidate finishes. | Stay GA; give its cost to GA. When the population is complete, evolve the next generation. |
+| GA | At a generation boundary, enough diverse observations exist and BO's predicted cost clears the conservative improvement gate. | Enter CHALLENGER; remember the incumbent, challenger and prediction, then measure the challenger. |
+| GA | Readiness or the prediction gate fails. | Stay GA; continue population evaluation. BO is attempted at most once per GA generation. |
+| CHALLENGER | The valid measured trial improves both cost and beam MAE beyond their margins, settles, has no sustained oscillation, and meets steady-error tolerance. | Enter CONFIRMATION; schedule randomized, balanced incumbent/challenger pairs. |
+| CHALLENGER | The valid trial fails any of those checks. | Return to GA; keep its valid measurement in the BO training data. |
+| CONFIRMATION | A valid repeat finishes while scheduled repeats remain. | Stay CONFIRMATION; execute the next repeat. A single good pair cannot trigger handover. |
+| CONFIRMATION | All pairs finish; mean paired cost AND beam-MAE improvements exceed their respective margins, and every BO repeat passes response checks. | Enter BO; reset stall and prediction-miss counters. |
+| CONFIRMATION | All pairs finish but any handover condition fails. | Return to GA; retain valid observations. |
+| BO | A valid BO trial finishes and neither fallback threshold is reached. | Stay BO; update the counters and use the expanded data for subsequent proposals. |
+| BO | Consecutive cost stalls reach `plateau_trials` (default five), OR consecutive prediction misses reach three. | Return to GA; place the best measured gains in the GA population. |
+| Any active search state | A trial is invalid, interrupted or incomplete. | Enter STOPPED; clear queued confirmation trials and reject further proposals. Invalid trials do not train the cost model. |
+| GA or BO | A completed reference batch detects cost or beam-error drift, or lacks required reference metrics. | Enter STOPPED; also invalidate the session's best-gain approval path. |
+| STOPPED | Another candidate is requested. | Reject the request. Restarting creates a new optimizer in BASELINE. |
+
+**Prediction gate versus measured handover.** GA → CHALLENGER requires
+`predicted_J + prediction_sd < incumbent_mean_J - margin_J`. It authorizes a
+trial, not a handover. CHALLENGER → CONFIRMATION uses measured J and E; only
+CONFIRMATION → BO establishes repeatable measured improvement. The margins and
+paired equations are defined under **Shared evaluation** below.
+
+**Exactly what “repeated” means in BO.** A prediction miss is:
+
+```text
+abs(measured_J - predicted_J) > max(
+    3 * prediction_sd,
+    2 * cost_noise,
+    abs(predicted_J) * improvement_fraction,
+    1e-9
+)
+```
+
+The miss counter increments on a miss and resets to zero on an acceptable BO
+prediction. Three consecutive misses cause BO → GA. A result can be a miss
+whether it is unexpectedly better or worse. Separately, a cost stall is a BO
+trial that fails the response eligibility checks or fails to improve on the
+previous best mean cost beyond the relative/noise margin. Meaningful improvement
+resets the stall counter; five consecutive stalls trigger fallback by default.
+Reference and exploration trials neither increment nor reset these two counters.
+
+**Work that does not change the search state.** Reference and exploration trials
+run within GA or BO. A passing reference batch refreshes the noise estimates and
+keeps the same state. Exploration supplies another valid BO observation without
+consuming a GA population slot. Scheduling priority is baseline repeats, queued
+confirmation repeats, due reference batches, due exploration, then the normal
+GA/BO proposal. Confirmation blocks are therefore not interrupted by these checks.
+
+**Budget and execution boundary.** If the budget is exhausted, no further search
+candidate is proposed; the last optimizer state remains recorded. Exhaustion in
+CONFIRMATION cannot count as a successful handover. The page handles baseline
+recovery, native PID execution, stopping output and separate final validation.
+Applying validated gains does not start PID automatically.
+
+The implementation is in
+[`hybrid_pid_optimizer.py`](source/Python/Optimization/hybrid_pid_optimizer.py):
+`HybridState` defines the states, `propose_batch()` selects the next trial,
+`record_results()` handles results and transition conditions, `_transition()`
+updates the state and records its reason, and `_check_reference_drift()` handles
+the reference-drift stop. Page execution is in
+[`HybridPIDPage.py`](python/app/Automation/HybridPIDPage.py).
+
+### Operator workflow
+
 1. Configure the beam target, seed gains, TC command/slew limits, and arm PID.
    Enable the selected TC without changing its current command using the
    tuner's **Enable selected TC** button. A fresh calibrated beam is required.
@@ -70,6 +171,59 @@ export files are retained as originally written.
    after search output is disabled, retain session settings, and select
    **Validate best gains**. **Apply Settings to PID** remains disabled until
    validation and baseline recovery pass. Applying gains does not start PID.
+
+### BO readiness: distinct combinations and collective coverage
+
+One candidate is a complete gain vector `theta = (Kp, Ki, Kd)`. A single trial
+tests all three gains together. Twelve distinct combinations therefore do not
+mean twelve trials per gain or 36 trials. Repeating an identical vector helps
+estimate variability but does not increase the distinct-combination count.
+Two vectors are distinct if at least one gain differs; each gain does not need
+to have twelve distinct values.
+
+The default readiness check requires BOTH:
+
+1. At least **12 distinct gain vectors** with valid measurements.
+2. At least **35% collective span in each gain dimension**, across all valid
+   observations collected so far.
+
+For each gain `g` in `Kp`, `Ki`, and `Kd`:
+
+```text
+span_g = (largest tested g - smallest tested g)
+         / (configured upper bound for g - configured lower bound for g)
+
+ready = distinct_vectors >= 12
+        AND min(span_Kp, span_Ki, span_Kd) >= 0.35
+```
+
+**The 35% requirement applies to the collection, not to each candidate.** A
+single candidate has one value per gain and no span by itself. It does not need
+to sit above 35% of the allowed range, or be 35% away from another candidate.
+
+For example, suppose the allowed `Kp` range is 0–10:
+
+| Observations collected | Smallest tested Kp | Largest tested Kp | Collective Kp span |
+| --- | --- | --- | --- |
+| Early candidates | 4 | 5 | `(5 - 4) / 10 = 10%` — insufficient |
+| Including later candidates | 2 | 6 | `(6 - 2) / 10 = 40%` — sufficient for Kp |
+
+Later observations can expand the span. A later candidate inside the existing
+minimum and maximum leaves it unchanged. With fixed bounds and retained history,
+the span cannot shrink as observations are added, and their order does not matter.
+The first candidate does not have to pass a separate coverage check.
+
+The same calculation must pass independently for `Ki` and `Kd`. For example,
+spans of 40%, 20%, and 50% still fail because `Ki` covers only 20%. GA continues
+and scheduled exploration can add more coverage; total trials can exceed twelve
+because of repeats or insufficient spread. The check itself runs no extra trials.
+
+This is a minimum-to-maximum span heuristic, not a guarantee that the interior
+of gain space is well sampled or that BO predictions are accurate. Passing it
+allows a BO attempt at a GA generation boundary; the prediction gate and measured
+challenger/confirmation checks must still pass before BO takes over. See
+`HybridPIDOptimizer.readiness()` in
+[`hybrid_pid_optimizer.py`](source/Python/Optimization/hybrid_pid_optimizer.py).
 
 ## Shared evaluation
 

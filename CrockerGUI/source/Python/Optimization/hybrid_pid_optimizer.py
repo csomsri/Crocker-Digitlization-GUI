@@ -270,7 +270,7 @@ class HybridPIDOptimizer(BotorchPidOptimizer):
 
     def error_gate(self, incumbents, challengers, critical=None):
         """
-            Measured MAE improvement, with its own nA noise/statistical margin.\
+            Measured MAE improvement, with its own nA noise/statistical margin.
 
             Args:
                 incumbents: List of incumbent beam MAE values.
@@ -290,6 +290,7 @@ class HybridPIDOptimizer(BotorchPidOptimizer):
         differences = [a - b for a,b in zip(incumbents, challengers)]
 
         margin = max(self.config.improvement_fraction*mean(incumbents), 2*self.error_noise, 1e-9)
+
         if critical is not None:
             margin = max(margin, critical*stdev(differences)/math.sqrt(len(differences)))
 

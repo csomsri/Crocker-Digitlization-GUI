@@ -264,6 +264,97 @@ class PolicyTest(unittest.TestCase):
 
 
 class PageTest(unittest.TestCase):
+    def test_operator_activity_tabs_keep_separate_histories(self):
+        p = self.p
+        before = len(p._status_messages)
+        for _ in range(5):
+            p._refresh_status()
+        self.assertEqual(len(p._status_messages), before)
+        p._log_activity('Test status', 'Controller is ready')
+        p._report_operator_error('Test fault')
+        self.assertIn('Test status', p.status_activity.text())
+        self.assertNotIn('Test fault', p.status_activity.text())
+        self.assertIn('Test fault', p.error_explanation.text())
+        self.assertEqual(p.activity_tabs.currentIndex(), 1)
+        p._clear_error_history()
+        self.assertIn('Test status', p.status_activity.text())
+        self.assertEqual(p.activity_tabs.tabText(1), 'Errors · 0')
+
+    def test_operator_settings_can_close_and_reopen(self):
+        p = self.p
+        p.show()
+        for dialog, button in ((p.operator_settings, p.operator_settings_close),
+                               (p.ai_settings, p.ai_settings_close)):
+            for _ in range(2):
+                dialog.show()
+                self.app.processEvents()
+                self.assertTrue(dialog.isVisible())
+                button.click()
+                self.app.processEvents()
+                self.assertFalse(dialog.isVisible())
+
+    def test_operator_gains_are_on_control_page(self):
+        p = self.p
+        control = p.page_stack.widget(0)
+        for gain in (p.kp_input, p.ki_input, p.kd_input):
+            self.assertTrue(control.isAncestorOf(gain))
+            self.assertFalse(p.operator_settings.isAncestorOf(gain))
+
+    def test_operator_start_and_stop_without_separate_arming(self):
+        p = self.p
+        p.setpoint_input.setValue(1.08)
+        p.channel_on[0] = False
+        p.channel_enabled[0] = False
+        p.arm_button.setChecked(False)
+        p._operator_start_pid()
+        self.assertFalse(p.pid_enabled)
+        self.assertIn('START REQUESTED', p.operator_status.text())
+        from PySide6.QtTest import QTest
+        QTest.qWait(3200)
+        self.assertTrue(p.pid_enabled, p.last_safety_message)
+        self.assertIn('PID RUNNING', p.operator_status.text())
+        self.assertTrue(p.armed)
+        p._operator_stop()
+        self.assertFalse(p.pid_enabled)
+        self.assertFalse(p._service_pid_active)
+
+    def test_operator_error_sidebar_explains_start_rejection(self):
+        p = self.p
+        p.get_beam_state = lambda: {}
+        p._operator_start_pid()
+        self.assertIn('fresh beam', p.error_explanation.text())
+        self.assertIn('Smoke2', p.error_explanation.text())
+        self.assertFalse(p.pid_enabled)
+
+    def test_operator_buttons_animate_on_press(self):
+        from PySide6.QtTest import QTest
+        from PySide6.QtCore import QAbstractAnimation, Qt
+        p = self.p
+        p.show()
+        self.app.processEvents()
+        QTest.mousePress(p.operator_stop, Qt.LeftButton)
+        self.assertEqual(p._action_animations[p.operator_stop].state(), QAbstractAnimation.Running)
+        QTest.mouseRelease(p.operator_stop, Qt.LeftButton)
+
+    def test_operator_can_cancel_countdown(self):
+        from PySide6.QtTest import QTest
+        p = self.p
+        p._operator_start_pid()
+        self.assertFalse(p.pid_enabled)
+        self.assertEqual(p.operator_stop.text(), 'CANCEL START')
+        p._operator_stop()
+        QTest.qWait(3200)
+        self.assertFalse(p.pid_enabled)
+        self.assertIsNone(p._operator_start_deadline)
+        self.assertTrue(p.kp_input.isEnabled())
+
+    def test_operator_start_requires_fresh_beam(self):
+        p = self.p
+        p.get_beam_state = lambda: {}
+        p._operator_start_pid()
+        self.assertFalse(p.pid_enabled)
+        self.assertIn('fresh beam', p.last_safety_message)
+
     @classmethod
     def setUpClass(cls):
         from PySide6.QtWidgets import QApplication

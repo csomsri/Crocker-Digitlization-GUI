@@ -31,6 +31,12 @@ class SimulatorFrame:
     bitmask: int
     beam_current: float | None = None
     beam_range_idx: int | None = None
+    extraction: tuple[float, ...] | None = None
+    extraction_angles: tuple[float, ...] | None = None
+    source: tuple[float, ...] | None = None
+    transport: tuple[float, ...] | None = None
+    vacuum: tuple[float, ...] | None = None
+    rf_power_kv: float | None = None
 
 
 def build_bitmask(on_off: Iterable[bool], enable_ctrl: Iterable[bool]) -> int:
@@ -107,7 +113,21 @@ class Smoke2Plant:
             timestamp=time.time() + EPOCH_OFFSET,
             channels=[value * self.raw_scale for value in self.channels],
             bitmask=build_bitmask(self.on_off, self.enabled),
+            extraction=self._telemetry_group(6, 20.0, 0.2),
+            extraction_angles=self._telemetry_group(6, 1.0, 0.02),
+            source=self._telemetry_group(6, 10.0, 0.1),
+            transport=self._telemetry_group(10, 5.0, 0.05),
+            vacuum=self._telemetry_group(5, 1.0e-6, 1.0e-8),
+            rf_power_kv=30.0 + 0.2 * math.sin(self.step * 0.08),
+            beam_current=0.06 + 0.001 * math.sin(self.step * 0.08),
+            beam_range_idx=0,
         )
+
+    def _telemetry_group(self, count: int, baseline: float, amplitude: float) -> tuple[float, ...]:
+        # Synthetic raw readings; facility channel calibration is not known.
+        return tuple(baseline * (1.0 + index * 0.1)
+                     + amplitude * math.sin(self.step * 0.08 + index * 0.7)
+                     for index in range(count))
 
     def apply_reply(self, reply: list[float], dt: float) -> None:
         if len(reply) < NUM_CHANNELS + 1:
@@ -171,7 +191,13 @@ class ZMQSimulator:
         if frame.beam_current is not None:
             # Extended layout: extraction/source (18), transport (10),
             # vacuum (5), RF (1), detector voltage (1), optional range.
-            values.extend([0.0] * (18 + 10 + 5 + 1))
+            for name, count in (("extraction", 6), ("extraction_angles", 6),
+                                ("source", 6), ("transport", 10), ("vacuum", 5)):
+                group = getattr(frame, name)
+                if group is not None and len(group) != count:
+                    raise ValueError(f"{name} must contain {count} readings")
+                values.extend(group if group is not None else [0.0] * count)
+            values.append(frame.rf_power_kv if frame.rf_power_kv is not None else 0.0)
             values.append(frame.beam_current)
             if frame.beam_range_idx is not None:
                 values.append(float(frame.beam_range_idx))
@@ -194,7 +220,7 @@ class ZMQSimulator:
         frames: int | None = None,
         rate_hz: float = 20.0,
         stop_event: Event | None = None,
-        plant: "CyclotronPlant | None" = None,
+        plant: "CyclotronPlant | Smoke2Plant | None" = None,
     ) -> None:
         interval_seconds = 1.0 / rate_hz if rate_hz > 0 else 0.0
         next_frame_time = time.perf_counter()

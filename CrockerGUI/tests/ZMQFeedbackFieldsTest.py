@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import zmq
 import CycloViz
+from source.Python.Simulator.ZMQSimulator import Smoke2Plant, ZMQSimulator
 
 
 def main():
@@ -56,7 +57,31 @@ def main():
         snap = exchange([])
         assert snap['beam_current'] is None and snap['beam_range_idx'] is None, snap
         assert snap['vacuum'] == [] and snap['source'] == [] and snap['rf_power_kv'] is None, snap
+        simulator = ZMQSimulator(endpoint)
+        try:
+            plant = Smoke2Plant()
+            for step in range(2):
+                frame = plant.frame()
+                previous = service.LatestSnapshot()['sequence_number']
+                reply = simulator.send_frame(frame)
+                deadline = time.monotonic() + 2
+                while service.LatestSnapshot()['sequence_number'] <= previous and time.monotonic() < deadline:
+                    time.sleep(.01)
+                snap = service.LatestSnapshot()
+                assert snap['sequence_number'] > previous, snap
+                for field in ('extraction', 'extraction_angles', 'source', 'transport', 'vacuum'):
+                    assert snap[field] == list(getattr(frame, field)), (field, snap)
+                assert snap['rf_power_kv'] == frame.rf_power_kv, snap
+                assert snap['beam_current'] == frame.beam_current, snap
+                assert snap['beam_range_idx'] == frame.beam_range_idx, snap
+                assert snap['bitmask'] == frame.bitmask, snap
+                assert [channel['raw'] for channel in snap['channels']] == frame.channels, snap
+                assert len(reply) == 15, reply
+                plant.apply_reply(reply, .05)
+        finally:
+            simulator.close()
         print('PASS: four extended layouts retain all fields; short packet clears old feedback')
+        print('PASS: Smoke2 supplies every full LabVIEW telemetry field across updates')
     finally:
         peer.close()
         context.term()

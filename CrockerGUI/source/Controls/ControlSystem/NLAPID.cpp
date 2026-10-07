@@ -31,6 +31,7 @@ void NLAPID::setSettings(NLAPIDSettings s) {
                     s.integralWindowMultiplier, s.maxControlDt, s.integralMemorySeconds}) finite(v);
     s.deadband = std::max(0.0, s.deadband);
     s.trendTolerance = std::max(0.0, s.trendTolerance);
+    
     s.directionCheckInterval = std::max(0.0, s.directionCheckInterval);
     s.directionConfirmations = std::max(1, s.directionConfirmations);
     s.minimumDirectionSamples = std::max(1, s.minimumDirectionSamples);
@@ -182,4 +183,8 @@ NLAPIDResult NLAPID::update(double setpoint, double measurement, double dt, bool
     previousMagnitude_ = magnitude; lastSetpoint_ = setpoint;
     return result_;
 }
+
+// BASELINE to REFFERENCE
+
+
 } // namespace crocker::controls

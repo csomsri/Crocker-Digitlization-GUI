@@ -5,6 +5,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QPainter, QPen, QFont
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton
 from python.app.widgets.PlotSurface import PlotSurface
+from python.app.widgets.DisplayNumbers import display_number
 
 
 class GainCloud(PlotSurface):
@@ -61,7 +62,7 @@ class GainCloud(PlotSurface):
             p.drawLine(origin, pt)
             p.setPen(QColor('#dbe7f5'))
             p.drawText(QRectF(pt.x()-55, pt.y()-23, 130, 22), Qt.AlignCenter,
-                       f'{label}: {low[axis]:.3g}–{high[axis]:.3g}')
+                       f'{label}: {display_number(low[axis])}–{display_number(high[axis])}')
         n = min(len(points), len(means))
         valid = [i for i in range(n) if np.isfinite(points[i]).all() and math.isfinite(means[i])]
         if valid:
@@ -74,7 +75,7 @@ class GainCloud(PlotSurface):
                 p.drawEllipse(pt, 2.8, 2.8)
             p.setPen(QColor('#b9cbe1'))
             p.drawText(QRectF(16, 10, self.width()-32, 24), Qt.AlignLeft,
-                       f'Predicted cost: {cmin:.4g} (blue) → {cmax:.4g} (red)')
+                       f'Predicted cost: {display_number(cmin)} (blue) → {display_number(cmax)} (red)')
         p.setBrush(Qt.NoBrush); p.setPen(QPen(QColor('#ffffff'), 2))
         for v in trials:
             if np.isfinite(v).all():

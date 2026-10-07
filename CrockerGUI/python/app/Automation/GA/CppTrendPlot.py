@@ -5,6 +5,7 @@ from PySide6.QtCore import QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPainterPath
 from python.app.widgets.InlinePopups import InlineToolTip as QToolTip
 from .TrendPlot import AxisTrendPlot
+from python.app.widgets.DisplayNumbers import display_number
 
 
 def _ticks(low, high, count=5):
@@ -24,7 +25,7 @@ def _number(value):
         return '—'
     if value == 0:
         return '0'
-    return f'{value:.4g}'
+    return display_number(value)
 
 
 class CppTrendPlot(AxisTrendPlot):

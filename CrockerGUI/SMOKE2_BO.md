@@ -36,6 +36,13 @@ a first-order lag: each step closes a fraction `min(1, 2.8 × dt)` of the
 remaining gap. Output off makes a channel approach zero. There is no
 cross-channel coupling, beam optimization, or explicit measurement noise.
 
+Every frame also carries the full LabVIEW telemetry layout: six extraction,
+six extraction-angle, six source, ten transport, five vacuum, RF, detector
+voltage and beam range readings. These synthetic raw readings drift gently
+and populate all monitoring pages. Detector voltage starts at 0.06 V with
+range index zero and remains independent of coil commands. These values
+are test signals, not facility device calibrations.
+
 The test asks BO to choose PID gains that bring TC1 toward 250 A.
 Balanced cost is settling time + 2 × overshoot + 4 × final absolute error
 + 0.01 × integrated absolute control output. Lower cost is better.

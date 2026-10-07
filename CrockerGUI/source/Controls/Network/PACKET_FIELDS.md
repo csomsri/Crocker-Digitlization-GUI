@@ -74,6 +74,10 @@ Extended readings remain raw; per-device units/calibration and the positions
 within each source/extraction/transport group need the original receiver or
 the LabVIEW schema. Existing beam curve coefficients have not been changed.
 
-Smoke2's default short packets do not contain a detector measurement and now
-correctly produce invalid beam feedback. The ZMQ beam integration test supplies
-a dedicated simulated detector field to exercise the full control loop.
+Smoke2 sends the full 52-double transport-first packet, including all 18
+source/extraction readings, 10 transport readings, five vacuum readings, RF,
+a dedicated detector voltage, explicit range zero, and the final bitmask.
+Extended readings are synthetic raw values with gentle drift, independent of
+the magnet raw-current scale. The detector is independent of TC commands;
+valid beam telemetry does not establish TC-to-beam coupling. The ZMQ beam
+integration test supplies a coupled detector to exercise the full control loop.

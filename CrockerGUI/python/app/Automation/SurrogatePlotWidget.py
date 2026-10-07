@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
 from python.app.widgets.PlotSurface import PlotSurface
+from python.app.widgets.DisplayNumbers import display_number
 
 
 class SurrogatePlotWidget(PlotSurface):
@@ -76,7 +77,7 @@ class SurrogatePlotWidget(PlotSurface):
                    f"Gaussian process: cost vs {self._axis.capitalize()}")
         grid = self._grid or {}
         fixed = grid.get("fixed_values", {})
-        fixed_text = "  |  ".join(f"{name.capitalize()} = {value:.4g}" for name, value in fixed.items())
+        fixed_text = "  |  ".join(f"{name.capitalize()} = {display_number(value)}" for name, value in fixed.items())
         p.setPen(QColor("#94a3b8"))
         p.drawText(QRectF(16, 31, self.width()-32, 20), Qt.AlignLeft | Qt.AlignVCenter,
                    f"Fixed at best safe trial (or midpoints): {fixed_text}" if fixed else "Preparing slice; other gains will be held fixed")
@@ -132,8 +133,8 @@ class SurrogatePlotWidget(PlotSurface):
             p.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()))
             p.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py))
             p.setPen(QColor("#cbd5e1"))
-            p.drawText(QRectF(px-40, plot.bottom()+7, 80, 18), Qt.AlignCenter, f"{x:.3g}")
-            p.drawText(QRectF(12, py-9, 62, 18), Qt.AlignRight | Qt.AlignVCenter, f"{y:.3g}")
+            p.drawText(QRectF(px-40, plot.bottom()+7, 80, 18), Qt.AlignCenter, display_number(x))
+            p.drawText(QRectF(12, py-9, 62, 18), Qt.AlignRight | Qt.AlignVCenter, display_number(y))
         p.drawText(QRectF(plot.left(), plot.bottom()+28, plot.width(), 18), Qt.AlignCenter, self._axis.capitalize())
         p.save()
         p.translate(12, plot.center().y())
