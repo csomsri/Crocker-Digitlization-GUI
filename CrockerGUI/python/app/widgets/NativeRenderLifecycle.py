@@ -17,7 +17,8 @@ class NativeRenderLifecycle:
         context = QOpenGLContext.currentContext()
         if context is None or context != self.context():
             raise RuntimeError("The widget's OpenGL context must be current before rendering.")
-        CycloViz.set_current_render_context(getCppPointer(context)[0])
+        if hasattr(CycloViz, "set_current_render_context"):
+            CycloViz.set_current_render_context(getCppPointer(context)[0])
 
     def release_native_resources(self):
         """May also be called at application shutdown; next paint can recreate."""

@@ -40,6 +40,7 @@ class FPSMonitor(QObject):
         super().__init__(window)
         self._window = window
         self._charts = weakref.WeakKeyDictionary()
+        self._selected_chart = None
         self._gui_batches = 0
         self._gui_paint_pending = False
         self._last_refresh = perf_counter()
@@ -96,7 +97,14 @@ class FPSMonitor(QObject):
         self._executor.shutdown(wait=False, cancel_futures=True)
 
     def eventFilter(self, watched, event):
-        if event.type() == QEvent.Paint and isinstance(watched, QWidget):
+        if event.type() == QEvent.MouseButtonPress and watched in self._charts:
+            self._selected_chart = weakref.ref(watched)
+
+        if event.type() == QEvent.Paint and watched in self._charts:
+            reference = weakref.ref(watched)
+            self._frame_swapped(reference)
+
+        if event.type() == QEvent.Paint and isinstance(watched, QWidget) and watched.isWindow():
             top = watched.window()
             monitored = top is self._window or any(
                 top is window for window in
@@ -106,7 +114,7 @@ class FPSMonitor(QObject):
                 self._gui_paint_pending = True
                 QTimer.singleShot(0, self._finish_gui_paint_batch)
         return False
-
+    
     def _finish_gui_paint_batch(self):
         if not self._stopped:
             self._gui_batches += 1
@@ -114,14 +122,17 @@ class FPSMonitor(QObject):
 
     def _discover(self):
         for widget in QApplication.allWidgets():
-            if isinstance(widget, QOpenGLWidget) and widget not in self._charts:
+            is_chart = isinstance(widget, QOpenGLWidget) or widget.objectName() == "magneticChart"
+            if is_chart and widget not in self._charts:
                 self._charts[widget] = {
                     'frames': 0, 'start': perf_counter(), 'last': None,
                     'intervals': deque(maxlen=4096),
                 }
-                reference = weakref.ref(widget)
-                widget.frameSwapped.connect(lambda ref=reference: self._frame_swapped(ref))
-
+                widget.installEventFilter(self)
+                if isinstance(widget, QOpenGLWidget):
+                    reference = weakref.ref(widget)
+                    widget.frameSwapped.connect(lambda ref=reference: self._frame_swapped(ref))
+            
     def _frame_swapped(self, reference):
         sample = self._charts.get(reference())
         if sample is None:
@@ -137,7 +148,11 @@ class FPSMonitor(QObject):
         elapsed = max(now - self._last_refresh, 1e-9)
         self._labels['GUI repaint FPS'].setText(f'{self._gui_batches / elapsed:.1f}')
         self._gui_batches = 0
+        
         rates, intervals = [], []
+        selected_widget = self._selected_chart() if self._selected_chart else None
+        selected_fps = None
+
         for widget, sample in list(self._charts.items()):
             try:
                 visible = widget.isVisible()
@@ -145,17 +160,26 @@ class FPSMonitor(QObject):
                 del self._charts[widget]
                 continue
             if visible:
-                rates.append(sample['frames'] / max(now - sample['start'], 1e-9))
+                fps = sample['frames'] / max(now - sample['start'], 1e-9)
+                rates.append(fps)
                 intervals.extend(sample['intervals'])
+                if widget is selected_widget:
+                    selected_fps = fps
             else:
                 sample['last'] = None
             sample['frames'] = 0
             sample['start'] = now
             sample['intervals'].clear()
-        self._labels['Chart FPS'].setText(
-            f'{min(rates):.1f}–{max(rates):.1f} ({len(rates)} visible)'
-            if rates else 'No visible OpenGL charts'
-        )
+
+        # Shows clicked chart FPS if selected, otherwise show overall range
+        if selected_widget and selected_fps is not None:
+            title = getattr(selected_widget, 'title', 'Selected Chart')
+            self._labels['Chart FPS'].setText(f'{title}: {selected_fps:.1f} FPS')
+        elif rates:
+            self._labels['Chart FPS'].setText(f'{min(rates):.1f}–{max(rates):.1f} ({len(rates)} visible)')
+        else:
+            self._labels['Chart FPS'].setText('No visible charts')
+
         intervals.sort()
         self._labels['Frame interval'].setText(
             f'Avg {sum(intervals)/len(intervals):.1f} ms | '
