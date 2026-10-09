@@ -11,6 +11,7 @@ from pathlib import Path
 from python.app.ResponsiveLayout import ResponsiveRow
 from python.app.Automation.ControlOwnership import active_controller
 from python.app.Automation.PIDRecording import recording
+from source.Python.Automation.failure_recovery import FailureRecovery
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -267,7 +268,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             value = float(sample.get('current_ua', float('nan'))) * 1000.0
             stamp = float(sample.get('timestamp', 0.0))
             identity = tuple(sample.get(k) for k in ('range_index','calibration_revision','select_mode'))
-            active = self.pid_enabled or self.tuning_session_active
+            active = (self.pid_enabled or self.tuning_session_active or
+                      getattr(getattr(self, '_failure_recovery', None), 'active', False))
             if not active or self._feedback_identity is None:
                 self._feedback_identity = identity
             self.beam_valid = (sample.get('quality') == 'ok' and math.isfinite(value)
@@ -1073,6 +1075,10 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self._set_auto_tuning(True)
 
     def _prepare_tuning_session(self) -> None:
+        if getattr(getattr(self, '_failure_recovery', None), 'active', False):
+            self.tuner_status.setText('Wait for reference recovery to finish')
+            return
+        self._failure_recovery = None
         for page in QApplication.allWidgets():
             if (hasattr(page, "pid_enabled") and hasattr(page, "tuning_session_active") and page is not self
                     and self.backend is not None and page.backend is self.backend
@@ -1176,8 +1182,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                     or ((self.backend_mode != 'simulation' and self.simulation_mode != 'first-order') and not self.arm_button.isChecked())):
                 raise RuntimeError('Telemetry, arming, or interlock check failed')
         except Exception as exc:
-            self._stop_tuning_session()
-            self.tuner_status.setText(f'Tuning stopped while holding between trials: {exc}')
+            self._halt_failed_tuning(f'Tuning stopped while holding between trials: {exc}')
             return False
         return True
 
@@ -1233,8 +1238,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         try:
             status = self._trial_status()
         except Exception as exc:
-            self._stop_tuning_session()
-            self.tuner_status.setText(f"The trial status could not be read: {exc}")
+            self._halt_failed_tuning(f'Trial status unavailable: {exc}')
             return
         state = str(status["state"])
         elapsed = float(status["elapsed_seconds"])
@@ -1294,6 +1298,10 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             if not hasattr(self.backend, 'SetPidBeamMeasurement'):
                 raise RuntimeError("Rebuild CycloViz for beam-feedback PID support")
             config = dict(config, external_beam_measurement=True)
+        if config.get('continuous') or not getattr(self, 'reference', None):
+            recovery = getattr(self, '_failure_recovery', None)
+            if recovery is None or config.get('continuous'):
+                self._capture_failure_reference(config['measurement_channel'])
         self.backend.StartPidTrial(config)
         recording(self, 'started', config=config)
 
@@ -1372,7 +1380,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         if candidate is None or self.tuning_optimizer is None:
             return
         if self.backend is not None:
-            self._stop_trial(not safe or self._oscillation_stopped)
+            self._stop_trial(False)
         self._tuning_output_held = bool(safe and not self._oscillation_stopped)
         target = self.tuner_target.value()
         samples = self.tuning_samples
@@ -1389,10 +1397,12 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             safe = False
             score = 1.0e12
         if not safe or self._oscillation_stopped:
-            self._stop_trial(True)
+            self._stop_trial(False)
             self._tuning_output_held = False
         if self._validating_gains:
             self._finish_gain_validation(candidate, metrics, safe)
+            if not safe or self._oscillation_stopped:
+                self._begin_failure_recovery('Validation failed')
             return
         settling_time = metrics.settling_time if metrics else 0.0
         steady_state_error = metrics.steady_state_error if metrics else 0.0
@@ -1423,9 +1433,11 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             elapsed=f"{samples[-1][0] if samples else 0.0:.1f} s",
             error=f"{steady_state_error:.3f}",
         )
-        if self.tuning_auto_run and not safe:
+        if not safe or self._oscillation_stopped:
+            self.tuning_trial_candidate = None
+            self._tuning_output_held = False
             self._stop_tuning_session()
-            self.tuner_status.setText("Automatic tuning stopped: trial faulted, stopped, or produced invalid results. Review Trial History.")
+            self._begin_failure_recovery('PID tuning trial failed')
             return
         self._request_tuning_candidate()
 
@@ -1944,6 +1956,16 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self.pid_enabled = False
             self._refresh_status()
             return
+        if enabled:
+            try:
+                self._capture_failure_reference(self.selected_index)
+            except Exception as exc:
+                self.enable_button.blockSignals(True)
+                self.enable_button.setChecked(False)
+                self.enable_button.blockSignals(False)
+                self.last_safety_message = f'PID reference capture failed: {exc}'
+                self._refresh_status()
+                return
         self.pid_enabled = enabled
         if enabled:
             recording(self, 'started', config=self._run_metrics_config())
@@ -2039,6 +2061,20 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             metric_stamp = time.perf_counter()
 
         self._refresh_beam()
+        recovery = getattr(self, '_failure_recovery', None)
+        if recovery is not None and recovery.active:
+            recovery.poll(authorized=self.armed and not self.dry_run_check.isChecked(),
+                          beam=self.beam_value if self.beam_feedback else 0.,
+                          beam_valid=self.beam_valid if self.beam_feedback else True,
+                          beam_timestamp=self.beam_timestamp if self.beam_feedback else None)
+            self.last_safety_message = recovery.status
+            self.tuner_status.setText(recovery.status)
+            if not recovery.active:
+                self._lock_controller_inputs(False)
+            for index, command in enumerate(self.backend.PendingCommand()):
+                self.command_values[index] = float(command['target'])
+            self._refresh_status()
+            return
         if self.beam_feedback:
             metric_stamp = self.beam_timestamp if self.beam_valid else None
         self._sync_channel_toggles()
@@ -2065,6 +2101,9 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self._poll_service_nla()
             return
     def _apply_channel_command(self, index: int) -> bool:
+        if getattr(getattr(self, '_failure_recovery', None), 'active', False):
+            self.last_safety_message = 'Reference recovery owns the output'
+            return False
         if active_controller(self.backend, self) is not None:
             self.last_safety_message = "Another PID/BO/GA page is using this backend"
             return False
@@ -2101,6 +2140,12 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         return max(previous - max_step, min(previous + max_step, bounded))
 
     def _is_safe_to_run(self) -> bool:
+        if getattr(getattr(self, '_failure_recovery', None), 'active', False):
+            self.last_safety_message = 'Reference recovery owns the output'
+            return False
+        if active_controller(self.backend, self) is not None:
+            self.last_safety_message = 'Another controller owns this backend'
+            return False
         if self.tuning_session_active:
             self.last_safety_message = "Stop the tuning session before enabling normal PID control"
             return False
@@ -2133,6 +2178,12 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         return True
 
     def _stop_pid(self, reason: str) -> None:
+        recovery = getattr(self, '_failure_recovery', None)
+        if recovery is not None and recovery.active:
+            recovery.active = False
+            recovery.status = f'Recovery cancelled: {reason}'
+            self._lock_controller_inputs(False)
+        was_running = self.pid_enabled or self._service_pid_active
         self.run_metrics.finish(reason)
         service_was_active = self._service_pid_active
         if service_was_active:
@@ -2150,9 +2201,60 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.enable_button.blockSignals(False)
         self._reset_pid_state()
         self.last_safety_message = reason
-        if not service_was_active and not self._cpp_nla_selected():
-            self._apply_channel_command(self.selected_index)
+        routine = {'Operator stop', 'Stopped by operator', 'Controller changed', 'Channel changed',
+                   'Disarmed', 'Zero command', 'Page closed', 'Preparing hybrid baseline',
+                   'Starting hybrid session', 'Starting tuning session', 'Validating BO gains'}
+        if was_running and reason not in routine and 'stop failed:' not in reason:
+            self._begin_failure_recovery(reason)
         self._refresh_status()
+
+    def _capture_failure_reference(self, index):
+        self._failure_recovery = FailureRecovery(self.backend)
+        self._recovery_feedback_identity = self._feedback_identity
+        try:
+            self._failure_recovery.capture(index, self.beam_value if self.beam_feedback and self.beam_valid else float('nan'),
+                beam_required=self.beam_feedback,
+                limits=(min(self.min_output_input.value(), self.max_output_input.value()),
+                        max(self.min_output_input.value(), self.max_output_input.value())))
+        except ValueError as exc:
+            # Legacy simulator trials may start with outputs disabled. They cannot
+            # establish a verified recovery reference; never enable one to recover.
+            if not self.backend.LatestSnapshot().get('simulated', False):
+                raise
+            self._failure_recovery.status = f'Reference unavailable: {exc}'
+
+    def _begin_failure_recovery(self, reason, *, session_reference=False):
+        recovery = getattr(self, '_failure_recovery', None)
+        if recovery is None:
+            recovery = self._failure_recovery = FailureRecovery(self.backend)
+        if session_reference and getattr(self, 'reference', None) is not None:
+            recovery.reference = self.reference
+            recovery.index = self._channel
+            recovery.limits = self._limits
+            recovery.beam_required = True
+            self._recovery_feedback_identity = self._feedback_identity
+        if self.beam_feedback and getattr(self, '_recovery_feedback_identity', None) != self._feedback_identity:
+            recovery.reference = None
+        recovery.start(authorized=self.armed and active_controller(self.backend, self) is None,
+                       dry_run=self.dry_run_check.isChecked(), reason=reason,
+                       config=getattr(self, '_recovery_config', None) if session_reference else None)
+        self.last_safety_message = recovery.status
+        self.tuner_status.setText(recovery.status)
+        self._lock_controller_inputs(recovery.active)
+
+    def _halt_failed_tuning(self, reason):
+        # Stop the worker before transferring command ownership to recovery.
+        try:
+            self._stop_trial(False)
+        except Exception as exc:
+            self._stop_tuning_session()
+            self.tuner_status.setText(f'{reason}: recovery blocked — PID stop failed: {exc}')
+            return
+        self.tuning_trial_candidate = None
+        self._tuning_output_held = False
+        self.tuning_session_active = False
+        self._stop_tuning_session()
+        self._begin_failure_recovery(reason, session_reference=True)
 
     def _log_command(self, index: int, target: float, on: bool, enabled: bool, ok: bool) -> None:
         actual, target_beam = self._feedback_value(), self.setpoint_input.value()
@@ -2270,6 +2372,9 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         super().closeEvent(event)
 
     def stop_backend(self) -> None:
+        recovery = getattr(self, '_failure_recovery', None)
+        if recovery is not None:
+            recovery.active = False
         if hasattr(self, 'cruise_workspace'):
             self.cruise_workspace.diagnostics.close()
             self.cruise_workspace.settings.close()

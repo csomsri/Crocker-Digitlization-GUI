@@ -793,6 +793,9 @@ class HybridPIDPage(PidControlPage):
             self._lock_controller_inputs(True)
 
     def _prepare_tuning_session(self):
+        if getattr(getattr(self, '_failure_recovery', None), 'active', False):
+            self.tuner_status.setText('Wait for reference recovery to finish')
+            return
         if self.tuning_session_active:
             return
         try:
@@ -950,8 +953,12 @@ class HybridPIDPage(PidControlPage):
             self.state_label.setText(f'{friendly.get(str(state), str(state))} · Trial {len(self.hybrid.results)}/{self.hybrid.config.budget}')
         except Exception as exc:
             self.hybrid._transition('Stopped',f'Experiment stopped: {exc}')
-            self._stop_tuning_session()
-            self.tuner_status.setText(f'Hybrid stopped: {exc}')
+            self._record_abort(f'Experiment stopped: {exc}')
+            if self.recovering or self._session_fingerprint != self._fingerprint():
+                self._stop_tuning_session()
+                self.tuner_status.setText(f'Hybrid stopped; recovery blocked: {exc}')
+            else:
+                self._halt_failed_tuning(f'Hybrid stopped: {exc}')
 
     def _complete_tuning_trial(self, safe):
         candidate = self.tuning_trial_candidate
@@ -980,6 +987,7 @@ class HybridPIDPage(PidControlPage):
             else:
                 super()._finish_gain_validation(candidate,metrics,False)
                 self._save_session()
+                self._halt_failed_tuning('Hybrid validation failed')
             return
         result = PidTrialResult(candidate,score if safe else 1e12,metrics.settling_time if metrics else 0,
             metrics.overshoot if metrics else 0,metrics.steady_state_error if metrics else 0,
@@ -998,8 +1006,7 @@ class HybridPIDPage(PidControlPage):
             self.approve_gains_button.setEnabled(False)
             return
         if not safe:
-            self._stop_tuning_session()
-            self.tuner_status.setText('Hybrid stopped: failed trials are excluded from performance training.')
+            self._halt_failed_tuning('Hybrid trial failed; excluded from performance training')
             return
         self._begin_recovery('next')
 

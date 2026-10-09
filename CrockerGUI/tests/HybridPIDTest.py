@@ -455,6 +455,34 @@ class PageTest(unittest.TestCase):
         self.assertEqual(len(p.tuning_results),0)
         self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
 
+    def test_failed_trial_transfers_to_shared_recovery_without_resume(self):
+        p = self.p
+        p._prepare_tuning_session()
+        self.assertTrue(p.tuning_session_active, p.tuner_status.text())
+        p._halt_failed_tuning('Recoverable software failure')
+        self.assertFalse(p.tuning_session_active)
+        self.assertTrue(p._failure_recovery.active, p.tuner_status.text())
+        from python.app.Automation.ControlOwnership import active_controller
+        self.assertIs(active_controller(p.backend), p)
+        self.assertTrue(p.backend.PendingCommand()[0]['enabled'])
+        self.assertFalse(p._is_safe_to_run())
+        self.tick_until(lambda: not p._failure_recovery.active)
+        self.assertIn('Reference recovered', p.tuner_status.text())
+        self.assertFalse(p.pid_enabled)
+        self.assertIsNone(p.tuning_trial_candidate)
+        self.assertAlmostEqual(p.backend.PendingCommand()[0]['target'], 50, places=2)
+
+    def test_disabled_output_blocks_shared_recovery_without_reenable(self):
+        p = self.p
+        p._prepare_tuning_session()
+        p.backend.SetChannelCommand(0, 50, False, False)
+        p.backend.ApplyCommand()
+        self.tick_until(lambda: not p.backend.LatestSnapshot()['channels'][0]['enabled'])
+        p._halt_failed_tuning('Hardware fault disabled output')
+        self.assertFalse(p._failure_recovery.active)
+        self.assertIn('recovery blocked', p.tuner_status.text())
+        self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
+
     def test_abort_and_restore_keeps_partial_result_out_of_training(self):
         p=self.p
         p.tuner_duration.setValue(5)

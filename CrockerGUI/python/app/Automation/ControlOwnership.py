@@ -9,6 +9,7 @@ def active_controller(backend, requester=None):
         if page is requester or getattr(page,'backend',None) is not backend:
             continue
         if (getattr(page,'pid_enabled',False) or getattr(page,'tuning_session_active',False)
-                or getattr(page,'_sequence_running',False)):
+                or getattr(page,'_sequence_running',False)
+                or getattr(getattr(page, '_failure_recovery', None), 'active', False)):
             return page
     return None
