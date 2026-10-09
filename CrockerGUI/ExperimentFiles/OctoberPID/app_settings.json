@@ -1,0 +1,19 @@
+{
+  "plot_fps": 30.0,
+  "plot_sps": 200.0,
+  "plot_window_s": 1.0,
+  "log_cap_hz": null,
+  "log_batch": 500,
+  "log_flush_ms": 200,
+  "rf_gauge_max_kv": 100.0,
+  "rf_deadband_kv": 0.5,
+  "rf_smooth_tau_s": 0.2,
+  "vac_units": "mbar",
+  "vac_min_exp": -7,
+  "vac_max_exp": -2,
+  "vac_smooth_tau_s": 0.3,
+  "vac_tp_keys": [
+    "vac1",
+    "vac2"
+  ]
+}

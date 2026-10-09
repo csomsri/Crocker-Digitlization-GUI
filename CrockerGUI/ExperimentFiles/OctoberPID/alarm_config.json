@@ -1,0 +1,12 @@
+{
+  "rf_dkv": 5.0,
+  "rf_window_s": 1.0,
+  "vac_factor": 10.0,
+  "vac_window_s": 2.0,
+  "vac_channels": [
+    "vac1",
+    "vac2"
+  ],
+  "rf_bg": "rf_alarm_bg.png",
+  "vac_bg": "vac_alarm_bg.png"
+}
