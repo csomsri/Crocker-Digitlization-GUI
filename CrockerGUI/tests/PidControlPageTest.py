@@ -71,7 +71,9 @@ def main() -> int:
         page.tuner_target.setValue(0.3)
         page.tuner_duration.setValue(0.5)
         page.prepare_tuning_button.click()
-        proposal_deadline = time.monotonic() + 20.0
+        # Cold PyTorch import on Windows can take over 20 s. Keep this a
+        # bounded functional check rather than an import-speed benchmark.
+        proposal_deadline = time.monotonic() + 60.0
         while page.tuning_candidate is None and time.monotonic() < proposal_deadline:
             app.processEvents()
             page._tick_feedback()

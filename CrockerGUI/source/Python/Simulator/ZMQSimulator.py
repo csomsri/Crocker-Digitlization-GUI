@@ -337,13 +337,16 @@ def main() -> int:
     )
     parser.add_argument(
         "--plant",
-        choices=("smoke", "smoke2", "cyclotron"),
+        choices=("smoke", "smoke2", "cyclotron", "first-order"),
         default="smoke",
         help="Plant model to stream. Default: smoke",
     )
     args = parser.parse_args()
 
-    if args.plant == "cyclotron":
+    if args.plant == "first-order":
+        from source.Python.Simulator.FirstOrderBeamPlant import FirstOrderBeamPlant
+        plant = FirstOrderBeamPlant(raw_scale=args.raw_scale)
+    elif args.plant == "cyclotron":
         plant = CyclotronPlant(raw_scale=args.raw_scale)
     elif args.plant == "smoke2":
         plant = Smoke2Plant(raw_scale=args.raw_scale)

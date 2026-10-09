@@ -25,7 +25,8 @@ from python.app.Configuration.RecallPage import RecallPage
 from python.app.Configuration.ScalingPage import ScalingPage
 from python.app.Configuration.SettingsPage import SettingsPage
 from python.app.Display.AssignedMonitorWindow import AssignedMonitorWindow, screen_key
-from python.app.Display.WindowMode import set_decorated, set_screen_filling
+from python.app.Display.WindowMode import set_decorated, set_screen_filling, fit_decorated_window
+from python.app.Display.PageWindow import PageWindow
 from python.app.Monitoring.BeamSourceExtractionPage import (
     BeamSourceExtractionPage,
 )
@@ -111,6 +112,7 @@ class MainWindow(QMainWindow):
         self._fullscreen_shortcut.setAutoRepeat(False)
         self._fullscreen_shortcut.activated.connect(self.toggle_fullscreen)
         self._monitor_windows: dict[str, AssignedMonitorWindow] = {}
+        self._page_windows: dict[str, PageWindow] = {}
         raw_controller_monitors = self._settings.value(
             "display/controller_monitors", [], type=list
         )
@@ -140,6 +142,12 @@ class MainWindow(QMainWindow):
 
         self.stack = QStackedWidget()
         self.stack.setObjectName("root")
+        window_menu = self.menuBar().addMenu("Workspace")
+        self._page_window_menu = window_menu
+        window_menu.addAction("Bring all windows forward", self.bring_page_windows_forward)
+        window_menu.addAction("Tile windows", self.tile_page_windows)
+        window_menu.addSeparator()
+        window_menu.aboutToShow.connect(self._refresh_workspace_menu)
         self.pages: dict[str, QWidget] = {}
         self.detail_parent: dict[str, str] = {}
 
@@ -155,9 +163,9 @@ class MainWindow(QMainWindow):
         for title, (parent_category, page_builder) in DETAIL_BUILDERS.items():
             if title in {"Field Ctrl", "PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                 field_backend_mode = self.backend_mode
-                if title == "Field Ctrl" and self.simulation_mode in {"cyclotron", "smoke2"}:
+                if title == "Field Ctrl" and self.simulation_mode in {"cyclotron", "smoke2", "first-order"}:
                     field_backend_mode = "zmq"
-                elif title in {"PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"} and self.simulation_mode in {"cyclotron", "smoke2"}:
+                elif title in {"PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"} and self.simulation_mode in {"cyclotron", "smoke2", "first-order"}:
                     field_backend_mode = "zmq"
                 page_kwargs = {
                     "backend_mode": field_backend_mode,
@@ -289,8 +297,8 @@ class MainWindow(QMainWindow):
         self.apply_styles()
         self.motion = UIAnimationController(self.stack, self)
         self.motion.attach_to(self)
-        if self.simulation_mode in {"cyclotron", "smoke2"}:
-            if self.simulation_mode == "smoke2":
+        if self.simulation_mode in {"cyclotron", "smoke2", "first-order"}:
+            if self.simulation_mode in {"smoke2", "first-order"}:
                 self.apply_live_scaling({})
             self._start_zmq_simulation_plant(self.simulation_mode)
         if self.enable_data_pipeline:
@@ -382,7 +390,7 @@ class MainWindow(QMainWindow):
                 if window is not None:
                     window.close()
                 if page_name in self.pages:
-                    self.stack.setCurrentWidget(self.pages[page_name])
+                    self.open_page(page_name)
                 continue
 
             if not page_name:
@@ -441,8 +449,7 @@ class MainWindow(QMainWindow):
             page = self.pages.get(page_name)
             if page is None:
                 return False
-            self.stack.setCurrentWidget(page)
-            self._refresh_settings_monitors()
+            self.open_page(page_name)
             return True
         window = self._monitor_windows.get(screen_id)
         if window is None:
@@ -475,7 +482,7 @@ class MainWindow(QMainWindow):
             if page_name in {"Field Ctrl", "PID Control", "PythonPID", "GA + C++ PID", "GA + Python PID", "Hybrid GA + BO PID"}:
                 field_backend_mode = (
                     "zmq"
-                    if self.simulation_mode in {"cyclotron", "smoke2"}
+                    if self.simulation_mode in {"cyclotron", "smoke2", "first-order"}
                     else self.backend_mode
                 )
                 page_kwargs = {
@@ -567,7 +574,7 @@ class MainWindow(QMainWindow):
     def apply_live_scaling(self, scaling: dict[str, list[float] | list[bool]]) -> bool:
         field_page = self.pages.get("Field Ctrl")
         if isinstance(field_page, FieldCtrlPage):
-            if self.simulation_mode == "smoke2":
+            if self.simulation_mode in {"smoke2", "first-order"}:
                 # Smoke2 speaks a fixed raw protocol, independent of saved hardware calibration.
                 with (self._crocker_root / "config" / "trim_coil_scaling.simulation-1e-8.json").open(encoding="utf-8") as handle:
                     scaling = json.load(handle)
@@ -617,7 +624,22 @@ class MainWindow(QMainWindow):
             if mode == "Windowed":
                 set_decorated(self)
                 self._apply_windowed_resolution()
+                self.stack.setCurrentWidget(self.pages["Home"])
+                for name in list(self._page_windows):
+                    if getattr(self._page_windows[name], '_workspace_visible', True):
+                        self.open_page(name)
             else:
+                active_page = next((name for name, window in self._page_windows.items()
+                                    if window.isActiveWindow()), None)
+                for name, window in self._page_windows.items():
+                    window._workspace_visible = window.isVisible()
+                    self._settings.setValue(f"workspace/{name}/geometry", window.saveGeometry())
+                    window.hide()
+                    page = window.takeCentralWidget()
+                    if page is not None:
+                        self.stack.addWidget(page)
+                if active_page:
+                    self.stack.setCurrentWidget(self.pages[active_page])
                 set_screen_filling(self, self.screen() or QApplication.primaryScreen())
             for window in self._monitor_windows.values():
                 window.apply_display_mode(mode, self._window_resolution_size())
@@ -649,15 +671,7 @@ class MainWindow(QMainWindow):
         width, height = self._window_resolution_size()
         screen = self.screen() or QApplication.primaryScreen()
         if screen is not None:
-            available = self._safe_screen_rect(screen, available=True)
-            margins = self._frame_margins()
-            width = min(width, max(1, available.width() - margins.left() - margins.right()))
-            height = min(height, max(1, available.height() - margins.top() - margins.bottom()))
-            self.resize(width, height)
-            self.move(
-                available.x() + int((available.width() - width) / 2),
-                available.y() + int((available.height() - height) / 2),
-            )
+            fit_decorated_window(self, screen, (width, height))
         else:
             self.resize(width, height)
 
@@ -684,7 +698,7 @@ class MainWindow(QMainWindow):
         zmq_endpoint: str,
         simulation_mode: str | None,
     ) -> str:
-        if simulation_mode not in {"cyclotron", "smoke2"}:
+        if simulation_mode not in {"cyclotron", "smoke2", "first-order"}:
             return zmq_endpoint
         if zmq_endpoint not in {"tcp://0.0.0.0:5555", "tcp://127.0.0.1:5555"}:
             return zmq_endpoint
@@ -702,7 +716,11 @@ class MainWindow(QMainWindow):
 
         self._simulation_plant_stop = Event()
         endpoint = self.zmq_endpoint.replace("0.0.0.0", "127.0.0.1")
-        plant = CyclotronPlant() if simulation_mode == "cyclotron" else Smoke2Plant()
+        from source.Python.Simulator.FirstOrderBeamPlant import FirstOrderBeamPlant
+        plant = FirstOrderBeamPlant() if simulation_mode == "first-order" else CyclotronPlant() if simulation_mode == "cyclotron" else Smoke2Plant()
+        self._simulation_plant = plant
+        if simulation_mode == "first-order":
+            self.beam_calibration.set_manual_range(0)
 
         def run_plant() -> None:
             simulator = ZMQSimulator(endpoint)
@@ -741,6 +759,9 @@ class MainWindow(QMainWindow):
         if self._recording_closing:
             return
         self._recording_closing = True
+        for window in self._page_windows.values():
+            self._settings.setValue(f"workspace/{window.page_name}/geometry", window.saveGeometry())
+            window.hide()
         self.alarm_service.event_sink = lambda *_: False
         for window in self._monitor_windows.values():
             window.close()
@@ -782,6 +803,20 @@ class MainWindow(QMainWindow):
             self.close()
 
     def _attach_pid_recording(self, page):
+        if type(page) is PidControlPage and self.simulation_mode == "first-order":
+            page.channel_select.setCurrentIndex(9)
+            page.setpoint_input.setValue(0.8)
+            page.kp_input.setValue(40.0)
+            page.ki_input.setValue(20.0)
+            page.kd_input.setValue(0.0)
+            page.max_output_input.setValue(250.0)
+            page.tuner_trials.setValue(10)
+            page.tuner_duration.setValue(20.0)
+            page.dry_run_check.setChecked(False)
+            for name, limits in {"Kp": (0.0, 100.0), "Ki": (0.0, 80.0), "Kd": (0.0, 10.0)}.items():
+                lower, upper = page.tuner_gain_bounds[name]
+                lower.setValue(limits[0])
+                upper.setValue(limits[1])
         if isinstance(page, (PidControlPage, GAPIDPage)):
             page._database_recorder = PagePIDRecorder(page, self.database_b, self.database_a,
                                                       self.current_beam_state)
@@ -837,15 +872,75 @@ class MainWindow(QMainWindow):
 
     def show_home(self) -> None:
         self.stack.setCurrentWidget(self.pages["Home"])
+        self.show()
+        self.raise_()
+        self.activateWindow()
         self._refresh_settings_monitors()
+
+    def open_page(self, name: str) -> None:
+        if name == "Home":
+            self.show_home()
+            return
+        page = self.pages[name]
+        if self._display_mode != "Windowed" or name in PAGE_BUILDERS:
+            self.stack.setCurrentWidget(page)
+            if name in PAGE_BUILDERS:
+                self.show()
+                self.raise_()
+                self.activateWindow()
+        else:
+            window = self._page_windows.get(name)
+            if window is None:
+                self.stack.removeWidget(page)
+                window = PageWindow(self, name, page)
+                self._page_windows[name] = window
+                action = self._page_window_menu.addAction(name, lambda checked=False, n=name: self.open_page(n))
+                action.setData(name)
+            elif window.centralWidget() is None:
+                self.stack.removeWidget(page)
+                window.attach_page(page)
+            window.ensure_on_screen()
+            window.showNormal() if window.isMinimized() else window.show()
+            window.raise_()
+            window.activateWindow()
+        self._refresh_settings_monitors()
+
+    def bring_page_windows_forward(self) -> None:
+        for name in list(self._page_windows):
+            self.open_page(name)
+
+    def _refresh_workspace_menu(self) -> None:
+        for action in self._page_window_menu.actions():
+            name = action.data()
+            if name in self._page_windows:
+                page = self.pages[name]
+                running = any(getattr(page, key, False) for key in
+                              ('pid_enabled', 'tuning_session_active', '_sequence_running'))
+                action.setText(name + (' • Running' if running else ''))
+
+    def tile_page_windows(self) -> None:
+        if self._display_mode != "Windowed":
+            return
+        windows = [w for w in self._page_windows.values() if w.isVisible()]
+        screen = self.screen()
+        if not windows or screen is None:
+            return
+        import math
+        rect = screen.availableGeometry()
+        columns = max(1, min(math.ceil(math.sqrt(len(windows))), rect.width() // 480))
+        rows = math.ceil(len(windows) / columns)
+        width, height = rect.width() // columns, rect.height() // rows
+        for index, window in enumerate(windows):
+            window.showNormal()
+            window.setGeometry(rect.x() + index % columns * width,
+                               rect.y() + index // columns * height + 30,
+                               max(320, width - 16), max(240, height - 46))
 
     def show_category(self, category: str) -> None:
-        self.stack.setCurrentWidget(self.pages[category])
-        self._refresh_settings_monitors()
+        self.open_page(category)
 
     def open_placeholder(self, title: str, purpose: str) -> None:
-        self.stack.setCurrentWidget(self.pages[title])
-        self._refresh_settings_monitors()
+        self.open_page(title)
 
     def apply_styles(self) -> None:
         app_font = load_app_font()
@@ -857,6 +952,8 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(stylesheet)
         for window in self._monitor_windows.values():
             window.sync_theme()
+        for window in self._page_windows.values():
+            window.setStyleSheet(stylesheet)
 
 
 def run_app(

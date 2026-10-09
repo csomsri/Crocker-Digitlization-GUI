@@ -1,6 +1,6 @@
 """Shared themed window surface for PID tools."""
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QSizeGrip
+from PySide6.QtWidgets import QFrame, QVBoxLayout, QHBoxLayout, QSizeGrip, QPushButton
 from python.app.widgets.DialogTitleBar import DialogTitleBar
 from pathlib import Path
 
@@ -43,6 +43,19 @@ def setup_pid_dialog(dialog, title, *, window_controls=True, resize_grip=True):
     content.setSpacing(12)
     frame.addLayout(content, 1)
     footer = QHBoxLayout()
+    owner = dialog.parentWidget()
+    if owner is not None and type(owner).__name__ == 'PidControlPage' and hasattr(owner, 'cruise'):
+        # Modal overlays cover the workspace controls. Keep Stop reachable in
+        # every PID tool, including history, metrics and hardware-profile editors.
+        stop = QPushButton('Stop control')
+        stop.setObjectName('pidCruiseDialogStop')
+        stop.setAutoDefault(False)
+        stop.setToolTip('Stop PID / BO and disable the selected output')
+        def stop_control():
+            owner._stop_cruise()
+            dialog.reject()
+        stop.clicked.connect(stop_control)
+        footer.addWidget(stop)
     footer.addStretch()
     if resize_grip:
         footer.addWidget(QSizeGrip(dialog))

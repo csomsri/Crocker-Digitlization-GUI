@@ -29,10 +29,12 @@ def _number(value):
 
 
 class CppTrendPlot(AxisTrendPlot):
-    def __init__(self, source, labels, *, fitness=False, offset_provider=None):
+    def __init__(self, source, labels, *, fitness=False, offset_provider=None, display_y_label=None, compact=False):
         super().__init__(source.y_axis_label,source.x_axis_label,*source.colors)
         self.series_labels = labels
         self.fitness = fitness
+        self.display_y_label = display_y_label
+        self.compact = compact
         self.offset_provider = offset_provider
         self.data = tuple(list(series) for series in source.data)
         self._hover = None
@@ -50,7 +52,7 @@ class CppTrendPlot(AxisTrendPlot):
         times = [t for t in x if math.isfinite(t)]
         low,high = (min(values),max(values)) if values else (0.,1.)
         pad = max((high-low)*.08,abs(high)*.000001,.000001)
-        lower = max(0,low-pad) if self.fitness or 'ERROR' in self.y_axis_label else low-pad
+        lower = max(0,low-pad) if self.fitness or ('ERROR' in self.y_axis_label and self.y_axis_label != 'SIGNED ERROR') else low-pad
         tick_count = max(2, min(5, (self.height()-108)//32))
         yticks = _ticks(lower,high+pad,tick_count) if values else _ticks(0,1,tick_count)
         xmin,xmax = (min(times),max(times)) if times else (0.,1.)
@@ -70,7 +72,7 @@ class CppTrendPlot(AxisTrendPlot):
         metrics = QFontMetrics(font)
         label_width = max(metrics.horizontalAdvance(_number(v)) for v in yticks)
         left = max(72,label_width+22)
-        top = 88 if self.width() < 540 else 64
+        top = 34 if self.compact else 88 if self.width() < 540 else 64
         rect = QRectF(left,top,max(1,self.width()-left-32),max(1,self.height()-top-44))
         return rect,xticks,yticks,bool(values)
 
@@ -88,13 +90,18 @@ class CppTrendPlot(AxisTrendPlot):
                   'Absolute error (nA)' if 'ERROR' in self.y_axis_label else
                   'Trim-coil current (A)' if 'TC CURRENT' in self.y_axis_label else
                   'Beam current (nA)')
+        if self.display_y_label is not None:
+            ylabel = self.display_y_label
+        if self.compact:
+            last = next((v for v in reversed(b) if math.isfinite(v)), None)
+            ylabel += f' · Latest: {_number(last) if last is not None else "—"}'
         if offset:
             ylabel += f'  (axis values + {_number(offset)})'
         p.setPen(QColor('#dce7f5'))
         p.drawText(QRectF(18,8,self.width()-36,22),Qt.AlignLeft | Qt.AlignVCenter,ylabel)
         # Always-visible legends also show the latest finite value for each line.
         legend_x = 18
-        for index,(label,series,color) in enumerate(zip(self.series_labels,(a,b),self.colors)):
+        for index,(label,series,color) in (() if self.compact else enumerate(zip(self.series_labels,(a,b),self.colors))):
             legend_y = 46 + (24*index if self.width() < 540 else 0)
             if self.width() < 540:
                 legend_x = 18

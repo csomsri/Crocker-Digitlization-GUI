@@ -9,7 +9,7 @@ from source.Python.Data.pipeline_schema import DEFAULT_DB_PATH
 
 
 def preload_zmq_for_qt(simulation_mode: str | None) -> None:
-    if simulation_mode not in {"smoke", "smoke2", "cyclotron", None}:
+    if simulation_mode not in {"smoke", "smoke2", "cyclotron", "first-order", None}:
         return
     # PySide installs an import hook that can interfere with pyzmq's import
     # chain on Python 3.13. MainWindow imports the data pipeline at module load,
@@ -45,6 +45,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "nonzero current and accept GUI commands after control is enabled."
         ),
     )
+    parser.add_argument("-first-order", "--first-order", action="store_true", help="Test BO/PID with a first-order beam plant driven by TC10.")
     parser.add_argument(
         "-cyclotron",
         action="store_true",
@@ -74,18 +75,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     args.db_path = str(Path(args.db_path))
     if args.simulation:
-        selected_modes = sum(bool(mode) for mode in (args.smoke, args.smoke2, args.cyclotron))
+        selected_modes = sum(bool(mode) for mode in (args.smoke, args.smoke2, args.cyclotron, args.first_order))
         if selected_modes != 1:
-            parser.error("-simulation requires exactly one of -smoke, -smoke2, or -cyclotron")
+            parser.error("-simulation requires exactly one of -smoke, -smoke2, -cyclotron, or -first-order")
         args.backend_mode = "simulation"
-        if args.cyclotron:
+        if args.first_order:
+            args.simulation_mode = "first-order"
+        elif args.cyclotron:
             args.simulation_mode = "cyclotron"
         elif args.smoke2:
             args.simulation_mode = "smoke2"
         else:
             args.simulation_mode = "smoke"
     else:
-        if args.smoke or args.smoke2 or args.cyclotron:
+        if args.smoke or args.smoke2 or args.cyclotron or args.first_order:
             parser.error("-smoke, -smoke2, and -cyclotron may only be used with -simulation")
         args.simulation_mode = None
     return args

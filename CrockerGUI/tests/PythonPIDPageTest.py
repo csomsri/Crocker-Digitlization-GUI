@@ -57,7 +57,7 @@ class PythonPIDPageTest(unittest.TestCase):
     def test_increment_and_duplicate_sample(self):
         p = self.page
         self.assertIs(DETAIL_BUILDERS["PythonPID"][1], PythonPIDPage)
-        self.assertEqual(p.page_stack.count(), 2)
+        self.assertEqual(p.page_stack.count(), 3)
         self.assertEqual(p.command_values[0], 2.0)
         p._tick_pid_controller()
         self.backend.timestamp += 0.1

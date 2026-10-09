@@ -16,7 +16,8 @@ class TuningQualityDialog(AppDialog):
         self.defaults = TuningQuality() if beam else TuningQuality(0.1, 0.5, 0.1, 1.0, 2)
         layout = setup_pid_dialog(self, 'Tuning quality settings', window_controls=False, resize_grip=False)
         note = QLabel('Changes apply to the next tuning session. These settings judge response quality; '
-                      'they do not change hardware abort limits. Final gain validation remains at least 60 seconds.')
+                      'they do not change hardware abort limits. Validation duration is adjustable in Cruise operator settings; '
+                      'the settling hold and oscillation observation windows still apply.')
         note.setWordWrap(True)
         layout.addWidget(note)
         form = QFormLayout()

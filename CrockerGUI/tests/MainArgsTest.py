@@ -9,6 +9,10 @@ from main import parse_args
 
 
 def main() -> int:
+    first_order = parse_args(["-simulation", "-first-order"])
+    assert first_order.simulation_mode == "first-order"
+    assert first_order.backend_mode == "simulation"
+
     smoke = parse_args(["-simulation", "-smoke"])
     assert smoke.backend_mode == "simulation"
     assert smoke.simulation_mode == "smoke"

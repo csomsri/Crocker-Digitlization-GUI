@@ -3,7 +3,7 @@
 import ctypes
 import sys
 
-from PySide6.QtCore import QEvent, QObject, Qt
+from PySide6.QtCore import QEvent, QObject, Qt, QMargins, QRect
 from PySide6.QtGui import QGuiApplication
 
 
@@ -71,12 +71,34 @@ def set_screen_filling(window, screen) -> None:
         guard.apply()
 
 
+def fit_decorated_window(window, screen, requested_size=None) -> None:
+    """Fit the complete native frame using logical, DPI-independent coordinates."""
+    if screen is None:
+        return
+    available = screen.availableGeometry()
+    handle = window.windowHandle()
+    margins = handle.frameMargins() if handle is not None else QMargins()
+    # During a frameless transition Qt can still report the old zero margins.
+    # Reserve room before showing the decorated HWND so Windows never receives
+    # a monitor-sized client rectangle plus a title bar and resize borders.
+    left, top, right, bottom = (max(16, margins.left()), max(48, margins.top()),
+                               max(16, margins.right()), max(16, margins.bottom()))
+    width, height = requested_size or (window.width(), window.height())
+    width = min(width, max(1, available.width() - left - right))
+    height = min(height, max(1, available.height() - top - bottom))
+    x = available.x() + left + (available.width() - left - right - width) // 2
+    y = available.y() + top + (available.height() - top - bottom - height) // 2
+    window.setGeometry(QRect(x, y, width, height))
+
+
 def set_decorated(window) -> None:
     guard = getattr(window, "_composited_screen_window", None)
     if guard is not None:
         guard.enabled = False
     flags = window.windowFlags() & ~Qt.WindowType.FramelessWindowHint
     if window.windowFlags() != flags:
+        fit_decorated_window(window, window.screen() or QGuiApplication.primaryScreen())
         window.setWindowFlags(flags)
     window.setWindowState(Qt.WindowState.WindowNoState)
+    fit_decorated_window(window, window.screen() or QGuiApplication.primaryScreen())
     window.showNormal()

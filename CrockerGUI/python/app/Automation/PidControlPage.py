@@ -39,6 +39,9 @@ from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as
 from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
 from python.app.Automation.TuningQualityDialog import TuningQualityDialog
 from source.Python.Automation.hardware_profile import apply_hardware_profile
+from python.app.Automation.CruiseWorkspace import CruiseWorkspace, CruisePageStack
+from python.app.Automation.CruiseController import CruiseControllerMixin
+from python.app.Automation.CruiseNavigation import CruiseNavigation
 from python.app.Automation.HardwareProfileDialog import HardwareProfileDialog, PROFILE_PATH
 from python.app.Automation.RunMetrics import RunMetrics
 from python.app.PageShell import DetailPage
@@ -79,7 +82,7 @@ class FullRowCheckBox(QCheckBox):
         return self.rect().contains(pos)
 
 
-class PidControlPage(DetailPage):
+class PidControlPage(CruiseControllerMixin, DetailPage):
     beam_feedback = True
     def __init__(
         self,
@@ -93,12 +96,12 @@ class PidControlPage(DetailPage):
         get_beam_state: Callable[[], dict] | None = None,
     ) -> None:
         super().__init__(
-            "PID Control",
-            "Beam feedback → selected trim coil" if self.beam_feedback else "Closed-loop channel control",
+            "Beam Cruise Control" if self.beam_feedback and type(self) is PidControlPage else "PID Control",
+            "Beam feedback â†’ selected trim coil" if self.beam_feedback else "Closed-loop channel control",
             "Back to Automation",
             go_back,
         )
-        back_button = self.findChild(QPushButton, "backButton")
+        back_button = self.findChild(QPushButton, "navBackButton")
         if back_button is not None:
             back_button.setObjectName("pidBackButton")
             back_button.setText("Back to Automation")
@@ -160,6 +163,7 @@ class PidControlPage(DetailPage):
         self.tuning_surrogate_grid: dict | None = None
         self.tuning_surrogate_proposal: Future[dict] | None = None
         self.tuning_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="pid-bo")
+        self._initialize_cruise()
         self.log_path = Path(__file__).resolve().parents[3] / "logs" / (
             "cpp_beam_pid_commands.csv" if self.beam_feedback else "pid_commands.csv")
 
@@ -171,7 +175,7 @@ class PidControlPage(DetailPage):
         workspace.setContentsMargins(12, 4, 12, 6)
         self.header.setFixedHeight(40)
 
-        self.page_stack = QStackedWidget()
+        self.page_stack = CruisePageStack() if self.beam_feedback and type(self) is PidControlPage else QStackedWidget()
         self.page_stack.setObjectName("pidPageStack")
         workspace.addWidget(self.page_stack, 1)
 
@@ -199,6 +203,46 @@ class PidControlPage(DetailPage):
         self.tuner_page = self._build_tuner_page()
         self.page_stack.addWidget(control_page)
         self.page_stack.addWidget(self.tuner_page)
+        self._advanced_control_page = control_page
+        self.results_page = QWidget()
+        self.results_layout = QVBoxLayout(self.results_page)
+        self.page_stack.addWidget(self.results_page)
+        if self.beam_feedback and type(self) is PidControlPage:
+            self.header.hide()
+            # Keep the existing tools available, but make the operator workspace primary.
+            self.cruise_workspace = CruiseWorkspace(self)
+            self.page_stack.insertWidget(0, self.cruise_workspace)
+            self.page_stack.setCurrentWidget(self.cruise_workspace)
+            self._advanced_control_page = control_page
+            back_button = self.findChild(QPushButton, 'pidBackButton')
+            # Replace the old back-only row with one persistent navigation bar.
+            for index in range(self.layout.count()):
+                item = self.layout.itemAt(index)
+                if item.layout() is not None and item.layout().indexOf(back_button) >= 0:
+                    item.layout().removeWidget(back_button)
+                    old_row = self.layout.takeAt(index).layout()
+                    old_row.deleteLater()
+                    break
+            self._advanced_target_label = QLabel()
+            self.control_panel.layout().addWidget(self._advanced_target_label, 3, 0)
+            self.control_panel.layout().addWidget(QLabel('Start / Stop and live plots are on Beam Cruise Control.'), 8, 0, 1, 4)
+            self.open_tuner_button.setText('BO tuning')
+            self.close_tuner_button.setText('Live control')
+
+        if not hasattr(self, 'cruise_workspace'):
+            for index in range(self.layout.count()):
+                item = self.layout.itemAt(index)
+                if item.layout() is not None and item.layout().indexOf(back_button) >= 0:
+                    item.layout().removeWidget(back_button)
+                    old_row = self.layout.takeAt(index).layout()
+                    old_row.deleteLater()
+                    break
+        self.cruise_navigation = CruiseNavigation(self, back_button)
+        QWidget.layout(self).insertWidget(0, self.cruise_navigation)
+        # The cruise diagnostics dialog previously took ownership of this panel.
+        # Keep connection and stop failures visible across all sections.
+        QWidget.layout(self).addWidget(self.backend_status_panel)
+        self._populate_tuning_results()
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self._tick_feedback)
@@ -253,7 +297,7 @@ class PidControlPage(DetailPage):
         title_layout = QVBoxLayout(title_panel)
         title_layout.setContentsMargins(10, 5, 10, 5)
         title_layout.setSpacing(1)
-        title = QLabel("BEAM PID · TRIM-COIL OUTPUT" if self.beam_feedback else "PID CHANNEL CONTROL")
+        title = QLabel("BEAM PID Â· TRIM-COIL OUTPUT" if self.beam_feedback else "PID CHANNEL CONTROL")
         title.setObjectName("pidControlTitle")
         subtitle = QLabel("REAL-TIME CLOSED-LOOP CONTROL")
         subtitle.setObjectName("pidControlSubtitle")
@@ -653,16 +697,18 @@ class PidControlPage(DetailPage):
 
         configuration = QFrame()
         configuration.setObjectName("pidPanel")
-        grid = QGridLayout(configuration)
+        grid = QVBoxLayout(configuration)
         grid.setContentsMargins(16, 14, 16, 14)
-        grid.setHorizontalSpacing(10)
-        grid.setVerticalSpacing(8)
+        grid.setSpacing(8)
+        primary_row = ResponsiveRow()
+        primary_row.setSpacing(10)
+        grid.addLayout(primary_row)
 
         self.tuner_channel = QComboBox()
         self.tuner_channel.setObjectName("pidTunerChannel")
         self.tuner_channel.setProperty("stablePopup", True)
         self.tuner_channel.addItems(CHANNEL_NAMES[:12] if self.beam_feedback else CHANNEL_NAMES)
-        if self.backend_mode != "simulation" and not self.beam_feedback:
+        if (self.backend_mode != "simulation" and self.simulation_mode != "first-order") and not self.beam_feedback:
             for index in range(12, len(CHANNEL_NAMES)):
                 self.tuner_channel.model().item(index).setEnabled(False)
         tuner_channel_selector = self.tuner_channel
@@ -673,6 +719,8 @@ class PidControlPage(DetailPage):
         self.tuner_trials.setValue(20)
         self.tuner_duration = self._make_spinbox(0.5, 300.0, 0.5, " s")
         self.tuner_duration.setValue(60.0)
+        self.validation_duration = self._make_spinbox(1.0, 600.0, 1.0, ' s')
+        self.validation_duration.setValue(60.0)
         self.tuner_profile = QComboBox()
         self.tuner_profile.setObjectName("pidTunerProfile")
         # Keep Qt's native popup. Replacing the view while this stacked page is
@@ -690,10 +738,17 @@ class PidControlPage(DetailPage):
             ("Performance profile", self.tuner_profile),
         )
         for column, (text, widget) in enumerate(primary_fields):
+            field = QWidget()
+            field.setMinimumWidth(150)
+            field_layout = QVBoxLayout(field)
+            field_layout.setContentsMargins(0, 0, 0, 0)
+            field_layout.setSpacing(4)
             label = QLabel(text)
             label.setObjectName("pidFieldLabel")
-            grid.addWidget(label, 0, column)
-            grid.addWidget(widget, 1, column)
+            label.setWordWrap(True)
+            field_layout.addWidget(label)
+            field_layout.addWidget(widget)
+            primary_row.addWidget(field, 1)
             widget.setFixedHeight(36)
 
         self.tuner_gain_bounds: dict[str, tuple[QDoubleSpinBox, QDoubleSpinBox]] = {}
@@ -701,17 +756,21 @@ class PidControlPage(DetailPage):
         defaults = {"Kp": (0.0, 5.0), "Ki": (0.0, 2.0), "Kd": (0.0, 1.0)}
         bounds_panel = QFrame()
         bounds_panel.setObjectName("pidBoundsPanel")
-        bounds_layout = QGridLayout(bounds_panel)
+        bounds_layout = QVBoxLayout(bounds_panel)
         bounds_layout.setContentsMargins(10, 8, 10, 8)
-        bounds_layout.setHorizontalSpacing(10)
-        bounds_layout.setVerticalSpacing(5)
+        bounds_layout.setSpacing(5)
+        bounds_heading = ResponsiveRow()
+        bounds_layout.addLayout(bounds_heading)
+        bounds_cards = ResponsiveRow()
+        bounds_layout.addLayout(bounds_cards)
         bounds_title = QLabel("Safe gain search bounds")
         bounds_title.setObjectName("pidSectionTitle")
-        bounds_layout.addWidget(bounds_title, 0, 0, 1, 2)
+        bounds_title.setWordWrap(True)
+        bounds_heading.addWidget(bounds_title, 1)
         self.reset_bounds_button = QPushButton("Reset Gain Bounds")
         self.reset_bounds_button.setObjectName("pidCompactAction")
         self.reset_bounds_button.clicked.connect(self._reset_tuner_bounds)
-        bounds_layout.addWidget(self.reset_bounds_button, 0, 2, Qt.AlignRight)
+        bounds_heading.addWidget(self.reset_bounds_button)
         for column, gain in enumerate(("Kp", "Ki", "Kd")):
             minimum = self._make_spinbox(0.0, 100.0, 0.01)
             maximum = self._make_spinbox(0.0, 100.0, 0.01)
@@ -720,6 +779,7 @@ class PidControlPage(DetailPage):
             self.tuner_gain_bounds[gain] = (minimum, maximum)
             gain_card = QFrame()
             gain_card.setObjectName("pidBoundCard")
+            gain_card.setMinimumWidth(190)
             gain_layout = QVBoxLayout(gain_card)
             gain_layout.setContentsMargins(8, 5, 8, 7)
             gain_layout.setSpacing(4)
@@ -744,17 +804,19 @@ class PidControlPage(DetailPage):
                 control.setFixedHeight(36)
                 range_row.addLayout(field, 1)
             gain_layout.addLayout(range_row)
-            bounds_layout.addWidget(gain_card, 1, column)
+            bounds_cards.addWidget(gain_card, 1)
             minimum.valueChanged.connect(self._refresh_bound_summaries)
             maximum.valueChanged.connect(self._refresh_bound_summaries)
-        grid.addWidget(bounds_panel, 2, 0, 1, 3)
+        tuning_details = ResponsiveRow()
+        tuning_details.addWidget(bounds_panel, 3)
+        grid.addLayout(tuning_details)
         self._refresh_bound_summaries()
 
         self.tuner_safety_profile = QComboBox()
         self.tuner_safety_profile.setObjectName("pidTunerSafetyProfile")
         self.tuner_safety_profile.setProperty("stablePopup", True)
         self.tuner_safety_profile.addItems(["Simulation / dry run", "Reviewed hardware profile" if self.beam_feedback else "Trim coils / existing scaling"])
-        self.tuner_safety_profile.setCurrentIndex(0 if self.backend_mode == "simulation" else 1)
+        self.tuner_safety_profile.setCurrentIndex(0 if self.backend_mode == "simulation" or self.simulation_mode == "first-order" else 1)
         self.tuner_safety_profile.setEnabled(False)
 
         candidate_panel = QFrame()
@@ -799,7 +861,7 @@ class PidControlPage(DetailPage):
             self.tuner_candidate_values[gain] = value
             gain_row.addWidget(value)
         candidate_layout.addLayout(gain_row)
-        grid.addWidget(candidate_panel, 2, 3, 1, 2)
+        tuning_details.addWidget(candidate_panel, 2)
         outer.addWidget(configuration)
 
         self.tuner_viewport = QFrame()
@@ -876,7 +938,7 @@ class PidControlPage(DetailPage):
         self.review_history_button.setEnabled(False)
         self.review_history_button.clicked.connect(self._show_tuning_history)
         self.approve_gains_button = QPushButton("Validate best gains")
-        self.approve_gains_button.setToolTip('Run the best gains for at least 60 seconds before allowing application.')
+        self.approve_gains_button.setToolTip('Validate the best gains for the configured duration and settling hold before application.')
         self.approve_gains_button.setObjectName("fieldAction")
         self.approve_gains_button.setEnabled(False)
         self.approve_gains_button.clicked.connect(self._validate_best_gains)
@@ -912,8 +974,13 @@ class PidControlPage(DetailPage):
         if self.tuning_session_active:
             self.page_stack.setCurrentWidget(self.tuner_page)
             return
-        self.tuner_channel.setCurrentIndex(self.selected_index)
-        self.tuner_target.setValue(self.setpoint_input.value())
+        if getattr(self, '_tuner_initialized', False):
+            self.page_stack.setCurrentWidget(self.tuner_page)
+            return
+        if not getattr(self, '_tuner_initialized', False):
+            self.tuner_channel.setCurrentIndex(self.selected_index)
+            self.tuner_target.setValue(self.setpoint_input.value())
+            self._tuner_initialized = True
         current_gains = {
             "Kp": self.kp_input.value(),
             "Ki": self.ki_input.value(),
@@ -1014,7 +1081,7 @@ class PidControlPage(DetailPage):
                 return
         if self.tuning_session_active:
             return
-        hardware_requested = self.backend_mode != "simulation"
+        hardware_requested = (self.backend_mode != "simulation" and self.simulation_mode != "first-order")
         if hardware_requested and self.tuner_channel.currentIndex() >= 12:
             self.tuner_status.setText("Select a trim coil (TC1-TC12) for hardware BO.")
             return
@@ -1067,13 +1134,24 @@ class PidControlPage(DetailPage):
         self.approve_gains_button.setEnabled(False)
         self.apply_tuned_gains_button.setEnabled(False)
         self.tuner_status.setText(f"{self._tuning_controller_config['controller_kind'].upper()}: preparing the next gain candidate.")
+        self.apply_tuned_gains_button.setProperty('approvedCandidate', None)
+        self._cruise_costs = []
+        self._cruise_baseline = None
+        self._cruise_validation_cost = None
         self._request_tuning_candidate()
 
     def _request_tuning_candidate(self) -> None:
         if self.tuning_optimizer is None or not self.tuning_session_active:
             return
-        if len(self.tuning_results) >= self.tuner_trials.value():
+        if (len(self.tuning_results) >= self.tuner_trials.value()
+                or (self._cruise_auto_validate and self._cruise_search_complete())):
             self._finish_tuning_session()
+            return
+        if self._cruise_auto_validate and not self.tuning_results:
+            # Establish a measured baseline before exploring new gains.
+            self.tuning_candidate = self._cruise_previous.gains
+            self._set_candidate_values(self.tuning_candidate)
+            self._run_tuning_trial()
             return
         self.tuning_candidate = None
         self.run_tuning_trial_button.setEnabled(False)
@@ -1095,7 +1173,7 @@ class PidControlPage(DetailPage):
             if (str(health['connection']).lower() != 'connected'
                     or float(health['packet_age_ms']) > 1000
                     or channel.get('interlocked') or channel.get('status') in UNSAFE_STATUSES
-                    or (self.backend_mode != 'simulation' and not self.arm_button.isChecked())):
+                    or ((self.backend_mode != 'simulation' and self.simulation_mode != 'first-order') and not self.arm_button.isChecked())):
                 raise RuntimeError('Telemetry, arming, or interlock check failed')
         except Exception as exc:
             self._stop_tuning_session()
@@ -1177,7 +1255,7 @@ class PidControlPage(DetailPage):
         self._set_tuning_progress(
             trial="Validation" if self._validating_gains else f"{len(self.tuning_results) + 1} of {self.tuner_trials.value()}",
             state=state,
-            elapsed=f"{elapsed:.1f} / {max(60.0, self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value():.1f} s",
+            elapsed=f"{elapsed:.1f} / {self._validation_seconds() if self._validating_gains else self.tuner_duration.value():.1f} s",
             error=f"{error:+.3f}",
         )
         if state == "Running" and elapsed >= self._tuning_quality_settings.oscillation_min_seconds and len(self.tuning_samples) >= 6:
@@ -1199,7 +1277,7 @@ class PidControlPage(DetailPage):
             self._complete_tuning_trial(False)
 
     def _start_trial(self, config: dict) -> None:
-        if self.beam_feedback and self.backend_mode != "simulation":
+        if self.beam_feedback and (self.backend_mode != "simulation" and self.simulation_mode != "first-order"):
             config = apply_hardware_profile(
                 config, PROFILE_PATH,
                 CHANNEL_NAMES,
@@ -1231,7 +1309,7 @@ class PidControlPage(DetailPage):
         if self.tuning_candidate is None or self.backend is None:
             return
         channel = self.tuner_channel.currentIndex()
-        hardware_trial = self.backend_mode != "simulation"
+        hardware_trial = (self.backend_mode != "simulation" and self.simulation_mode != "first-order")
         if hardware_trial and (channel >= 12 or not self.arm_button.isChecked()):
             if self.tuning_auto_run:
                 self._stop_tuning_session()
@@ -1250,7 +1328,7 @@ class PidControlPage(DetailPage):
             "ki": candidate.ki,
             "kd": candidate.kd,
             "update_rate_hz": 20.0,
-            "duration_seconds": max(60.0, self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value(),
+            "duration_seconds": self._validation_seconds() if self._validating_gains else self.tuner_duration.value(),
             "telemetry_timeout_seconds": 1.0,
             "allocation": allocation,
             "command_bias": list(self.command_values),
@@ -1268,7 +1346,7 @@ class PidControlPage(DetailPage):
         try:
             if config["controller_kind"] == "nla" and not hasattr(CycloViz, "NLAPID"):
                 raise RuntimeError("Rebuild CycloViz to enable C++ NLAPID trials")
-            self._coil_trial_mode = "Dry run (virtual command)" if config["dry_run"] else "Simulation" if self.backend_mode == "simulation" else "Smoke2 simulation" if self.simulation_mode == "smoke2" else "Hardware"
+            self._coil_trial_mode = "Dry run (virtual command)" if config["dry_run"] else "Simulation" if self.backend_mode == "simulation" or self.simulation_mode == "first-order" else "Smoke2 simulation" if self.simulation_mode == "smoke2" else "Hardware"
             self._coil_trial_limits = (minimum, maximum)
             self._start_trial(config)
             self._tuning_output_held = False
@@ -1326,6 +1404,9 @@ class PidControlPage(DetailPage):
         )
         self.tuning_optimizer.record_results([result])
         self.tuning_results.append(result)
+        self._cruise_costs.append((time.perf_counter()-self.coil_session_started, result))
+        if self._cruise_auto_validate and len(self.tuning_results) == 1:
+            self._cruise_baseline = result
         self.review_history_button.setEnabled(True)
         self.tuning_trial_candidate = None
         self._request_surrogate_grid()
@@ -1369,6 +1450,16 @@ class PidControlPage(DetailPage):
         )
         self._set_candidate_values(best.candidate)
         self._refresh_surrogate_plot()
+        if self._cruise_auto_validate and not self._validating_gains:
+            self._cruise_auto_validate = False
+            self._validate_best_gains()
+
+    def _validation_seconds(self):
+        if not hasattr(self, 'cruise_workspace'):
+            return max(60.0, self.tuner_duration.value())
+        quality = self._tuning_quality_settings
+        return max(self.validation_duration.value(), quality.hold_seconds,
+                   quality.oscillation_min_seconds)
 
     def _validate_best_gains(self) -> None:
         if active_controller(self.backend, self) is not None:
@@ -1380,6 +1471,8 @@ class PidControlPage(DetailPage):
         if self.tuning_session_active:
             self.tuner_status.setText('Finish or stop the search before validating gains.')
             return
+        if self.pid_enabled:
+            self._stop_pid('Validating BO gains')
         self._validating_gains = True
         self._set_auto_tuning(False)
         self.apply_tuned_gains_button.setEnabled(False)
@@ -1392,7 +1485,7 @@ class PidControlPage(DetailPage):
             self._validating_gains = False
             self._stop_tuning_session()
         else:
-            self.tuner_status.setText('Validation running for at least 60 seconds. Apply remains disabled until settled without sustained oscillation.')
+            self.tuner_status.setText(f'Validation running for {self._validation_seconds():g} seconds. Apply requires settling without sustained oscillation.')
 
     def _finish_gain_validation(self, candidate, metrics, safe):
         recording(self, 'event', event='validation_result', details=dict(candidate=candidate, metrics=metrics, safe=safe))
@@ -1403,7 +1496,14 @@ class PidControlPage(DetailPage):
         self._finish_tuning_session()
         valid = (safe and not self._oscillation_stopped and metrics is not None
                  and metrics.settled and not metrics.sustained_oscillation
-                 and self.tuning_samples[-1][0] >= max(60.0, self.tuner_duration.value()) - 0.5)
+                 and bool(self.tuning_samples)
+                 and self.tuning_samples[-1][0] >= self._validation_seconds() - 0.5)
+        baseline = getattr(self, '_cruise_baseline', None)
+        self._cruise_validation_cost = trial_cost(metrics, self.tuner_profile.currentText()) if safe and metrics else None
+        if self.cruise.active:
+            # The recommendation must hold up against the measured incumbent.
+            valid = (valid and len(self.tuning_samples) >= 6 and baseline is not None
+                     and baseline.safe and trial_cost(metrics, self.tuner_profile.currentText()) <= baseline.score)
         self.apply_tuned_gains_button.setEnabled(valid)
         self.apply_tuned_gains_button.setProperty('approvedCandidate', candidate if valid else None)
         if valid:
@@ -1417,8 +1517,15 @@ class PidControlPage(DetailPage):
         if self._oscillation_stopped or (metrics and metrics.sustained_oscillation):
             reasons.append('sustained oscillation detected')
         if metrics and not metrics.settled: reasons.append('response did not settle within tolerance')
+        if self.cruise.active:
+            if len(self.tuning_samples) < 6:
+                reasons.append('fewer than six fresh scored samples')
+            if baseline is None or not baseline.safe:
+                reasons.append('no usable baseline')
+            elif self._cruise_validation_cost is not None and self._cruise_validation_cost > baseline.score:
+                reasons.append('validation cost exceeded the baseline')
         elapsed = self.tuning_samples[-1][0] if self.tuning_samples else 0
-        if elapsed < max(60.0, self.tuner_duration.value())-.5:
+        if elapsed < self._validation_seconds()-.5:
             reasons.append(f'stopped after {elapsed:.1f} s')
         message = 'Validation passed. Settings are ready to apply.' if valid else 'Validation failed: '+ '; '.join(reasons or ['insufficient samples'])+'. Settings were not approved.'
         if not valid:
@@ -1428,6 +1535,7 @@ class PidControlPage(DetailPage):
         self._set_tuning_progress(trial='Validation', state='Passed' if valid else 'Failed',
                                   elapsed=f'{elapsed:.1f} s',
                                   error=f'{metrics.steady_state_error:.3f} {self.feedback_unit}' if metrics else 'Unavailable')
+        self._finish_cruise_validation(valid=valid, safe=safe)
 
 
     def _surface_tab_changed(self, index):
@@ -1583,9 +1691,24 @@ class PidControlPage(DetailPage):
         dialog.deleteLater()
 
     def _show_tuning_history(self) -> None:
-        dialog = QDialog(self)
-        dialog.resize(1120, 540)
-        layout = setup_pid_dialog(dialog, 'PID Gain Tuning Trial History', window_controls=False)
+        self._populate_tuning_results()
+        self.page_stack.setCurrentWidget(self.results_page)
+
+    def _populate_tuning_results(self) -> None:
+        self._results_count = len(self.tuning_results)
+        layout = self.results_layout
+        while layout.count():
+            item = layout.takeAt(0)
+            if item.widget() is not None:
+                item.widget().deleteLater()
+            elif item.layout() is not None:
+                child = item.layout()
+                while child.count():
+                    nested = child.takeAt(0)
+                    if nested.widget() is not None:
+                        nested.widget().deleteLater()
+                child.deleteLater()
+        dialog = self.results_page
         safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)
                 and not (r.metrics and r.metrics.sustained_oscillation)]
         best = min(safe, key=lambda r: r.score) if safe else None
@@ -1672,10 +1795,10 @@ class PidControlPage(DetailPage):
                 hint.setText(f'Export failed: {exc}')
         export.clicked.connect(export_trials)
         layout.addWidget(table)
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(dialog.accept)
-        layout.addWidget(close_button, 0, Qt.AlignRight)
-        dialog.exec()
+        apply = QPushButton("Apply reviewed gains")
+        apply.clicked.connect(self._apply_tuned_gains)
+        apply.setEnabled(self.apply_tuned_gains_button.isEnabled())
+        layout.addWidget(apply, 0, Qt.AlignRight)
 
     def _restore_controller_config(self, approved: dict) -> None:
         self.controller_kind_input.setCurrentIndex(self.controller_kind_input.findData(approved["controller_kind"]))
@@ -1688,6 +1811,9 @@ class PidControlPage(DetailPage):
         self.nla_direction_input.setCurrentIndex(self.nla_direction_input.findData(approved["nla_initial_direction"]))
 
     def _apply_tuned_gains(self) -> None:
+        if self.cruise.active and not getattr(self, '_applying_cruise', False):
+            self._apply_cruise_gains()
+            return
         candidate = self.apply_tuned_gains_button.property("approvedCandidate")
         if not isinstance(candidate, PidGainCandidate):
             return
@@ -1927,6 +2053,7 @@ class PidControlPage(DetailPage):
                 self.run_metrics.sample(metric_stamp, self._feedback_value())
         self._tick_pid_controller()
         self._poll_tuning_workflow()
+        self._poll_cruise()
         recording(self)
         self._sample_coil_session(metric_stamp)
         self._append_plot_sample()
@@ -2043,6 +2170,12 @@ class PidControlPage(DetailPage):
         file_writer.submit(write_csv, self.log_path, (row,), header, True)
 
     def _append_plot_sample(self) -> None:
+        if hasattr(self, 'cruise_workspace') and self.backend_available and self.backend is not None:
+            try:
+                # BO owns the same actuator; its targets must appear in the live plot.
+                self.command_values[self.selected_index] = float(self.backend.PendingCommand()[self.selected_index]['target'])
+            except (RuntimeError, KeyError, ValueError, TypeError, AttributeError):
+                self.command_values[self.selected_index] = float('nan')
         actual = self._feedback_value()
         setpoint = self.setpoint_input.value()
         error = setpoint - actual
@@ -2053,6 +2186,11 @@ class PidControlPage(DetailPage):
         self.time_plot.set_samples(self.history)
 
     def _refresh_status(self) -> None:
+        if hasattr(self, 'cruise_navigation'):
+            self.cruise_navigation.refresh()
+            if (self.page_stack.currentWidget() is self.results_page and
+                getattr(self, '_results_count', -1) != len(self.tuning_results)):
+                self._populate_tuning_results()
         channel = CHANNEL_NAMES[self.selected_index]
         actual = self._feedback_value()
         error = self.setpoint_input.value() - actual
@@ -2084,6 +2222,9 @@ class PidControlPage(DetailPage):
             f"Control {'Enabled' if self.telemetry_enabled[self.selected_index] else 'Disabled'}"
         )
         self.safety_label.setToolTip(self.safety_label.text())
+        if hasattr(self, 'cruise_workspace'):
+            self._advanced_target_label.setText(f'{self.setpoint_input.value():g} nA Â· Set on Cruise screen')
+            self.cruise_workspace.refresh()
 
     def _start_backend(self) -> None:
         if self.backend is not None:
@@ -2129,6 +2270,13 @@ class PidControlPage(DetailPage):
         super().closeEvent(event)
 
     def stop_backend(self) -> None:
+        if hasattr(self, 'cruise_workspace'):
+            self.cruise_workspace.diagnostics.close()
+            self.cruise_workspace.settings.close()
+            if self.cruise.active or self._cruise_stop_failed:
+                self._stop_cruise()
+        self.settings_dialog.close()
+        self.tuning_quality_dialog.close()
         self.gain_model_dialog.close()
         if self.tuning_surface_proposal is not None:
             self.tuning_surface_proposal.cancel()
