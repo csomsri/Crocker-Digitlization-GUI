@@ -32,6 +32,8 @@ class PagePIDRecorder:
             raise RuntimeError('Database B recording is unhealthy; resolve recording status before another trial')
 
     def started(self, config):
+        # Flush the previous result while its trial ID is still current.
+        self.results()
         config = dict(config)
         quality = getattr(self.page, '_tuning_quality_settings', None)
         if quality is not None and not config.get('continuous'):
@@ -53,6 +55,7 @@ class PagePIDRecorder:
                 return
         self.trial_id = uuid4().hex
         self.database.event(self.session, 'pid_started', dict(trial_id=self.trial_id, configuration=config))
+        return self.trial_id
 
     def environment(self):
         p = self.page
@@ -77,10 +80,24 @@ class PagePIDRecorder:
     def configure(self, config):
         self.config.update(config)
 
-    def trial(self, result, source='GA'):
+    def trial(self, result, source='GA', trial_id=None):
         if self.session:
-            self.database.trial(self.session, self.trial_id or uuid4().hex, source, result)
-            self.trial_id = None
+            recorded_id = trial_id or self.trial_id or uuid4().hex
+            self.database.trial(self.session, recorded_id, source, result)
+            if recorded_id == self.trial_id:
+                self.trial_id = None
+
+    def results(self):
+        """Persist completed BO/Hybrid results before a subsequent PID start."""
+        if self.session is None:
+            return
+        results = getattr(self.page, 'tuning_results', [])
+        hybrid = getattr(self.page, 'hybrid', None)
+        for i in range(self.result_count, len(results)):
+            extra = hybrid.records[i] if hybrid and i < len(hybrid.records) else {}
+            self.trial(dict(result=results[i], comparison=extra), extra.get('source', 'BO'),
+                       trial_id=getattr(results[i], 'trial_id', None))
+        self.result_count = len(results)
 
     def poll(self, reason=None, sample=None):
         if self.session is None:
@@ -99,10 +116,7 @@ class PagePIDRecorder:
             self.last_mode = mode
         results = getattr(p, 'tuning_results', [])
         hybrid = getattr(p, 'hybrid', None)
-        for i in range(self.result_count, len(results)):
-            extra = hybrid.records[i] if hybrid and i < len(hybrid.records) else {}
-            self.trial(dict(result=results[i], comparison=extra), extra.get('source', 'BO'))
-        self.result_count = len(results)
+        self.results()
         if hybrid:
             for event in hybrid.events[self.event_count:]:
                 self.event('optimizer_transition', event)

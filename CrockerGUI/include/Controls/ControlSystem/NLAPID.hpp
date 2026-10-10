@@ -24,6 +24,8 @@ struct NLAPIDSettings {
     double integralWindowMultiplier = 2.0;
     double maxControlDt = 0.25;
     double integralMemorySeconds = 20.0;
+    bool directionEachUpdate = false;
+    bool resetIntegralOnDirectionChange = false;
 };
 struct NLAPIDResult {
     double output = 0.0, error = 0.0;

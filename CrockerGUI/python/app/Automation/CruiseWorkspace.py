@@ -302,7 +302,7 @@ class CruiseWorkspace(QWidget):
         best = math.inf
         for elapsed, result in p._cruise_costs:
             times.append(elapsed)
-            eligible = result.safe and not (result.metrics and result.metrics.sustained_oscillation)
+            eligible = result.safe
             if eligible:
                 best = min(best, result.score)
             best_values.append(best if math.isfinite(best) else math.nan)

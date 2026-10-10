@@ -33,12 +33,13 @@ from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.ResponsiveLayout import ResponsiveRow
 from python.app.Automation.ControlOwnership import active_controller
+from python.app.Automation.PIDRecording import recording
 from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.DisplayNumbers import display_number
 from source.Python.Optimization.hybrid_pid_optimizer import HybridPIDOptimizer, HybridConfig
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
 from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
-from source.Python.Automation.ga_recovery import GARecoveryManager, GARecoveryConfig
+from source.Python.Automation.ga_recovery import GARecoveryManager
 from source.Python.Automation.ga_backend_adapter import GABackendAdapter
 
 
@@ -144,7 +145,7 @@ class HybridPIDPage(PidControlPage):
             ('Data quality', [('reference_interval','Trials between reference batches',8,1,100,0),
                     ('exploration_interval','Search trials between exploration points',5,1,100,0),
                     ('drift_fraction','Reference drift fraction',.2,.001,1,3)]),
-            ('Trials and recovery', [('warmup','Warmup within trial (s)',5,0,120,2),('max_error','Beam error abort (nA)',3,.01,1000,3),
+            ('Trials and recovery', [('warmup','Warmup within trial (s)',0,0,120,2),('max_error','Beam error abort (nA)',3,.01,1000,3),
                     ('excursion','Maximum TC excursion from baseline (A)',.5,.01,100,3),('saturation','Saturation abort (s)',5,.1,60,2),
                     ('recovery_step','Recovery command step (A)',.02,.001,1,3),('recovery_hold','Baseline stable hold (s)',2,.1,30,2),
                     ('recovery_timeout','Recovery timeout (s)',20,1,300,2),('beam_tolerance','Baseline beam tolerance (nA)',.05,.001,10,3),
@@ -160,14 +161,15 @@ class HybridPIDPage(PidControlPage):
                     control.setSingleStep(10**-decimals)
                 control.setValue(value)
                 self.hybrid_fields[key] = control
-                form.addRow(label,control)
+                if key not in {'max_error','excursion','saturation','recovery_step', 'recovery_hold','recovery_timeout','beam_tolerance','actual_tolerance'}:
+                    form.addRow(label,control)
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setWidget(content)
             tabs.addTab(scroll,title)
         note = QLabel('One shared cost profile and fixed trial window for GA and BO. All candidates restore the same baseline.\n'
                       'BO predicts cost. Handover requires measured cost AND beam MAE improvement beyond their separate noise margins.\n'
-                      'Final validation lasts at least 60 seconds and is separate from the search budget.\n'
+                      'Final validation uses the configured trial duration and is separate from the search budget.\n'
                       'Stock smoke/smoke2/cyclotron simulations do not couple TC current to beam output.')
         note.setWordWrap(True)
         layout.addWidget(note)
@@ -424,14 +426,31 @@ class HybridPIDPage(PidControlPage):
                 button.setText('View prediction model')
             box.addWidget(button)
             columns.addWidget(card, 1)
-        ai.addLayout(columns, 1)
+        self.hybrid_workspace_tabs = QTabWidget()
+        self.hybrid_workspace_tabs.setAccessibleName('Hybrid search progress and live response')
+        self.hybrid_workspace_tabs.setStyleSheet('''
+            QTabWidget::pane { border: 1px solid #334155; background: #101a29; }
+            QTabBar::tab { background: #1b2c42; color: #cbd5e1; padding: 9px 16px; }
+            QTabBar::tab:selected { background: #315477; color: white; }
+        ''')
+        search_page = QWidget()
+        search_layout = QVBoxLayout(search_page)
+        search_layout.addLayout(columns, 1)
+        self.hybrid_workspace_tabs.addTab(search_page, 'Search progress · GA / BO')
+        self.hybrid_workspace_tabs.addTab(self.tuner_viewport, 'Live trial response')
+        self.tuner_viewport.show()
+        ai.addWidget(self.hybrid_workspace_tabs, 1)
+        hint = QLabel('Set the channel, beam target and budget. Review Tuning settings, then start. '
+                      'After the search, validate the best gains before applying them to live control.')
+        hint.setWordWrap(True)
+        ai.insertWidget(1, hint)
         actions = ResponsiveRow()
         history = QPushButton('Results and history')
         history.clicked.connect(self._show_hybrid_history)
         actions.addWidget(history)
         actions.addWidget(self.approve_gains_button)
         actions.addWidget(self.apply_tuned_gains_button)
-        ai.addLayout(actions)
+        ai.insertLayout(ai.indexOf(self.hybrid_workspace_tabs), actions)
         self.tuner_page.setWidget(page)
         self.tuner_status.setText('Choose a target and press START TUNING. Review gain limits in Tuning settings.')
         self.state_label.setText('Explore with GA → Refine with BO → Validate the best response')
@@ -811,14 +830,9 @@ class HybridPIDPage(PidControlPage):
             self._settings = self._field_values()
             config = HybridConfig(**{k:self._settings[k] for k in HybridConfig.__dataclass_fields__ if k != 'budget'}, budget=self.tuner_trials.value())
             bounds = [(a.value(),b.value()) for a,b in self.tuner_gain_bounds.values()]
-            if self.tuner_duration.value() < self._settings['warmup']+1:
-                raise ValueError('Trial duration must exceed warmup by at least one second')
-            error = abs(self.tuner_target.value()-self.beam_value)
-            if error <= self.nla_deadband_input.value() or error > self._settings['max_error']:
-                raise ValueError('Initial beam error must exceed PID deadband and stay within the beam abort limit')
+            if self.tuner_duration.value() <= self._settings['warmup']:
+                raise ValueError('Trial duration must exceed warmup')
             snapshot = self.backend.LatestSnapshot()
-            if not snapshot.get('simulated',False) and not self.dry_run_check.isChecked():
-                raise ValueError('Live hybrid trials require native simulated transport; hardware commissioning is not enabled')
             self._channel = self.tuner_channel.currentIndex()
             commands = self.backend.PendingCommand()
             ch = snapshot['channels'][self._channel]
@@ -828,9 +842,6 @@ class HybridPIDPage(PidControlPage):
             baseline = float(commands[self._channel]['target'])
             if not self._limits[0] < self._limits[1] or not self._limits[0] <= baseline <= self._limits[1]:
                 raise ValueError('Baseline TC command must lie within ordered output limits')
-            step = min(self._settings['recovery_step'],self.max_step_input.value())
-            if self._settings['excursion']/step*.125+self._settings['recovery_hold'] >= self._settings['recovery_timeout']:
-                raise ValueError('Recovery timeout is too short for the excursion, step and stable hold')
             # A rejected new setup must never overwrite the previous session's export.
             self._session_path = None
             self.apply_tuned_gains_button.setEnabled(False)
@@ -839,11 +850,6 @@ class HybridPIDPage(PidControlPage):
             self.reference = GARecoveryManager.capture(targets_a=[c['target'] for c in commands],
                 actual_values_a=[c['actual'] for c in snapshot['channels']],beam_nA=self.beam_value,
                 channel_indices=[self._channel],timestamp_s=time.monotonic())
-            self._recovery_config = GARecoveryConfig(command_step_a=step,
-                actual_tolerance_a=self._settings['actual_tolerance'],minimum_beam_nA=0,
-                minimum_beam_fraction=0,beam_reference_tolerance_nA=self._settings['beam_tolerance'],
-                stable_hold_s=self._settings['recovery_hold'],timeout_s=self._settings['recovery_timeout'])
-            self._recovery_config.validated()
             self._session_fingerprint = self._fingerprint()
             beam_state = self.get_beam_state()
             self._beam_identity = {k:beam_state.get(k) for k in ('range_index','range_label','calibration_revision','select_mode')}
@@ -854,7 +860,6 @@ class HybridPIDPage(PidControlPage):
             return
         self._stop_pid('Starting hybrid session')
         self._tuning_controller_config = self._controller_config()
-        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
         self._session_metadata = dict(target_nA=self.tuner_target.value(),channel=self._channel,
             profile=self.tuner_profile.currentText(),dry_run=self.dry_run_check.isChecked(),
             feedback_units='nA',actuator_units='A',beam_calibration=dict(self._beam_identity),
@@ -897,8 +902,6 @@ class HybridPIDPage(PidControlPage):
             raise ValueError('TC fault, interlock or disabled output')
         if not math.isfinite(float(ch['actual'])):
             raise ValueError('Invalid TC feedback')
-        if self.reference and abs(float(ch['actual'])-self.reference.actual_map[self._channel]) > self._settings['excursion']+self._settings['actual_tolerance']:
-            raise ValueError('Measured TC excursion exceeded the baseline limit')
         return snapshot
 
     def _request_tuning_candidate(self):
@@ -916,12 +919,8 @@ class HybridPIDPage(PidControlPage):
         if getattr(self,'_continuous_start',False):
             return super()._start_trial(config)
         self._check_hybrid_telemetry()
-        base = self.reference.target_map[self._channel]
-        excursion = self._settings['excursion']
-        config['minimum_command'][self._channel] = max(self._limits[0],base-excursion)
-        config['maximum_command'][self._channel] = min(self._limits[1],base+excursion)
-        config['max_absolute_error'] = config['max_overshoot'] = self._settings['max_error']
-        config['max_saturation_seconds'] = self._settings['saturation']
+        config['minimum_command'][self._channel] = self._limits[0]
+        config['maximum_command'][self._channel] = self._limits[1]
         super()._start_trial(config)
 
     def _start_service_nla(self):
@@ -968,14 +967,15 @@ class HybridPIDPage(PidControlPage):
         self._stop_trial(False)
         self._tuning_output_held = True
         metrics = None
-        duration = max(60,self.tuner_duration.value()) if self._validating_gains else self.tuner_duration.value()
+        duration = self._validation_seconds() if self._validating_gains else self.tuner_duration.value()
         warmup = self._settings['warmup']
         samples = [r for r in self.tuning_samples if r[0] >= warmup]
-        complete = bool(samples and samples[-1][0] >= duration-.5 and len(samples) >= 3)
-        safe = safe and complete and not self._oscillation_stopped
+        complete = bool(samples and samples[-1][0] >= duration-.5 and len(samples) >= 2)
+        safe = safe and complete
         try:
-            metrics = evaluate_trial(samples,self.tuner_target.value(),deadband=self._tuning_controller_config['nla_deadband'],
-                                     quality=self._tuning_quality_settings)
+            metrics = evaluate_trial(self.tuning_samples,self.tuner_target.value(),deadband=self._tuning_controller_config['nla_deadband'],
+                                     quality=self._tuning_quality_settings, warmup_seconds=warmup,
+                                     baseline_target=self.reference.target_map[self._channel])
             score = trial_cost(metrics,self.tuner_profile.currentText())
         except ValueError:
             safe,score = False,1e12
@@ -992,9 +992,12 @@ class HybridPIDPage(PidControlPage):
         result = PidTrialResult(candidate,score if safe else 1e12,metrics.settling_time if metrics else 0,
             metrics.overshoot if metrics else 0,metrics.steady_state_error if metrics else 0,
             metrics.control_effort if metrics else 0,safe,metrics=metrics,
-            termination_reason='Completed' if safe else f'Fault, oscillation or incomplete trial: {trial_message}')
+            termination_reason='Completed' if safe else f'Fault or incomplete trial: {trial_message}',
+            trial_id=getattr(self, '_active_trial_id', None),
+            started_at=getattr(self, '_trial_started_at', None), ended_at=time.time())
         self.hybrid.record_results([result])
         self.tuning_results.append(result)
+        recording(self, 'results')
         self.tuning_trial_candidate = None
         self.review_history_button.setEnabled(True)
         self._save_session(samples)
@@ -1011,32 +1014,24 @@ class HybridPIDPage(PidControlPage):
         self._begin_recovery('next')
 
     def _begin_recovery(self, action):
-        self.recovery.start(reference=self.reference,config=self._recovery_config,timestamp_s=time.monotonic())
+        self.recovery.start(reference=self.reference)
         self._last_recovery_sample = None
         self.recovering = True
         self._recovery_action = action
         self.run_tuning_trial_button.setEnabled(False)
-        self.tuner_status.setText('Restoring baseline TC command and waiting for beam/TC stability.')
+        self.tuner_status.setText('Restoring the captured TC target.')
 
     def _poll_recovery(self):
         snapshot = self._check_hybrid_telemetry()
-        now = time.monotonic()
-        if now-self.recovery.start_time >= self._recovery_config.timeout_s:
-            raise ValueError('Recovery timed out; no next trial was started')
-        stamp = (float(snapshot['timestamp']),self.beam_timestamp)
-        if self._last_recovery_sample and (stamp[0] <= self._last_recovery_sample[0] or stamp[1] <= self._last_recovery_sample[1]):
-            return
-        self._last_recovery_sample = stamp
         targets = [c['target'] for c in self.backend.PendingCommand()]
         proposal = self.recovery.next_command(targets)
         if proposal and not self.dry_run_check.isChecked():
-            if not self.adapter.apply_delta(proposal.channel_index,proposal.delta_a,self._limits,authorized=self.armed,max_age_s=1):
-                raise ValueError('Recovery command rejected')
-            targets = [c['target'] for c in self.backend.PendingCommand()]
-        state = self.recovery.observe(timestamp_s=now,current_targets_a=targets,
-            actual_values_a=[c['actual'] for c in snapshot['channels']],beam_nA=self.beam_value)
-        if not state.complete:
-            self.tuner_status.setText(f'Recovery · {state.elapsed_s:.1f}s · {state.status}')
+            if not self.adapter.apply_delta(proposal.channel_index, proposal.delta_a,
+                    self._limits, authorized=self.armed, max_age_s=1, fresh_decision=False):
+                raise ValueError('Target reset rejected')
+            target = self.backend.PendingCommand()[proposal.channel_index]['target']
+            if round(float(target), 2) != round(proposal.reference_target_a, 2):
+                raise ValueError('Captured target was not restored')
             return
         self.recovering = False
         action = self._recovery_action

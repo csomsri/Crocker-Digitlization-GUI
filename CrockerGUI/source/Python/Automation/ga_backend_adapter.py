@@ -33,7 +33,7 @@ class GABackendAdapter:
         self.backend.SetChannelCommand(index, previous['target'], previous['on'], previous['enabled'])
         raise ValueError('Control service rejected the enable command')
 
-    def apply_delta(self, index, delta, limits, *, authorized, max_age_s):
+    def apply_delta(self, index, delta, limits, *, authorized, max_age_s, fresh_decision=True):
         if not authorized or self.backend is None or not 0 <= index < 12:
             return False
         snapshot = self.backend.LatestSnapshot()
@@ -52,7 +52,7 @@ class GABackendAdapter:
         if not math.isfinite(target) or not low <= target <= high or not previous.get('on') or not previous.get('enabled'):
             return False
         # A faster recovery/display timer must not repeat commands for a held packet.
-        if stamp <= self.last_command_stamp.get(index, float('-inf')):
+        if fresh_decision and stamp <= self.last_command_stamp.get(index, float('-inf')):
             return True
         try:
             self.backend.SetChannelCommand(index,target,True,True)

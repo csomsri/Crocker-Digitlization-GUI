@@ -17,7 +17,6 @@ NLAPID::NLAPID(NLAPIDGains gains, NLAPIDLimits limits, NLAPIDSettings settings) 
 void NLAPID::setGains(NLAPIDGains gains) {
     for (double v : {gains.kp, gains.ki, gains.kd}) {
         finite(v);
-        if (v < 0) throw std::invalid_argument("NLAPID gains must be nonnegative");
     }
     gains_ = gains;
 }
@@ -92,7 +91,7 @@ std::pair<std::string, bool> NLAPID::evaluateDirectionWindow() {
                                      std::min(settings_.maxControlDt, 0.05)) ||
         directionSamples_ < settings_.minimumDirectionSamples) return {"", false};
     const double mean = directionArea_ / directionElapsed_;
-    std::string state = trend(mean, previousMean_, std::max(settings_.trendTolerance, settings_.deadband));
+    std::string state = trend(mean, previousMean_, 0.0);
     bool changed = false;
     if (!previousMean_) {
         worseningWindows_ = 0; previousMean_ = mean;
@@ -125,6 +124,7 @@ NLAPIDResult NLAPID::update(double setpoint, double measurement, double dt, bool
     finite(setpoint); finite(measurement); finite(dt);
     if (dt <= 0) throw std::invalid_argument("NLAPID dt must be positive");
     const double step = std::min(dt, settings_.maxControlDt);
+    const double controlDt = settings_.directionEachUpdate ? dt : step;
     const bool longGap = dt > 2.0 * settings_.maxControlDt;
     const double error = setpoint - measurement, magnitude = std::abs(error);
     const bool setpointChanged = lastSetpoint_ && different(setpoint, *lastSetpoint_);
@@ -134,33 +134,46 @@ NLAPIDResult NLAPID::update(double setpoint, double measurement, double dt, bool
         worseningWindows_ = 0; clearDirectionWindow(); clearIntegral(); filteredDerivative_ = 0.0;
         state = setpointChanged ? "SETPOINT CHANGED" : "INITIALIZING";
     } else {
-        state = trend(magnitude, previousMagnitude_, settings_.trendTolerance);
+        state = trend(magnitude, previousMagnitude_, 0.0);
     }
     result_ = {}; result_.error = error; result_.errorMagnitude = magnitude;
-    if (magnitude <= settings_.deadband) {
-        if (settings_.resetIntegralInDeadband) clearIntegral(); else appendIntegral(0.0, step);
+    if (magnitude <= settings_.deadband || (settings_.directionEachUpdate &&
+        std::abs(magnitude - settings_.deadband) <= std::max(1e-12, 1e-12 * std::max(magnitude, settings_.deadband)))) {
+        if (settings_.resetIntegralInDeadband) clearIntegral(); else appendIntegral(0.0, controlDt);
         filteredDerivative_ = 0.0; previousMagnitude_ = previousMean_ = magnitude;
         worseningWindows_ = 0; clearDirectionWindow(); lastSetpoint_ = setpoint;
         result_.direction = direction_; result_.errorTrend = "DEADBAND"; result_.inDeadband = true;
         return result_;
     }
-    directionArea_ += magnitude * step; directionElapsed_ += step; ++directionSamples_;
-    const auto [windowTrend, changed] = evaluateDirectionWindow();
-    if (!windowTrend.empty()) state = windowTrend;
-    if (longGap || !previousMagnitude_ || setpointChanged) {
+    bool changed = false;
+    if (settings_.directionEachUpdate) {
+        changed = state == "INCREASING";
+        if (changed) {
+            direction_ *= -1;
+            if (settings_.resetIntegralOnDirectionChange) clearIntegral();
+            filteredDerivative_ = 0.0;
+        }
+    } else {
+        directionArea_ += magnitude * step; directionElapsed_ += step; ++directionSamples_;
+        const auto decision = evaluateDirectionWindow();
+        if (!decision.first.empty()) state = decision.first;
+        changed = decision.second;
+    }
+    if (longGap || !previousMagnitude_ || setpointChanged || (changed && settings_.directionEachUpdate)) {
         filteredDerivative_ = 0.0;
     } else {
-        const double raw = (magnitude - *previousMagnitude_) / step;
+        const double raw = (magnitude - *previousMagnitude_) / controlDt;
         if (limits_.derivativeFilterTau <= 0) filteredDerivative_ = raw;
-        else filteredDerivative_ += step / (limits_.derivativeFilterTau + step) * (raw - filteredDerivative_);
+        else filteredDerivative_ += controlDt / (limits_.derivativeFilterTau + controlDt) * (raw - filteredDerivative_);
     }
     result_.direction = direction_;
-    if (changed) {
+    if (changed && !settings_.directionEachUpdate) {
         previousMagnitude_ = magnitude; lastSetpoint_ = setpoint;
         result_.errorTrend = "INCREASING"; result_.directionChanged = true;
         return result_;
     }
-    appendIntegral(holdIntegrator ? 0.0 : magnitude, step);
+    appendIntegral(holdIntegrator ? 0.0 : magnitude, controlDt);
+    result_.directionChanged = changed;
     result_.proportional = gains_.kp * magnitude * step;
     result_.integral = gains_.ki * integralArea_ * step;
     result_.derivative = std::min(0.0, gains_.kd * filteredDerivative_) * step;

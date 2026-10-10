@@ -2,6 +2,7 @@
 import math
 import threading
 import time
+from .FeedbackAverage import FeedbackAverage
 from .NLAPID import NLAPID, PIDGains, PIDLimits, AdaptiveDirectionSettings
 
 
@@ -22,12 +23,16 @@ class PythonNLATrial:
             raise ValueError("Python NLA trial requires arming")
         if c['duration_seconds'] <= 0 or c['update_rate_hz'] <= 0:
             raise ValueError("Trial duration and rate must be positive")
+        self._average = FeedbackAverage(c.get("feedback_average_seconds", 0))
         self._pid = NLAPID(
             PIDGains(c['kp'], c['ki'], c['kd']),
-            PIDLimits(output_min=0, output_max=c.get('nla_output_max', 100)),
+            PIDLimits(output_min=0, output_max=c.get('nla_output_max', 100),
+                integral_max=c.get('nla_integral_max', 100),
+                derivative_filter_tau=c.get('nla_derivative_filter_tau', .2)),
             AdaptiveDirectionSettings(
+                direction_each_update=c.get("nla_direction_each_update", False),
+                max_control_dt=c.get('nla_max_control_dt', .3),
                 deadband=c.get('nla_deadband', 0),
-                trend_tolerance=c.get('nla_trend_tolerance', 0),
                 direction_check_interval=c.get('nla_direction_check_interval', 1),
                 initial_direction=c.get('nla_initial_direction', 1),
                 integral_memory_s=c.get('nla_integral_memory_s', 20),
@@ -71,6 +76,7 @@ class PythonNLATrial:
         channel = c['measurement_channel']
         start = time.perf_counter()
         last_stamp = None
+        last_decision_stamp = None
         last_fresh = start
         hold = False
         saturation_seconds = 0.0
@@ -98,26 +104,35 @@ class PythonNLATrial:
                     raise RuntimeError('Out-of-order telemetry')
                 if last_stamp is None:
                     self._pid.reset(setpoint=c['setpoint'], measurement=measurement)
-                    last_stamp = stamp
+                    last_stamp = last_decision_stamp = stamp
+                    self._average.add(stamp, measurement)
                     self._update(elapsed_seconds=now-start, measured_field=measurement,
                                  error=c['setpoint']-measurement)
                 elif stamp > last_stamp:
                     dt = stamp-last_stamp
                     last_stamp, last_fresh = stamp, now
                     error = c['setpoint']-measurement
-                    if abs(error) > c['max_absolute_error'] or -error > c['max_overshoot']:
+                    if not c.get('nla_direction_each_update') and (abs(error) > c['max_absolute_error'] or -error > c['max_overshoot']):
                         raise RuntimeError('Trial error abort limit exceeded')
+                    averaged = self._average.add(stamp, measurement)
+                    if averaged is None:
+                        self._stop.wait(1/c['update_rate_hz'])
+                        continue
+                    measurement = averaged
+                    error = c['setpoint']-measurement
+                    dt = stamp-last_decision_stamp
+                    last_decision_stamp = stamp
                     result = self._pid.update(c['setpoint'], measurement, dt, hold_integrator=hold)
-                    if not math.isfinite(result.output) or abs(result.output) > c['max_control_output']:
+                    if not math.isfinite(result.output) or (not c.get('nla_direction_each_update') and abs(result.output) > c['max_control_output']):
                         raise RuntimeError('Control output abort limit exceeded')
                     requested = self._target + result.output
                     bounded = max(c['minimum_command'][channel], min(c['maximum_command'][channel], requested))
                     saturation_seconds = saturation_seconds + dt if bounded != requested else 0.0
-                    if saturation_seconds > c['max_saturation_seconds']:
+                    if not c.get('nla_direction_each_update') and saturation_seconds > c['max_saturation_seconds']:
                         raise RuntimeError('Command saturation persisted beyond abort limit')
                     step = c['maximum_slew_per_second'][channel]*dt
-                    target = max(self._target-step, min(self._target+step, bounded))
-                    hold = target != requested
+                    target = bounded if c.get('nla_direction_each_update') or step == 0 else max(self._target-step, min(self._target+step, bounded))
+                    hold = not c.get('nla_direction_each_update') and target != requested
                     if not c['dry_run']:
                         self.backend.SetChannelCommand(channel, target, True, True)
                         if not self.backend.ApplyCommand():

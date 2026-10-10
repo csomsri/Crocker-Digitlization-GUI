@@ -60,10 +60,10 @@ from source.Python.Automation.ga_evaluation import (
     write_evaluation_csv,
 )
 from source.Python.Automation.ga_recovery import (
-    GARecoveryConfig,
     GARecoveryManager,
     GARecoveryReference,
 )
+from source.Python.Control.FeedbackAverage import FeedbackAverage
 from source.Python.Control.NLAPID import (
     NLAPID as AdaptiveDirectionPIDController,
     AdaptiveDirectionSettings,
@@ -250,6 +250,8 @@ class PIDGAControlTab(QWidget):
         # PID/TC command; otherwise the same held measurement could be integrated
         # and applied repeatedly before the plant has supplied new feedback.
         self._last_processed_beam_timestamp = 0.0
+        self._feedback_average = FeedbackAverage()
+        self._last_decision_timestamp = None
         self._baseline_target = float("nan")
         self._last_proposed_target = float("nan")
 
@@ -1209,15 +1211,19 @@ class PIDGAControlTab(QWidget):
         self.kp_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.001)
         self.ki_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.0001)
         self.kd_spin = self._double_spin(0.0, 1_000_000.0, 6, 0.0001)
+        self.kp_spin.setValue(0.8)
+        self.ki_spin.setValue(0.1)
+        self.kd_spin.setValue(0.1)
 
         self.deadband_spin = self._double_spin(0.0, 1_000_000.0, 4, 0.01)
-        self.deadband_spin.setValue(0.05)
+        self.deadband_spin.setValue(0.2)
         self.deadband_spin.setSuffix(" nA")
         self.trend_tolerance_spin = self._double_spin(0.0, 1_000_000.0, 4, 0.01)
-        self.trend_tolerance_spin.setValue(0.01)
+        self.trend_tolerance_spin.setValue(0.0)
+        self.trend_tolerance_spin.hide()
         self.trend_tolerance_spin.setSuffix(" nA")
         self.direction_check_spin = self._double_spin(0.0, 60.0, 2, 0.1)
-        self.direction_check_spin.setValue(1.0)
+        self.direction_check_spin.setValue(0.3)
         self.direction_check_spin.setSuffix(" s")
         self.initial_direction_combo = QComboBox()
         self.initial_direction_combo.addItem("+1 — INCREASE TC", 1)
@@ -1236,10 +1242,10 @@ class PIDGAControlTab(QWidget):
 
         self.loop_period_spin = QSpinBox()
         self.loop_period_spin.setRange(10, 5000)
-        self.loop_period_spin.setValue(100)
+        self.loop_period_spin.setValue(300)
         self.loop_period_spin.setSuffix(" ms")
         self.derivative_tau_spin = self._double_spin(0.0, 10.0, 4, 0.01)
-        self.derivative_tau_spin.setValue(0.05)
+        self.derivative_tau_spin.setValue(0.2)
         self.derivative_tau_spin.setSuffix(" s")
         self.tc_min_spin = self._double_spin(0.0, 9999.99, 2, 1.0)
         self.tc_max_spin = self._double_spin(0.0, 9999.99, 2, 1.0)
@@ -1248,7 +1254,7 @@ class PIDGAControlTab(QWidget):
         self.tc_min_spin.setSuffix(" A")
         self.tc_max_spin.setSuffix(" A")
         self.beam_stale_spin = self._double_spin(0.05, 60.0, 2, 0.1)
-        self.beam_stale_spin.setValue(1.0)
+        self.beam_stale_spin.setValue(1.5)
         self.beam_stale_spin.setSuffix(" s")
 
         # The shared application theme uses comfortable full-size editors.
@@ -1313,8 +1319,8 @@ class PIDGAControlTab(QWidget):
         pair("Ki", self.ki_spin, "Kd", self.kd_spin)
 
         section("ERROR AND DIRECTION")
-        pair("Deadband", self.deadband_spin, "Trend tol.", self.trend_tolerance_spin)
-        pair("Dir. check", self.direction_check_spin, "Initial dir.", self.initial_direction_combo)
+        pair("Deadband", self.deadband_spin)
+        pair("Beam avg.", self.direction_check_spin, "Initial dir.", self.initial_direction_combo)
 
         section("TIMING AND ACTUATOR LIMITS")
         pair("Loop", self.loop_period_spin, "D filter τ", self.derivative_tau_spin)
@@ -1451,7 +1457,7 @@ class PIDGAControlTab(QWidget):
         timing_grid.setHorizontalSpacing(10)
         timing_grid.setVerticalSpacing(7)
         self.ga_warmup_spin = self._double_spin(0.0, 600.0, 1, 0.5)
-        self.ga_warmup_spin.setValue(5.0)
+        self.ga_warmup_spin.setValue(0.0)
         self.ga_evaluation_spin = self._double_spin(0.1, 3600.0, 1, 1.0)
         self.ga_evaluation_spin.setValue(30.0)
         self.ga_steady_window_spin = self._double_spin(0.0, 600.0, 1, 0.5)
@@ -1501,17 +1507,6 @@ class PIDGAControlTab(QWidget):
             ("Warm-up before scoring (s)", self.ga_warmup_spin, 0, 0),
             ("Scored interval (s)", self.ga_evaluation_spin, 0, 2),
             ("Steady-state window (s)", self.ga_steady_window_spin, 1, 0),
-            ("Max TC excursion (±A)", self.ga_max_excursion_spin, 1, 2),
-            ("Beam-error abort (nA)", self.ga_max_beam_error_spin, 2, 0),
-            ("Beam-output loss threshold (nA)", self.ga_min_valid_beam_spin, 2, 2),
-            ("Max continuous saturation (s)", self.ga_max_saturation_spin, 3, 0),
-            ("Max GA TC rate (A/s)", self.ga_max_tc_rate_spin, 3, 2),
-            ("Recovery step (A/update)", self.ga_restore_step_spin, 4, 0),
-            ("Measured-TC tolerance (A)", self.ga_restore_tolerance_spin, 4, 2),
-            ("Beam-reference tolerance (nA)", self.ga_baseline_beam_tolerance_spin, 5, 0),
-            ("Minimum recovered beam (%)", self.ga_recovery_beam_fraction_spin, 5, 2),
-            ("Reference stable hold (s)", self.ga_restore_hold_spin, 6, 0),
-            ("Recovery timeout (s)", self.ga_restore_timeout_spin, 6, 2),
         ]
         for label_text, widget, row, col in timing_fields:
             label = QLabel(label_text)
@@ -1784,25 +1779,12 @@ class PIDGAControlTab(QWidget):
         """
         snapshot = self.context.beam_snapshot(max_age_s=self._beam_stale_limit())
         beam = float(snapshot.get("value_nA", float("nan")))
-        minimum_beam = (
-            self.ga_min_valid_beam_spin.value()
-            if hasattr(self, "ga_min_valid_beam_spin")
-            else 0.0
-        )
         if not bool(snapshot.get("valid")) or not math.isfinite(beam):
             if show_status and hasattr(self, "ga_status_label"):
                 self.ga_status_label.setText(
                     "RECOVERY REFERENCE NOT CAPTURED — FRESH BEAM DATA IS REQUIRED"
                 )
             return False
-        if abs(beam) < minimum_beam:
-            if show_status and hasattr(self, "ga_status_label"):
-                self.ga_status_label.setText(
-                    f"RECOVERY REFERENCE NOT CAPTURED — |BEAM| {abs(beam):.4g} nA "
-                    f"IS BELOW THE {minimum_beam:.4g} nA VALID-BEAM THRESHOLD"
-                )
-            return False
-
         indices = self._ga_recovery_channel_indices()
         for index in indices:
             if not self.context.power_states[index] or not self.context.enable_states[index]:
@@ -2047,6 +2029,8 @@ class PIDGAControlTab(QWidget):
         self._baseline_target = float("nan")
         self._last_proposed_target = float("nan")
         self._last_processed_beam_timestamp = 0.0
+        self._feedback_average = FeedbackAverage()
+        self._last_decision_timestamp = None
 
         actual = self._beam_value()
         direction = int(self.initial_direction_combo.currentData())
@@ -2379,11 +2363,18 @@ class PIDGAControlTab(QWidget):
         )
         settings = AdaptiveDirectionSettings(
             deadband=self.deadband_spin.value(),
-            trend_tolerance=self.trend_tolerance_spin.value(),
-            direction_check_interval=self.direction_check_spin.value(),
+            # Retained only as a derived compatibility/log field, NOT a timer.
+            direction_check_interval=self.loop_period_spin.value() / 1000.0,
+            direction_each_update=True,
+            direction_confirmations=1,
+            minimum_direction_samples=1,
+            max_control_dt=self.loop_period_spin.value() / 1000.0,
             initial_direction=int(self.initial_direction_combo.currentData()),
-            reset_integral_in_deadband=self.reset_i_deadband_check.isChecked(),
-            reset_integral_on_direction_change=self.reset_i_reverse_check.isChecked(),
+            # Keep the finite-memory integral continuous.  Do not clear it
+            # merely because the beam enters the deadband or the adaptive
+            # direction reverses.
+            reset_integral_in_deadband=False,
+            reset_integral_on_direction_change=False,
         )
         return gains, limits, settings
 
@@ -2418,7 +2409,7 @@ class PIDGAControlTab(QWidget):
                 "Ki": float(gains.ki),
                 "Kd": float(gains.kd),
                 "deadband_nA": float(settings.deadband),
-                "trend_tolerance_nA": float(settings.trend_tolerance),
+                "trend_tolerance_nA": 0.0,
                 "direction_check_s": float(settings.direction_check_interval),
                 "initial_direction": int(settings.initial_direction),
                 "loop_period_ms": int(self.loop_period_spin.value()),
@@ -2507,7 +2498,7 @@ class PIDGAControlTab(QWidget):
                 "signed_error_nA": float(result.error),
                 "abs_error_nA": float(result.error_magnitude),
                 "deadband_nA": float(settings.deadband),
-                "trend_tolerance_nA": float(settings.trend_tolerance),
+                "trend_tolerance_nA": 0.0,
                 "direction_check_s": float(settings.direction_check_interval),
                 "initial_direction": int(settings.initial_direction),
                 "direction": int(result.direction),
@@ -2605,6 +2596,8 @@ class PIDGAControlTab(QWidget):
         )
         self._last_pid_time = time.monotonic()
         self._last_processed_beam_timestamp = 0.0
+        self._feedback_average = FeedbackAverage()
+        self._last_decision_timestamp = None
         self._pid_timer.setInterval(self.loop_period_spin.value())
         self._pid_running = True
         self.context.set_mode(ControlMode.PID)
@@ -2639,6 +2632,8 @@ class PIDGAControlTab(QWidget):
         self._pid_timer.stop()
         self._pid_running = False
         self._last_processed_beam_timestamp = 0.0
+        self._feedback_average = FeedbackAverage()
+        self._last_decision_timestamp = None
         if hasattr(self, "actuator_selector"):
             self.actuator_selector.setEnabled(not self._ga_auto_active)
         if hasattr(self, "initial_direction_combo"):
@@ -2759,6 +2754,18 @@ class PIDGAControlTab(QWidget):
                 self._complete_automatic_candidate(evaluation)
                 return
 
+        average_seconds = self.direction_check_spin.value()
+        if self._feedback_average.seconds != average_seconds:
+            self._feedback_average = FeedbackAverage(average_seconds)
+            self._last_decision_timestamp = None
+        averaged = self._feedback_average.add(sample_timestamp, actual)
+        if averaged is None:
+            return
+        actual = averaged
+        snapshot = dict(snapshot, value_nA=actual)
+        dt = (sample_timestamp - self._last_decision_timestamp
+              if self._last_decision_timestamp is not None else max(average_seconds, dt))
+        self._last_decision_timestamp = sample_timestamp
         try:
             gains, limits, settings = self._pid_settings()
             self.pid.set_gains(gains)
@@ -2793,24 +2800,6 @@ class PIDGAControlTab(QWidget):
         # TC min/max remain authoritative even when the raw PID magnitude is
         # larger than the remaining distance to an actuator boundary.
         command_delta = proposed_target - current_target
-        if self._ga_auto_active and self.ga_evaluator.active:
-            ga_low, ga_high = self.ga_evaluator.target_bounds
-            ga_limited_target = max(ga_low, min(ga_high, proposed_target))
-            if not math.isclose(
-                ga_limited_target, proposed_target, rel_tol=0.0, abs_tol=1e-12
-            ):
-                hard_target_limited = True
-            proposed_target = ga_limited_target
-            command_delta = proposed_target - current_target
-            max_ga_step = max(0.0001, self.ga_max_tc_rate_spin.value() * dt)
-            step_limited_delta = max(-max_ga_step, min(max_ga_step, command_delta))
-            if not math.isclose(
-                step_limited_delta, command_delta, rel_tol=0.0, abs_tol=1e-12
-            ):
-                rate_limited = True
-            command_delta = step_limited_delta
-            proposed_target = current_target + command_delta
-
         target_limited = bool(hard_target_limited or rate_limited)
 
         self.output_display.setText(f"{command_delta:+.4f} A")
@@ -3224,11 +3213,7 @@ class PIDGAControlTab(QWidget):
             warmup_s=self.ga_warmup_spin.value(),
             evaluation_s=self.ga_evaluation_spin.value(),
             steady_state_window_s=self.ga_steady_window_spin.value(),
-            max_tc_excursion_a=self.ga_max_excursion_spin.value(),
-            max_abs_beam_error_nA=self.ga_max_beam_error_spin.value(),
-            minimum_valid_beam_nA=self.ga_min_valid_beam_spin.value(),
-            max_saturation_s=self.ga_max_saturation_spin.value(),
-            minimum_scored_samples=10,
+            minimum_scored_samples=2,
         ).validated()
         weights = GAFitnessWeights(
             tracking=self.ga_w_track_spin.value(),
@@ -3237,6 +3222,9 @@ class PIDGAControlTab(QWidget):
             saturation=self.ga_w_sat_spin.value(),
             oscillation=self.ga_w_osc_spin.value(),
         ).validated()
+        if not any((weights.tracking, weights.steady_state, weights.movement,
+                    weights.saturation, weights.oscillation)):
+            raise ValueError("AT LEAST ONE FITNESS WEIGHT MUST BE GREATER THAN ZERO")
         return config, weights
 
     def start_ga(self) -> None:
@@ -3313,12 +3301,6 @@ class PIDGAControlTab(QWidget):
                 "GA NOT STARTED — VALID, FRESH BEAM FEEDBACK IS REQUIRED"
             )
             return
-        if abs(beam) < self.ga_min_valid_beam_spin.value():
-            self.ga_status_label.setText(
-                f"GA NOT STARTED — |BEAM| {abs(beam):.4g} nA IS BELOW THE "
-                f"{self.ga_min_valid_beam_spin.value():.4g} nA VALID-BEAM THRESHOLD"
-            )
-            return
         baseline_target = self.context.target(self._actuator_index)
         tc_actual = self.context.actual(self._actuator_index)
         if not math.isfinite(tc_actual):
@@ -3342,37 +3324,6 @@ class PIDGAControlTab(QWidget):
                 f"GA NOT STARTED — BASELINE {baseline_target:.2f} A IS OUTSIDE "
                 f"THE PID TC LIMITS {self.tc_min_spin.value():.2f} TO "
                 f"{self.tc_max_spin.value():.2f} A"
-            )
-            return
-
-        worst_restore_s = (
-            self.ga_max_excursion_spin.value()
-            / max(1.0e-6, self.ga_restore_step_spin.value())
-            * (self._ga_sequence_timer.interval() / 1000.0)
-            * max(1, len(reference.targets_a))
-            + self.ga_restore_hold_spin.value()
-        )
-        if worst_restore_s > self.ga_restore_timeout_spin.value():
-            self.ga_status_label.setText(
-                f"GA NOT STARTED — THE WORST-CASE BASELINE RESTORE NEEDS ABOUT "
-                f"{worst_restore_s:.1f} s, WHICH EXCEEDS THE "
-                f"{self.ga_restore_timeout_spin.value():.1f} s TIMEOUT. INCREASE "
-                f"THE RESTORE STEP OR TIMEOUT"
-            )
-            return
-
-        initial_error = abs(self.setpoint_spin.value() - beam)
-        if initial_error <= self.deadband_spin.value():
-            self.ga_status_label.setText(
-                f"GA NOT STARTED — INITIAL ERROR {initial_error:.4g} nA IS INSIDE "
-                f"THE {self.deadband_spin.value():.4g} nA PID DEADBAND. SET A SMALL, "
-                f"SAFE TEST REFERENCE OUTSIDE THE DEADBAND SO THE CANDIDATES CAN BE COMPARED"
-            )
-            return
-        if initial_error > self.ga_max_beam_error_spin.value():
-            self.ga_status_label.setText(
-                f"GA NOT STARTED — INITIAL BEAM ERROR {initial_error:.4g} nA EXCEEDS "
-                f"THE {self.ga_max_beam_error_spin.value():.4g} nA ABORT LIMIT"
             )
             return
 
@@ -3442,7 +3393,6 @@ class PIDGAControlTab(QWidget):
                     f"baseline_target_A={self._ga_baseline_target}",
                     f"baseline_readback_A={None if self._ga_recovery_reference is None else self._ga_recovery_reference.actual_map.get(self._actuator_index)}",
                     f"baseline_beam_nA={self._ga_baseline_beam}",
-                    f"baseline_beam_tolerance_nA={self.ga_baseline_beam_tolerance_spin.value()}",
                     f"population={self.population_spin.value()}",
                     f"generations={self.generations_spin.value()}",
                     f"kp_bounds={self.kp_min_spin.value()},{self.kp_max_spin.value()}",
@@ -3451,10 +3401,6 @@ class PIDGAControlTab(QWidget):
                     f"warmup_s={config.warmup_s}",
                     f"evaluation_s={config.evaluation_s}",
                     f"steady_state_window_s={config.steady_state_window_s}",
-                    f"max_tc_excursion_A={config.max_tc_excursion_a}",
-                    f"max_abs_beam_error_nA={config.max_abs_beam_error_nA}",
-                    f"minimum_valid_beam_nA={config.minimum_valid_beam_nA}",
-                    f"max_ga_tc_rate_A_per_s={self.ga_max_tc_rate_spin.value()}",
                     f"recovery_scope={self.ga_recovery_scope_combo.currentData()}",
                     f"recovery_targets_A={None if self._ga_recovery_reference is None else self._ga_recovery_reference.targets_a}",
                     f"recovery_readbacks_A={None if self._ga_recovery_reference is None else self._ga_recovery_reference.actuals_a}",
@@ -3510,7 +3456,7 @@ class PIDGAControlTab(QWidget):
         finally:
             self._ga_starting_pid = False
         if not self._pid_running:
-            self._abort_automatic_ga("PID COULD NOT START FOR GA CANDIDATE", attempt_restore=True)
+            self._abort_automatic_ga("PID COULD NOT START FOR GA CANDIDATE: " + self.pid_status_label.text(), attempt_restore=True)
             return
 
         self._ga_sequence_timer.start()
@@ -3530,7 +3476,7 @@ class PIDGAControlTab(QWidget):
         )
         self._log_ga_result(result)
         try:
-            next_candidate = self.ga_tuner.submit_fitness(result.score)
+            next_candidate = self.ga_tuner.submit_fitness(result.score, valid=not result.safety_violation)
         except RuntimeError as exc:
             self._abort_automatic_ga(str(exc), attempt_restore=True)
             return
@@ -3593,51 +3539,28 @@ class PIDGAControlTab(QWidget):
             return
         if self._pid_running:
             self.stop_pid(
-                reason="PID STOPPED — RESTORING GA REFERENCE",
+                reason="PID STOPPED — REQUESTING GA STARTING TARGETS",
                 restore_manual=False,
             )
         reference = self._ga_recovery_reference
         if reference is None:
             self._finalize_automatic_ga(
-                False,
-                "RECOVERY BLOCKED — NO KNOWN-GOOD REFERENCE WAS CAPTURED",
+                False, "TARGET RESET BLOCKED — NO STARTING TARGETS WERE CAPTURED"
             )
             return
         try:
-            recovery_config = GARecoveryConfig(
-                command_step_a=self.ga_restore_step_spin.value(),
-                target_tolerance_a=0.005,
-                actual_tolerance_a=self.ga_restore_tolerance_spin.value(),
-                minimum_beam_nA=self.ga_min_valid_beam_spin.value(),
-                minimum_beam_fraction=(
-                    self.ga_recovery_beam_fraction_spin.value() / 100.0
-                ),
-                beam_reference_tolerance_nA=(
-                    self.ga_baseline_beam_tolerance_spin.value()
-                ),
-                stable_hold_s=self.ga_restore_hold_spin.value(),
-                timeout_s=self.ga_restore_timeout_spin.value(),
-            ).validated()
-            self.ga_recovery_manager.start(
-                reference=reference,
-                config=recovery_config,
-                timestamp_s=time.monotonic(),
-            )
+            self.ga_recovery_manager.start(reference=reference)
         except ValueError as exc:
-            self._finalize_automatic_ga(
-                False,
-                f"RECOVERY CONFIGURATION ERROR — {str(exc).upper()}",
-            )
+            self._finalize_automatic_ga(False, f"TARGET RESET ERROR — {exc}")
             return
 
         self._ga_sequence_state = "RESTORING"
         self._ga_restore_started = time.monotonic()
-        self._ga_restore_stable_since = None
         self.context.set_mode(ControlMode.PID)
         self._set_ga_controls_locked(True)
-        self.ga_phase_display.setText("RESTORING")
+        self.ga_phase_display.setText("TARGET RESET")
         if hasattr(self, "ga_live_phase_display"):
-            self.ga_live_phase_display.setText("RECOVERY")
+            self.ga_live_phase_display.setText("TARGET RESET")
         self.ga_status_label.setText(status)
         self._ga_sequence_timer.start()
 
@@ -3673,100 +3596,96 @@ class PIDGAControlTab(QWidget):
                     attempt_restore=False,
                 )
                 return
+            if self._finish_ga_candidate_if_due(now):
+                return
             self._refresh_ga_runner_status(now)
             return
 
         if self._ga_sequence_state == "RESTORING":
             self._ga_restore_tick(now)
 
+    def _finish_ga_candidate_if_due(self, now: float) -> bool:
+        if not self.ga_evaluator.active or self.ga_evaluator.progress(now) < 1.0:
+            return False
+        snapshot = self.context.beam_snapshot(max_age_s=self._beam_stale_limit())
+        if not snapshot.get('valid') or not math.isfinite(float(snapshot.get('value_nA', float('nan')))):
+            self._abort_automatic_ga('BEAM FEEDBACK LOST OR STALE', attempt_restore=True)
+            return True
+        completed = self.ga_evaluator.finish_if_due(timestamp_s=now)
+        if completed is None:
+            return False
+        self._complete_automatic_candidate(completed)
+        return True
+
     def _ga_restore_tick(self, now: float) -> None:
         if self.output_callback is None or not self.arm_output_check.isChecked():
             self._finalize_automatic_ga(
-                False,
-                "REFERENCE RECOVERY BLOCKED — OUTPUT IS NOT ARMED",
+                False, "TARGET RESET BLOCKED — OUTPUT IS NOT ARMED"
             )
             return
         reference = self._ga_recovery_reference
         if reference is None:
             self._finalize_automatic_ga(
-                False,
-                "REFERENCE RECOVERY BLOCKED — NO REFERENCE IS AVAILABLE",
+                False, "TARGET RESET BLOCKED — NO REFERENCE IS AVAILABLE"
             )
             return
         for index, _target in reference.targets_a:
             if not self.context.power_states[index] or not self.context.enable_states[index]:
                 self._finalize_automatic_ga(
                     False,
-                    f"REFERENCE RECOVERY BLOCKED — "
+                    f"TARGET RESET BLOCKED — "
                     f"{self.context.channel_name(index)} IS OFF OR DISABLED",
                 )
                 return
         if not self.context.can_write(ControlMode.PID):
             self.context.set_mode(ControlMode.PID)
-
-        command = self.ga_recovery_manager.next_command(
-            self.context.targets_snapshot()
-        )
-        if command is not None:
-            try:
-                accepted = self.output_callback(
-                    command.channel_index,
-                    command.delta_a,
-                    self.pid.last_result,
-                )
-            except Exception as exc:  # pragma: no cover - hardware boundary
-                self._finalize_automatic_ga(
-                    False,
-                    f"REFERENCE RECOVERY CALLBACK FAILED: {exc}",
-                )
-                return
-            if accepted is False:
-                self._finalize_automatic_ga(
-                    False,
-                    f"REFERENCE RECOVERY COMMAND WAS REJECTED FOR "
-                    f"{self.context.channel_name(command.channel_index)}",
-                )
-                return
-
-        beam_snapshot = self.context.beam_snapshot(
-            max_age_s=self._beam_stale_limit()
-        )
-        restore_beam = float(beam_snapshot.get("value_nA", float("nan"))) if beam_snapshot.get("valid") else float("nan")
-        update = self.ga_recovery_manager.observe(
-            timestamp_s=now,
-            current_targets_a=self.context.targets_snapshot(),
-            actual_values_a=list(self.context.actual_values),
-            beam_nA=restore_beam,
-        )
-
-        active_target = self.context.target(self._actuator_index)
-        active_actual = self.context.actual(self._actuator_index)
-        self._append_ga_live_response(
-            timestamp_s=now,
-            beam_nA=restore_beam,
-            setpoint_nA=self.setpoint_spin.value(),
-            tc_target_a=active_target,
-            tc_actual_a=active_actual,
-        )
-        self.ga_time_display.setText(
-            f"REC {update.elapsed_s:.1f}/{self.ga_restore_timeout_spin.value():.1f} s"
-        )
-        self.ga_status_label.setText(update.status)
-        if hasattr(self, "ga_live_phase_display"):
-            self.ga_live_phase_display.setText("RECOVERY")
-        self._set_ga_live_event(
-            update.status,
-            T.green if update.complete else (T.red if update.timed_out else T.amber),
-        )
-
-        if update.complete:
+        try:
+            command = self.ga_recovery_manager.next_command(
+                self.context.targets_snapshot()
+            )
+        except ValueError as exc:
+            self._finalize_automatic_ga(False, f"TARGET RESET ERROR — {exc}")
+            return
+        if command is None:
             self._finish_ga_restore()
             return
-        if update.timed_out:
+        try:
+            accepted = self.output_callback(
+                command.channel_index, command.delta_a, self.pid.last_result
+            )
+        except Exception as exc:  # pragma: no cover - hardware boundary
+            self._finalize_automatic_ga(False, f"TARGET RESET CALLBACK FAILED: {exc}")
+            return
+        if accepted is False:
             self._finalize_automatic_ga(
                 False,
-                update.status,
+                f"TARGET RESET COMMAND WAS REJECTED FOR "
+                f"{self.context.channel_name(command.channel_index)}",
             )
+            return
+
+        # The ordinary callback updates the software target synchronously,
+        # at the controller's existing two-decimal target precision. This is
+        # command acceptance, not a LabVIEW applied/settled acknowledgment.
+        accepted_target = self.context.target(command.channel_index)
+        if not math.isfinite(accepted_target) or (
+            round(accepted_target, 2) != round(command.reference_target_a, 2)
+        ):
+            self._finalize_automatic_ga(
+                False,
+                f"STARTING TARGET WAS NOT ACCEPTED FOR "
+                f"{self.context.channel_name(command.channel_index)}",
+            )
+            return
+
+        status = (
+            f"STARTING TARGET REQUESTED — "
+            f"{self.context.channel_name(command.channel_index)} "
+            f"{accepted_target:.2f} A"
+        )
+        self.ga_time_display.setText(f"RESET {now - self._ga_restore_started:.1f} s")
+        self.ga_status_label.setText(status)
+        self._set_ga_live_event(status, T.amber)
 
     def _finish_ga_restore(self) -> None:
         if self._ga_abort_after_restore:

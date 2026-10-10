@@ -5,7 +5,7 @@ import math
 
 @dataclass(frozen=True)
 class TuningQuality:
-    """Performance criteria only; never used as hardware abort limits."""
+    """Report-label thresholds only; no October fitness or rejection limits."""
     settling_tolerance: float = 0.2
     hold_seconds: float = 2.0
     oscillation_amplitude: float = 0.2
@@ -47,9 +47,11 @@ class TrialMetrics:
     saturation_time: float | None
     mean_absolute_error: float | None = None
     quality_settings: dict | None = None
+    october_score: float | None = None
 
 
-def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5, quality=None):
+def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5, quality=None,
+                   baseline_target=None, warmup_seconds=0.0):
     """Rows: (seconds, measurement, error, effort[, command, saturated]).
 
     Four-column response recordings lack actuator data and cannot be scored.
@@ -153,10 +155,29 @@ def evaluate_trial(samples, target, *, deadband=0.0, hold_seconds=0.5, quality=N
     if sustained:
         penalty += 100.0 * (1 + amplitude/oscillation_threshold)
         
+    october_score = None
+    if len(rows[0]) == 6:
+        from source.Python.Automation.ga_evaluation import (
+            GACandidateEvaluator, GAEvaluationConfig, GAEvaluationSample)
+        evaluator = GACandidateEvaluator(GAEvaluationConfig(warmup_s=0))
+        evaluator.setpoint_nA = float(target)
+        evaluator.baseline_target_a = rows[0][4] if baseline_target is None else float(baseline_target)
+        if not math.isfinite(evaluator.baseline_target_a):
+            raise ValueError('Baseline target must be finite')
+        samples = [GAEvaluationSample(r[0], r[1], target, r[2], r[4],
+                    r[4], r[3], bool(r[5]), r[0] >= warmup_seconds) for r in rows]
+        scored = [sample for sample in samples if sample.scoring]
+        if len(scored) < 2:
+            raise ValueError('At least two scored samples are required')
+        terms = evaluator._calculate_terms(scored, all_samples=samples, safety=False)
+        w = evaluator.weights
+        october_score = (w.tracking*terms.tracking + w.steady_state*terms.steady_state
+                         + w.movement*terms.movement + w.saturation*terms.saturation
+                         + w.oscillation*terms.oscillation)
     return TrialMetrics(settling, transient, mean_error, rms, overshoot,
                         amplitude, cycles, penalty, sustained, settled, first is not None,
                         effort, tolerance, tracking, movement, saturation, tracking / duration,
-                        asdict(quality) if quality is not None else None)
+                        asdict(quality) if quality is not None else None, october_score)
 
 
 def trial_cost(metrics, profile="Balanced"):
@@ -165,16 +186,6 @@ def trial_cost(metrics, profile="Balanced"):
     if metrics.command_movement is None or metrics.saturation_time is None:
         raise ValueError("PID cost requires command and saturation telemetry")
     
-    tracking_weight = 3.0 if profile == "Fast response" else 1.0
-    precision_weight = 8.0 if profile == "High precision" else 4.0
-
-    movement_weight = 0.08 if profile in {"Low control movement", "Low control effort"} else 0.01
-    saturation_weight = 10.0
-
-    oscillation_weight = 2.0 if profile == "Suppress oscillation" else 1.0
-    
-    return (tracking_weight * metrics.tracking_error
-            + precision_weight * metrics.steady_state_error
-            + movement_weight * metrics.command_movement
-            + saturation_weight * metrics.saturation_time
-            + oscillation_weight * metrics.oscillation_penalty)
+    if metrics.october_score is None or not math.isfinite(metrics.october_score):
+        raise ValueError("October fitness requires recorded actuator samples")
+    return metrics.october_score

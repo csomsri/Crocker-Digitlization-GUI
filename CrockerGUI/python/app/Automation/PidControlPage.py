@@ -4,6 +4,8 @@ import csv
 from source.Python.Data.file_writer import file_writer, write_csv
 import math
 import time
+from datetime import datetime
+from uuid import uuid4
 from concurrent.futures import Future, ThreadPoolExecutor
 from collections.abc import Callable
 from pathlib import Path
@@ -37,8 +39,7 @@ from PySide6.QtWidgets import (
 )
 from python.app.widgets.AppDialogs import AppDialog as QDialog, AppFileDialog as QFileDialog
 
-from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
-from python.app.Automation.TuningQualityDialog import TuningQualityDialog
+from source.Python.Optimization.trial_metrics import TuningQuality, evaluate_trial, trial_cost
 from source.Python.Automation.hardware_profile import apply_hardware_profile
 from python.app.Automation.CruiseWorkspace import CruiseWorkspace, CruisePageStack
 from python.app.Automation.CruiseController import CruiseControllerMixin
@@ -116,7 +117,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.simulation_mode = simulation_mode
         self.zmq_endpoint = zmq_endpoint
         self.tuning_enabled = (
-            self.backend_mode == "simulation"
+            True
             if tuning_enabled is None
             else bool(tuning_enabled)
         )
@@ -356,7 +357,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         for gain_input in (self.kp_input, self.ki_input, self.kd_input):
             gain_input.setDecimals(12)
         self.kp_input.setValue(0.8)
-        self.ki_input.setValue(0.05)
+        self.ki_input.setValue(0.1)
+        self.kd_input.setValue(0.1)
 
         for column, (label_text, widget) in enumerate(
             (
@@ -374,7 +376,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.min_output_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 1.0, " A")
         self.max_output_input = self._make_spinbox(0.0, MAX_GAUGE_VALUE, 1.0, " A")
         self.max_step_input = self._make_spinbox(0.1, 100.0, 0.5, " A/tick")
-        self.max_output_input.setValue(MAX_GAUGE_VALUE)
+        self.max_output_input.setValue(800.0)
         self.max_step_input.setValue(10.0)
 
         for column, (label_text, widget) in enumerate(
@@ -421,30 +423,31 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         nla_layout = QGridLayout(self.cpp_nla_panel)
         nla_layout.setContentsMargins(0, 0, 0, 0)
         self.controller_kind_input = QComboBox()
-        self.controller_kind_input.addItem("C++ NLAPID", "nla")
+        self.controller_kind_input.addItem("October PID (C++)", "nla")
         self.controller_kind_input.setCurrentIndex(0)
         self.nla_deadband_input = self._make_spinbox(0, 100, 0.01, " " + self.feedback_unit)
-        self.nla_deadband_input.setValue(0.05)
+        self.nla_deadband_input.setValue(0.2)
         self.nla_direction_input = QComboBox()
         self.nla_direction_input.addItem("Increase first", 1)
         self.nla_direction_input.addItem("Decrease first", -1)
         self.nla_window_input = self._make_spinbox(0.05, 60, 0.05, " s")
-        self.nla_window_input.setValue(1.0)
+        self.nla_window_input.setValue(0.3)
         self.nla_tolerance_input = self._make_spinbox(0, 100, 0.01, " " + self.feedback_unit)
-        self.nla_tolerance_input.setValue(0.05)
+        self.nla_tolerance_input.setValue(0.0)
+        self.nla_tolerance_input.hide()
         self.nla_memory_input = self._make_spinbox(0.1, 120, 0.5, " s")
         self.nla_memory_input.setValue(20.0)
         for index, (label, widget) in enumerate((
             ("Controller", self.controller_kind_input), ("NLA deadband", self.nla_deadband_input),
-            ("NLA initial direction", self.nla_direction_input), ("NLA direction window", self.nla_window_input),
-            ("NLA trend tolerance", self.nla_tolerance_input), ("NLA integral memory", self.nla_memory_input),
+            ("NLA initial direction", self.nla_direction_input), ("Feedback average", self.nla_window_input),
+            ("NLA integral memory", self.nla_memory_input),
         )):
             row, column = divmod(index, 6)
             field_label = QLabel(label)
             field_label.setObjectName("pidFieldLabel")
             nla_layout.addWidget(field_label, row * 2, column)
             nla_layout.addWidget(widget, row * 2 + 1, column)
-        self.cpp_nla_status = QLabel("C++ NLAPID ready")
+        self.cpp_nla_status = QLabel("October PID ready (C++)")
         self.cpp_nla_status.setWordWrap(True)
         self.cpp_nla_status.setStyleSheet("color: #cbd5e1; font-size: 12px;")
         nla_layout.addWidget(self.cpp_nla_status, 2, 0, 1, 6)
@@ -467,18 +470,17 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                 if item.widget():
                     item.widget().hide()
         fields = [('Minimum command', self.min_output_input),
-                  ('Maximum command', self.max_output_input), ('Maximum step', self.max_step_input)]
+                  ('Maximum command', self.max_output_input)]
         if hasattr(self, 'deadband_input'):
             fields += [('Deadband', self.deadband_input), ('Initial direction', self.direction_input),
-                       ('Direction window', self.direction_interval_input),
-                       ('Trend tolerance', self.trend_tolerance_input)]
+                       ('Feedback average', self.direction_interval_input)]
             status = self.nla_status
         else:
             fields += [('Controller', self.controller_kind_input), ('Deadband', self.nla_deadband_input),
-                       ('Initial direction', self.nla_direction_input), ('Direction window', self.nla_window_input),
-                       ('Trend tolerance', self.nla_tolerance_input), ('Integral memory', self.nla_memory_input)]
+                       ('Initial direction', self.nla_direction_input), ('Feedback average', self.nla_window_input),
+                       ('Integral memory', self.nla_memory_input)]
             status = self.cpp_nla_status
-        for heading, group_fields in [('OUTPUT LIMITS', fields[:3]), ('ADAPTIVE CONTROLLER', fields[3:])]:
+        for heading, group_fields in [('OUTPUT LIMITS', fields[:2]), ('ADAPTIVE CONTROLLER', fields[2:])]:
             card = QFrame()
             card.setStyleSheet('QFrame { background: #142235; border-radius: 6px; }')
             group = QGridLayout(card)
@@ -560,12 +562,17 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
     def _controller_config(self) -> dict:
         return {
             "controller_kind": self.controller_kind_input.currentData(),
+            "nla_direction_each_update": True,
+            "feedback_average_seconds": self.nla_window_input.value(),
             "nla_deadband": self.nla_deadband_input.value(),
             "nla_initial_direction": int(self.nla_direction_input.currentData()),
             "nla_direction_check_interval": self.nla_window_input.value(),
             "nla_trend_tolerance": self.nla_tolerance_input.value(),
             "nla_integral_memory_s": self.nla_memory_input.value(),
-            "nla_output_max": self.max_step_input.value(),
+            "nla_output_max": max(1e-6, self.max_output_input.value()-self.min_output_input.value()),
+            "nla_integral_max": max(1e-6, self.max_output_input.value()-self.min_output_input.value()),
+            "nla_derivative_filter_tau": 0.2,
+            "nla_max_control_dt": self.nla_window_input.value(),
         }
 
     def _controller_kind_changed(self, _index: int) -> None:
@@ -596,15 +603,14 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             widget = getattr(self, name, None)
             if widget is not None:
                 widget.setEnabled(not locked)
-        quality_dialog = getattr(self, 'tuning_quality_dialog', None)
-        if quality_dialog is not None:
-            for control in quality_dialog.inputs.values():
-                control.setEnabled(not locked)
         for bounds in getattr(self, "tuner_gain_bounds", {}).values():
             for widget in bounds:
                 widget.setEnabled(not locked)
 
     def _start_service_nla(self) -> None:
+        if active_controller(self.backend, self) is not None:
+            self._stop_pid("Another PID/GA/BO page is using this backend")
+            return
         if not self._is_safe_to_run():
             self._stop_pid(self.last_safety_message)
             return
@@ -623,7 +629,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             "allocation": allocation, "command_bias": list(self.command_values),
             "minimum_command": [lower] * len(CHANNEL_NAMES),
             "maximum_command": [upper] * len(CHANNEL_NAMES),
-            "maximum_slew_per_second": [self.max_step_input.value() * 8.0] * len(CHANNEL_NAMES),
+            "maximum_slew_per_second": [0.0] * len(CHANNEL_NAMES),
             "allocation_calibrated": False, "hardware_armed": self.armed,
             "dry_run": self.dry_run_check.isChecked(),
         }
@@ -679,7 +685,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         subtitle = QLabel("Bayesian optimization-assisted commissioning \u2014 C++ NLAPID")
         self.tuner_engine_label = subtitle
         subtitle.setObjectName("pidTunerSubtitle")
-        subtitle.setMinimumWidth(340)
+        subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-family: Segoe UI; font-size: 13px; color: #a9b9ce;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
@@ -702,6 +708,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         grid = QVBoxLayout(configuration)
         grid.setContentsMargins(16, 14, 16, 14)
         grid.setSpacing(8)
+        grid.setAlignment(Qt.AlignTop)
         primary_row = ResponsiveRow()
         primary_row.setSpacing(10)
         grid.addLayout(primary_row)
@@ -729,7 +736,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         # being attached can produce a popup that paints but ignores clicks.
         self.tuner_profile.setProperty("stablePopup", True)
         self.tuner_profile.addItems(
-            ["Balanced", "Fast response", "Suppress oscillation", "High precision", "Low control movement"]
+            ["October fitness"]
         )
 
         primary_fields = (
@@ -765,7 +772,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         bounds_layout.addLayout(bounds_heading)
         bounds_cards = ResponsiveRow()
         bounds_layout.addLayout(bounds_cards)
-        bounds_title = QLabel("Safe gain search bounds")
+        bounds_title = QLabel("Gain search ranges")
         bounds_title.setObjectName("pidSectionTitle")
         bounds_title.setWordWrap(True)
         bounds_heading.addWidget(bounds_title, 1)
@@ -832,11 +839,14 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         safety_row.addWidget(safety_label)
         safety_row.addWidget(self.tuner_safety_profile, 1)
         candidate_layout.addLayout(safety_row)
-        self.tuning_quality_dialog = TuningQualityDialog(self, self.feedback_unit, beam=self.beam_feedback)
-        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
-        self.tuning_quality_button = QPushButton('Tuning quality settings')
-        self.tuning_quality_button.clicked.connect(self.tuning_quality_dialog.show)
-        candidate_layout.addWidget(self.tuning_quality_button)
+        # Fixed report labels only. Never load legacy user thresholds into BO
+        # or Hybrid sessions; October fitness scores the measured response.
+        self._tuning_quality_settings = TuningQuality() if self.beam_feedback else TuningQuality(0.1, 0.5, 0.1, 1.0, 2)
+        response_note = QLabel('October fitness scores the full trial. Oscillation and settling '
+                              'do not impose rejection limits.')
+        response_note.setWordWrap(True)
+        response_note.setStyleSheet('color: #cbd5e1;')
+        candidate_layout.addWidget(response_note)
         self.tuner_status = QLabel("Not started. Configure and review the safe bounds.")
         self.tuner_status.setObjectName("pidTunerStatus")
         self.tuner_status.setWordWrap(True)
@@ -864,6 +874,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             gain_row.addWidget(value)
         candidate_layout.addLayout(gain_row)
         tuning_details.addWidget(candidate_panel, 2)
+        # Progress belongs beside the response, away from the gain-bound inputs.
+        tuning_details.removeWidget(candidate_panel)
         outer.addWidget(configuration)
 
         self.tuner_viewport = QFrame()
@@ -917,7 +929,14 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         close_model = QPushButton("Close")
         close_model.clicked.connect(self.gain_model_dialog.close)
         gain_layout.addWidget(close_model, 0, Qt.AlignRight)
+        outer.addWidget(candidate_panel)
         outer.addWidget(self.tuner_viewport, 1)
+        setup_note = QLabel('Choose the channel, target and trial window, then set the gain ranges. '
+                            'Run the budget automatically, or prepare a session and run one proposed trial at a time.')
+        setup_note.setWordWrap(True)
+        setup_note.setStyleSheet('color: #cbd5e1; padding: 4px;')
+        setup_note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        grid.insertWidget(0, setup_note)
 
         actions = ResponsiveRow()
         self.prepare_tuning_button = QPushButton("Prepare session")
@@ -940,7 +959,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.review_history_button.setEnabled(False)
         self.review_history_button.clicked.connect(self._show_tuning_history)
         self.approve_gains_button = QPushButton("Validate best gains")
-        self.approve_gains_button.setToolTip('Validate the best gains for the configured duration and settling hold before application.')
+        self.approve_gains_button.setToolTip('Measure the best gains for the configured validation duration before application.')
         self.approve_gains_button.setObjectName("fieldAction")
         self.approve_gains_button.setEnabled(False)
         self.approve_gains_button.clicked.connect(self._validate_best_gains)
@@ -955,15 +974,23 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         actions.addWidget(self.auto_tuning_button)
         actions.addWidget(self.run_tuning_trial_button)
         actions.addWidget(self.stop_tuning_button)
-        actions.addWidget(self.review_history_button)
+        review_actions = ResponsiveRow()
+        review_label = QLabel('Review and apply')
+        review_label.setStyleSheet('color: #cbd5e1;')
+        review_actions.addWidget(review_label)
+        review_actions.addWidget(self.review_history_button)
         self.metrics_button = QPushButton("Response Metrics")
         self.metrics_button.setObjectName("fieldAction")
         self.metrics_button.clicked.connect(self._show_trial_metrics)
-        actions.addWidget(self.metrics_button)
+        review_actions.addWidget(self.metrics_button)
         actions.addStretch(1)
-        actions.addWidget(self.approve_gains_button)
-        actions.addWidget(self.apply_tuned_gains_button)
-        page_layout.addLayout(actions)
+        review_actions.addStretch(1)
+        review_actions.addWidget(self.approve_gains_button)
+        review_actions.addWidget(self.apply_tuned_gains_button)
+        # Put actions before the expanding plots so they are reachable without
+        # scrolling through the visualization on a shorter window.
+        outer.insertLayout(1, actions)
+        outer.insertLayout(2, review_actions)
         for button in (self.prepare_tuning_button, self.auto_tuning_button, self.run_tuning_trial_button,
                        self.stop_tuning_button, self.review_history_button, self.metrics_button,
                        self.approve_gains_button, self.apply_tuned_gains_button):
@@ -1109,7 +1136,6 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self.tuning_surrogate_proposal.cancel()
             self.tuning_surrogate_proposal = None
         self._tuning_controller_config = self._controller_config()
-        self._tuning_quality_settings = self.tuning_quality_dialog.snapshot()
         self._lock_controller_inputs(True)
         self.tuning_optimizer = BotorchPidOptimizer(
             bounds["Kp"], bounds["Ki"], bounds["Kd"], use_cuda=False,
@@ -1262,35 +1288,19 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             elapsed=f"{elapsed:.1f} / {self._validation_seconds() if self._validating_gains else self.tuner_duration.value():.1f} s",
             error=f"{error:+.3f}",
         )
-        if state == "Running" and elapsed >= self._tuning_quality_settings.oscillation_min_seconds and len(self.tuning_samples) >= 6:
-            try:
-                interim = evaluate_trial(self.tuning_samples, self.tuner_target.value(),
-                                         deadband=self._tuning_controller_config.get("nla_deadband", 0),
-                                         quality=self._tuning_quality_settings)
-            except ValueError:
-                self._complete_tuning_trial(False)
-                return
-            if interim.sustained_oscillation:
-                self._oscillation_stopped = True
-                # Retain the penalized performance observation so BO learns to avoid it.
-                self._complete_tuning_trial(True)
-                return
         if state == "Completed":
             self._complete_tuning_trial(True)
         elif state in {"Faulted", "Stopped"}:
             self._complete_tuning_trial(False)
 
     def _start_trial(self, config: dict) -> None:
-        if self.beam_feedback and (self.backend_mode != "simulation" and self.simulation_mode != "first-order"):
-            config = apply_hardware_profile(
-                config, PROFILE_PATH,
-                CHANNEL_NAMES,
-            )
-            if (config['maximum_slew_per_second'][config['measurement_channel']] == 0
-                    and not getattr(CycloViz, 'PID_EXTERNAL_RAMP_SUPPORTED', False)):
-                raise RuntimeError('Restart with the rebuilt CycloViz extension to use LabVIEW ramping.')
-        if not config.get('continuous'):
-            recording(self, 'check_trial')
+        if config.get('nla_direction_each_update') and (
+                CycloViz is None or not hasattr(CycloViz, 'NLAPIDSettings')
+                or not hasattr(CycloViz.NLAPIDSettings(), 'direction_each_update')):
+            raise RuntimeError('Rebuild CycloViz to use the OctoberPID controller')
+        if (self.beam_feedback and not config.get('nla_direction_each_update')
+                and self.backend_mode != 'simulation' and self.simulation_mode != 'first-order'):
+            config = apply_hardware_profile(config, PROFILE_PATH, CHANNEL_NAMES)
         if self.beam_feedback:
             self._refresh_beam(publish=True)
             if not self.beam_valid:
@@ -1303,7 +1313,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             if recovery is None or config.get('continuous'):
                 self._capture_failure_reference(config['measurement_channel'])
         self.backend.StartPidTrial(config)
-        recording(self, 'started', config=config)
+        self._active_trial_id = recording(self, 'started', config=config) or uuid4().hex
 
     def _trial_status(self) -> dict:
         return self.backend.PidTrialStatus()
@@ -1328,6 +1338,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         minimum = min(self.min_output_input.value(), self.max_output_input.value())
         maximum = max(self.min_output_input.value(), self.max_output_input.value())
         candidate = self.tuning_candidate
+        self._trial_baseline_target = float(self.backend.PendingCommand()[channel]['target'])
+        self._trial_started_at = time.time()
         config = {
             **self._tuning_controller_config,
             "measurement_channel": channel,
@@ -1342,7 +1354,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             "command_bias": list(self.command_values),
             "minimum_command": [minimum for _ in CHANNEL_NAMES],
             "maximum_command": [maximum for _ in CHANNEL_NAMES],
-            "maximum_slew_per_second": [self.max_step_input.value() * 8.0 for _ in CHANNEL_NAMES],
+            "maximum_slew_per_second": [0.0 for _ in CHANNEL_NAMES],
             "allocation_calibrated": False,
             "hardware_armed": self.arm_button.isChecked() if hardware_trial else True,
             "dry_run": self.dry_run_check.isChecked() if hardware_trial else False,
@@ -1381,12 +1393,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             return
         if self.backend is not None:
             self._stop_trial(False)
-        self._tuning_output_held = bool(safe and not self._oscillation_stopped)
+        self._tuning_output_held = bool(safe)
         target = self.tuner_target.value()
         samples = self.tuning_samples
         metrics = None
         try:
             metrics = evaluate_trial(samples, target,
+                                     baseline_target=getattr(self, '_trial_baseline_target', None),
                                      deadband=self._tuning_controller_config.get("nla_deadband", 0),
                                          quality=self._tuning_quality_settings)
             score = trial_cost(metrics, self.tuner_profile.currentText())
@@ -1396,12 +1409,12 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         if not safe or not math.isfinite(score):
             safe = False
             score = 1.0e12
-        if not safe or self._oscillation_stopped:
+        if not safe:
             self._stop_trial(False)
             self._tuning_output_held = False
         if self._validating_gains:
             self._finish_gain_validation(candidate, metrics, safe)
-            if not safe or self._oscillation_stopped:
+            if not safe:
                 self._begin_failure_recovery('Validation failed')
             return
         settling_time = metrics.settling_time if metrics else 0.0
@@ -1410,10 +1423,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             candidate, score, settling_time, metrics.overshoot if metrics else 0.0,
             steady_state_error, metrics.control_effort if metrics else 0.0, safe,
             controller_kind=self._tuning_controller_config["controller_kind"], metrics=metrics,
-            termination_reason="Stopped: sustained oscillation" if self._oscillation_stopped else "Completed" if safe else "Faulted / invalid",
+            termination_reason="Completed" if safe else "Faulted / invalid",
+            trial_id=getattr(self, '_active_trial_id', None),
+            started_at=getattr(self, '_trial_started_at', None), ended_at=time.time(),
         )
         self.tuning_optimizer.record_results([result])
         self.tuning_results.append(result)
+        recording(self, 'results')
         self._cruise_costs.append((time.perf_counter()-self.coil_session_started, result))
         if self._cruise_auto_validate and len(self.tuning_results) == 1:
             self._cruise_baseline = result
@@ -1429,11 +1445,11 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         )
         self._set_tuning_progress(
             trial=f"{len(self.tuning_results)} of {self.tuner_trials.value()}",
-            state="Oscillation stopped" if self._oscillation_stopped else "Recorded" if safe else "Unsafe",
+            state="Recorded" if safe else "Unsafe",
             elapsed=f"{samples[-1][0] if samples else 0.0:.1f} s",
             error=f"{steady_state_error:.3f}",
         )
-        if not safe or self._oscillation_stopped:
+        if not safe:
             self.tuning_trial_candidate = None
             self._tuning_output_held = False
             self._stop_tuning_session()
@@ -1454,7 +1470,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.prepare_tuning_button.setEnabled(True)
         best = self.tuning_optimizer.best_result if self.tuning_optimizer else None
         if best is None:
-            self.tuner_status.setText("No eligible gains: results oscillated, faulted, or failed validation. Review Trial History.")
+            self.tuner_status.setText("No eligible gains: trials faulted or failed validation. Review Trial History.")
             return
         self.approve_gains_button.setEnabled(True)
         self.tuner_status.setText(
@@ -1468,10 +1484,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
 
     def _validation_seconds(self):
         if not hasattr(self, 'cruise_workspace'):
-            return max(60.0, self.tuner_duration.value())
-        quality = self._tuning_quality_settings
-        return max(self.validation_duration.value(), quality.hold_seconds,
-                   quality.oscillation_min_seconds)
+            return self.tuner_duration.value()
+        return self.validation_duration.value()
 
     def _validate_best_gains(self) -> None:
         if active_controller(self.backend, self) is not None:
@@ -1497,7 +1511,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self._validating_gains = False
             self._stop_tuning_session()
         else:
-            self.tuner_status.setText(f'Validation running for {self._validation_seconds():g} seconds. Apply requires settling without sustained oscillation.')
+            self.tuner_status.setText(f'Validation running for {self._validation_seconds():g} seconds. Response quality is scored using the October fitness objective.')
 
     def _finish_gain_validation(self, candidate, metrics, safe):
         recording(self, 'event', event='validation_result', details=dict(candidate=candidate, metrics=metrics, safe=safe))
@@ -1506,15 +1520,14 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self._validating_gains = False
         self.tuning_trial_candidate = None
         self._finish_tuning_session()
-        valid = (safe and not self._oscillation_stopped and metrics is not None
-                 and metrics.settled and not metrics.sustained_oscillation
-                 and bool(self.tuning_samples)
+        valid = (safe and metrics is not None
+                 and len(self.tuning_samples) >= 2
                  and self.tuning_samples[-1][0] >= self._validation_seconds() - 0.5)
         baseline = getattr(self, '_cruise_baseline', None)
         self._cruise_validation_cost = trial_cost(metrics, self.tuner_profile.currentText()) if safe and metrics else None
         if self.cruise.active:
             # The recommendation must hold up against the measured incumbent.
-            valid = (valid and len(self.tuning_samples) >= 6 and baseline is not None
+            valid = (valid and len(self.tuning_samples) >= 2 and baseline is not None
                      and baseline.safe and trial_cost(metrics, self.tuner_profile.currentText()) <= baseline.score)
         self.apply_tuned_gains_button.setEnabled(valid)
         self.apply_tuned_gains_button.setProperty('approvedCandidate', candidate if valid else None)
@@ -1526,12 +1539,9 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self.tuning_optimizer.rejected_validation_candidates.add(candidate)
         reasons = []
         if not safe: reasons.append('trial fault or invalid telemetry')
-        if self._oscillation_stopped or (metrics and metrics.sustained_oscillation):
-            reasons.append('sustained oscillation detected')
-        if metrics and not metrics.settled: reasons.append('response did not settle within tolerance')
         if self.cruise.active:
-            if len(self.tuning_samples) < 6:
-                reasons.append('fewer than six fresh scored samples')
+            if len(self.tuning_samples) < 2:
+                reasons.append('fewer than two fresh scored samples')
             if baseline is None or not baseline.safe:
                 reasons.append('no usable baseline')
             elif self._cruise_validation_cost is not None and self._cruise_validation_cost > baseline.score:
@@ -1650,16 +1660,10 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         dialog.resize(1200, 540)
         layout = setup_pid_dialog(dialog, 'BO Response Metrics', window_controls=False)
         explanation = QLabel(
-            "Cost = w1 tracking IAE + w2 steady error + w3 command movement + w4 saturation time + w5 oscillation. "
-            "Balanced weights: (1, 4, 0.01, 10, 1). "
-            f"Settling: remain within tolerance through trial end for at least {self._tuning_quality_settings.hold_seconds:g} s. "
-            "Transient: first entry into tolerance. Steady-state values estimate the final 20% of the run.\n"
-            f"Tolerance = max({self._tuning_quality_settings.settling_tolerance:g} {self.feedback_unit}, 1% of target, NLA deadband). Overshoot is diagnostic only (zero cost weight). "
-            "Oscillation penalty is always active; sustained oscillation blocks gain approval. "
-            f"Oscillation detection: amplitude above {self._tuning_quality_settings.oscillation_amplitude:g} {self.feedback_unit}, "
-            f"at least {self._tuning_quality_settings.oscillation_min_seconds:g} s and "
-            f"{self._tuning_quality_settings.oscillation_min_cycles} persistent cycles. Penalized results are retained. "
-            "These estimates use fresh status samples; very fast oscillations can be missed."
+            "October fitness: normalized tracking + 2 × steady-state error + "
+            "0.25 × command movement + 5 × saturation fraction + oscillation variation/crossings. "
+            "Settling and oscillation threshold labels are diagnostic only; they neither reject gains "
+            "nor change this score. Every valid trial runs for its configured duration."
         )
         explanation.setWordWrap(True)
         layout.addWidget(explanation)
@@ -1707,11 +1711,19 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.page_stack.setCurrentWidget(self.results_page)
 
     def _populate_tuning_results(self) -> None:
+        previous_count = getattr(self, '_results_count', 0)
+        previous_table = getattr(self, 'trial_history_table', None)
+        first_value = self.trial_history_first.value() if previous_table is not None else 1
+        last_value = self.trial_history_last.value() if previous_table is not None else previous_count
+        show_details = self.trial_history_details.isChecked() if previous_table is not None else False
+        sort_column = previous_table.horizontalHeader().sortIndicatorSection() if previous_table is not None else 0
+        sort_order = previous_table.horizontalHeader().sortIndicatorOrder() if previous_table is not None else Qt.DescendingOrder
         self._results_count = len(self.tuning_results)
         layout = self.results_layout
         while layout.count():
             item = layout.takeAt(0)
             if item.widget() is not None:
+                item.widget().hide()
                 item.widget().deleteLater()
             elif item.layout() is not None:
                 child = item.layout()
@@ -1721,12 +1733,15 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                         nested.widget().deleteLater()
                 child.deleteLater()
         dialog = self.results_page
-        safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)
-                and not (r.metrics and r.metrics.sustained_oscillation)]
-        best = min(safe, key=lambda r: r.score) if safe else None
+        safe = [r for r in self.tuning_results if r.safe and math.isfinite(r.score)]
+        rejected = getattr(self.tuning_optimizer, 'rejected_validation_candidates', set())
+        eligible = [r for r in safe if r.candidate not in rejected]
+        best = min(eligible, key=lambda r: r.score) if eligible else None
+        self._results_signature = (len(self.tuning_results), frozenset(rejected),
+                                   self.apply_tuned_gains_button.isEnabled())
         summary = QLabel(
-            f"{len(self.tuning_results)} trials  \xb7  {len(safe)} non-oscillating  \xb7  "
-            + (f"Best cost: {best.score:.4f}" if best else "No non-oscillating result yet")
+            f"{len(self.tuning_results)} trials  \xb7  {len(safe)} valid  \xb7  "
+            + (f"Best cost: {best.score:.4f}" if best else "No valid result yet")
         )
         summary.setObjectName("pidSectionTitle")
         layout.addWidget(summary)
@@ -1737,7 +1752,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         first, last = QSpinBox(), QSpinBox()
         for spin in (first, last):
             spin.setRange(1, max(1, len(self.tuning_results)))
-        last.setValue(max(1, len(self.tuning_results)))
+        first.setValue(first_value)
+        last.setValue(max(1, len(self.tuning_results)) if last_value >= previous_count else last_value)
         filters.addWidget(QLabel('Trials'))
         filters.addWidget(first)
         filters.addWidget(QLabel('through'))
@@ -1747,7 +1763,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         filters.addWidget(export)
         filters.addWidget(details)
         layout.addLayout(filters)
-        table = QTableWidget(len(self.tuning_results), 11)
+        table = QTableWidget(len(self.tuning_results), 14)
         table.setObjectName("pidTrialHistory")
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setSelectionBehavior(QAbstractItemView.SelectRows)
@@ -1761,6 +1777,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             [
                 "Trial", "Kp", "Ki", "Kd", "Cost \u2193", "Settling (s)",
                 f"Overshoot ({self.feedback_unit})", f"Steady error ({self.feedback_unit})", "Effort", "Result", "Controller",
+                "Started (local)", "Ended (local)", "SQLite trial ID",
             ]
         )
         for row, result in enumerate(self.tuning_results):
@@ -1768,26 +1785,35 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                 row + 1, result.candidate.kp, result.candidate.ki,
                 result.candidate.kd, result.score, result.settling_time if result.metrics and result.metrics.settled else 'Not settled',
                 result.overshoot, result.steady_state_error,
-                result.control_effort, "Oscillating" if result.metrics and result.metrics.sustained_oscillation else "Best observed" if result is best else "Completed" if result.safe else "Faulted",
+                result.control_effort, "Faulted" if not result.safe else "Validation rejected" if result.candidate in rejected else "Best observed" if result is best else "Completed (oscillating)" if result.metrics and result.metrics.sustained_oscillation else "Completed",
                 result.controller_kind.upper(),
+                datetime.fromtimestamp(result.started_at).astimezone().isoformat(timespec='milliseconds') if result.started_at is not None else 'Not recorded',
+                datetime.fromtimestamp(result.ended_at).astimezone().isoformat(timespec='milliseconds') if result.ended_at is not None else 'Not recorded',
+                result.trial_id or 'Not recorded',
             )
             for column, value in enumerate(values):
                 item = QTableWidgetItem()
-                item.setData(Qt.DisplayRole, round(value, 4) if isinstance(value, float) else value)
+                item.setData(Qt.DisplayRole, value)
                 item.setTextAlignment(Qt.AlignVCenter | (Qt.AlignRight if column < 9 else Qt.AlignLeft))
                 if result is best:
                     font = item.font()
                     font.setBold(True)
                     item.setFont(font)
-                item.setToolTip("Best observed safe cost" if result is best else "Included in model training" if result.safe else "Excluded from model training")
+                item.setToolTip(result.termination_reason + ('; best eligible cost' if result is best else '; validation rejected' if result.candidate in rejected else '; included in model training' if result.safe else '; excluded from model training'))
                 table.setItem(row, column, item)
         table.setSortingEnabled(True)
-        table.sortItems(0, Qt.DescendingOrder)
+        table.sortItems(sort_column, sort_order)
         def toggle_details(visible):
-            for column in (1, 2, 3, 6, 8, 10):
+            for column in (1, 2, 3, 6, 8, 10, 12, 13):
                 table.setColumnHidden(column, not visible)
         details.toggled.connect(toggle_details)
-        toggle_details(False)
+        details.setChecked(show_details)
+        toggle_details(show_details)
+        self.trial_history_table = table
+        self.trial_history_first, self.trial_history_last = first, last
+        self.trial_history_details = details
+        self.trial_history_export = export
+        export.setEnabled(bool(self.tuning_results))
         def export_trials():
             if first.value() > last.value():
                 hint.setText('First trial must be less than or equal to last trial.')
@@ -1801,7 +1827,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                     writer.writerow(table.horizontalHeaderItem(col).text() for col in range(table.columnCount()))
                     for row in range(table.rowCount()):
                         if first.value() <= int(table.item(row, 0).text()) <= last.value():
-                            writer.writerow(table.item(row, col).text() for col in range(table.columnCount()))
+                            writer.writerow(table.item(row, col).data(Qt.DisplayRole) for col in range(table.columnCount()))
                 hint.setText('CSV exported')
             except OSError as exc:
                 hint.setText(f'Export failed: {exc}')
@@ -2135,9 +2161,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         minimum = min(self.min_output_input.value(), self.max_output_input.value())
         maximum = max(self.min_output_input.value(), self.max_output_input.value())
         bounded = clamp(raw_output, minimum, maximum)
-        previous = self.command_values[self.selected_index]
-        max_step = self.max_step_input.value()
-        return max(previous - max_step, min(previous + max_step, bounded))
+        return bounded
 
     def _is_safe_to_run(self) -> bool:
         if getattr(getattr(self, '_failure_recovery', None), 'active', False):
@@ -2290,8 +2314,11 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
     def _refresh_status(self) -> None:
         if hasattr(self, 'cruise_navigation'):
             self.cruise_navigation.refresh()
+            signature = (len(self.tuning_results),
+                         frozenset(getattr(self.tuning_optimizer, 'rejected_validation_candidates', set())),
+                         self.apply_tuned_gains_button.isEnabled())
             if (self.page_stack.currentWidget() is self.results_page and
-                getattr(self, '_results_count', -1) != len(self.tuning_results)):
+                getattr(self, '_results_signature', None) != signature):
                 self._populate_tuning_results()
         channel = CHANNEL_NAMES[self.selected_index]
         actual = self._feedback_value()
@@ -2381,7 +2408,6 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             if self.cruise.active or self._cruise_stop_failed:
                 self._stop_cruise()
         self.settings_dialog.close()
-        self.tuning_quality_dialog.close()
         self.gain_model_dialog.close()
         if self.tuning_surface_proposal is not None:
             self.tuning_surface_proposal.cancel()

@@ -79,7 +79,7 @@ class _Workspace(PIDGAControlTab):
             self.ga_status_label.setText('Another PID/GA/BO page is using this backend')
             return
         if not self.manual_ga_mode_check.isChecked() and (not self.page.tuning_enabled or self.page.engine_error):
-            self.ga_status_label.setText(self.page.engine_error or 'Automatic GA is enabled only in simulation, matching existing tuning restrictions')
+            self.ga_status_label.setText(self.page.engine_error or 'Automatic GA is disabled for this workspace')
             return
         super().start_ga()
 
@@ -94,7 +94,7 @@ class GAPIDPage(DetailPage):
         self.backend = shared_backend
         self.backend_mode, self.simulation_mode = backend_mode, simulation_mode
         self.command_adapter = GABackendAdapter(self.backend)
-        self.tuning_enabled = bool(tuning_enabled) if tuning_enabled is not None else backend_mode == 'simulation'
+        self.tuning_enabled = bool(tuning_enabled) if tuning_enabled is not None else True
         self.engine_error = ''
         try:
             engine = CppPIDAdapter() if self.engine_kind == 'cpp' else NLAPID()
@@ -119,7 +119,7 @@ class GAPIDPage(DetailPage):
         self.workspace.arm_output_check.setEnabled(self.tuning_enabled and not self.engine_error)
         self.workspace.auto_ga_arm_check.setEnabled(self.tuning_enabled and not self.engine_error)
         if not self.tuning_enabled:
-            self.workspace.arm_output_check.setToolTip('Output on the GA workspace is restricted to simulation until beam-feedback hardware commissioning is completed.')
+            self.workspace.arm_output_check.setToolTip('Output is disabled for this workspace until beam-feedback hardware commissioning is completed.')
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.context.refresh)
         self.timer.timeout.connect(lambda: recording(self))
@@ -175,7 +175,8 @@ class GAPIDPage(DetailPage):
         if not self.context.beam_snapshot(w._beam_stale_limit())['valid']:
             return False
         accepted = self.command_adapter.apply_delta(index,delta,self.context.target_limits[index],
-                                                    authorized=True,max_age_s=w._beam_stale_limit())
+                                                    authorized=True,max_age_s=w._beam_stale_limit(),
+                                                    fresh_decision=w._ga_sequence_state != 'RESTORING')
         if accepted:
             self.context.targets[index] = float(self.backend.PendingCommand()[index]['target'])
         return accepted
@@ -184,7 +185,7 @@ class GAPIDPage(DetailPage):
         self.timer.stop()
         w = self.workspace
         w._ga_auto_active = False
-        w.ga_evaluator.active = False
+        w.ga_evaluator.reset()
         w.stop_pid(reason='Page closed')
         w._pid_timer.stop()
         w._ga_sequence_timer.stop()

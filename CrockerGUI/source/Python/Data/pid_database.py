@@ -42,6 +42,7 @@ def initialize(connection):
             controller_iteration INTEGER, controller_elapsed REAL,
             sample_kind TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_pid_samples_session_time ON pid_samples(session_id,timestamp);
+        CREATE INDEX IF NOT EXISTS idx_pid_samples_trial_time ON pid_samples(trial_id,timestamp);
         CREATE TABLE IF NOT EXISTS pid_trials (
             id TEXT PRIMARY KEY, session_id TEXT NOT NULL, timestamp REAL,
             source TEXT, result TEXT NOT NULL);

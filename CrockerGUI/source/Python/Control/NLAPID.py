@@ -1,12 +1,23 @@
-"""Standalone nonlinear adaptive-direction PID reference engine.
+# -*- coding: utf-8 -*-
+"""Deterministic PID engines used by the PID/GA controller tab.
 
-Uses only the Python standard library. No GUI, hardware writes, or optimizer.
-NLAPID.update(setpoint, measurement, dt) returns a PIDResult whose output is
-an incremental actuator target change, NOT an absolute target or a rate.
+Two controller forms are provided:
 
-Extracted from the supplied adaptive controller without changing its numerical
-behavior. Kp/Ki/Kd remain fixed until set_gains() is called; direction adapts.
-Use one instance per controlled actuator. Instances are stateful, not thread-safe.
+``PIDController``
+    Conventional signed-error PID retained for compatibility and unit tests.
+
+``AdaptiveDirectionPIDController``
+    Paper-schematic controller for beam-current regulation.  It computes the
+    signed tracking error ``e = setpoint - measurement`` for diagnostics, then
+    controls on the magnitude ``E = abs(e)``.  A separate direction term
+    ``d = +1`` or ``-1`` is retained while the error magnitude decreases and is
+    reversed when the magnitude increases. The revised adaptive engine treats
+    the PID magnitude as a trim-coil movement rate and returns the time-scaled
+    increment ``delta_TC = d * rate_magnitude * dt``.
+
+This module has no Qt dependency and can be tested independently from the GUI.
+The final hardware loop should still execute in the deterministic control layer
+rather than depend on the display refresh timer.
 """
 
 from __future__ import annotations
@@ -55,14 +66,9 @@ class AdaptiveDirectionSettings:
         When ``abs(error)`` is at or below this value, the requested trim-coil
         increment is zero and the target is held.
 
-    ``trend_tolerance``
-        Changes in the *window-averaged* error magnitude smaller than this value
-        are treated as unchanged. This avoids reversing direction on individual
-        noisy beam samples.
-
     ``direction_check_interval``
-        Duration of one error-trend observation window. Direction is not judged
-        from every sample.
+        Duration of one error-trend observation window in legacy window mode.
+        This interval is not used when ``direction_each_update`` is enabled.
 
     ``direction_confirmations``
         Number of consecutive worsening windows required before the trim-coil
@@ -87,12 +93,13 @@ class AdaptiveDirectionSettings:
         so old error leaves continuously instead of being cleared by a sudden
         periodic reset.
 
-    The fields after ``reset_integral_on_direction_change`` have defaults,
-    so existing GUI code that constructs this dataclass remains compatible.
+    The active GUI sets ``direction_each_update=True`` and compares each fresh
+    averaged error directly with the preceding value. With this setting false,
+    the legacy branch compares complete window means and uses the configured
+    interval, minimum sample count, and reversal confirmations.
     """
 
     deadband: float = 0.0
-    trend_tolerance: float = 0.0
     direction_check_interval: float = 1.0
     initial_direction: int = 1
     reset_integral_in_deadband: bool = False
@@ -102,10 +109,12 @@ class AdaptiveDirectionSettings:
     integral_window_multiplier: float = 2.0
     max_control_dt: float = 0.25
     integral_memory_s: float = 20.0
+    # The revised GUI enables this: one direction comparison per fresh mean.
+    # Legacy callers retain their existing window-based behavior by default.
+    direction_each_update: bool = False
 
     def validated(self) -> "AdaptiveDirectionSettings":
         deadband = max(0.0, float(self.deadband))
-        tolerance = max(0.0, float(self.trend_tolerance))
         interval = max(0.0, float(self.direction_check_interval))
         confirmations = max(1, int(self.direction_confirmations))
         minimum_samples = max(1, int(self.minimum_direction_samples))
@@ -114,7 +123,6 @@ class AdaptiveDirectionSettings:
         integral_memory_s = max(0.0, float(self.integral_memory_s))
         values = (
             deadband,
-            tolerance,
             interval,
             integral_multiplier,
             max_control_dt,
@@ -125,7 +133,6 @@ class AdaptiveDirectionSettings:
         direction = 1 if int(self.initial_direction) >= 0 else -1
         return AdaptiveDirectionSettings(
             deadband=deadband,
-            trend_tolerance=tolerance,
             direction_check_interval=interval,
             initial_direction=direction,
             reset_integral_in_deadband=bool(self.reset_integral_in_deadband),
@@ -137,6 +144,7 @@ class AdaptiveDirectionSettings:
             integral_window_multiplier=integral_multiplier,
             max_control_dt=max_control_dt,
             integral_memory_s=integral_memory_s,
+            direction_each_update=bool(self.direction_each_update),
         )
 
 
@@ -163,6 +171,135 @@ class PIDResult:
     in_deadband: bool = False
 
 
+class PIDController:
+    """Conventional signed-error PID with derivative-on-measurement.
+
+    This class is retained because other development tests may still use a
+    normal signed PID.  The beam-control page uses
+    :class:`AdaptiveDirectionPIDController` below.
+    """
+
+    def __init__(
+        self,
+        gains: PIDGains | None = None,
+        limits: PIDLimits | None = None,
+    ):
+        self.gains = (gains or PIDGains()).validated()
+        self.limits = (limits or PIDLimits()).validated()
+        self.reset()
+
+    def set_gains(self, gains: PIDGains) -> None:
+        self.gains = gains.validated()
+
+    def set_limits(self, limits: PIDLimits) -> None:
+        self.limits = limits.validated()
+        self._integral_state = self._clamp(
+            self._integral_state,
+            self.limits.integral_min,
+            self.limits.integral_max,
+        )
+
+    def reset(self, measurement: float | None = None) -> None:
+        self._integral_state = 0.0
+        self._previous_measurement = None if measurement is None else float(measurement)
+        self._filtered_derivative = 0.0
+        self._last_result = PIDResult(0.0, 0.0, 0.0, 0.0, 0.0, False)
+
+    @property
+    def last_result(self) -> PIDResult:
+        return self._last_result
+
+    @staticmethod
+    def _clamp(value: float, lower: float, upper: float) -> float:
+        return max(lower, min(upper, value))
+
+    def update(
+        self,
+        setpoint: float,
+        measurement: float,
+        dt: float,
+        *,
+        feedforward: float = 0.0,
+        hold_integrator: bool = False,
+    ) -> PIDResult:
+        setpoint = float(setpoint)
+        measurement = float(measurement)
+        dt = float(dt)
+        feedforward = float(feedforward)
+        if not all(math.isfinite(v) for v in (setpoint, measurement, dt, feedforward)):
+            raise ValueError("PID inputs must be finite")
+        if dt <= 0.0:
+            raise ValueError("PID dt must be greater than zero")
+
+        gains = self.gains
+        limits = self.limits
+        error = setpoint - measurement
+        proportional = gains.kp * error
+
+        if self._previous_measurement is None:
+            raw_derivative = 0.0
+        else:
+            # Derivative on measurement avoids a large kick when setpoint moves.
+            raw_derivative = -(measurement - self._previous_measurement) / dt
+
+        tau = limits.derivative_filter_tau
+        if tau <= 0.0:
+            self._filtered_derivative = raw_derivative
+        else:
+            alpha = dt / (tau + dt)
+            self._filtered_derivative += alpha * (
+                raw_derivative - self._filtered_derivative
+            )
+        derivative = gains.kd * self._filtered_derivative
+
+        candidate_integral = self._integral_state
+        if not hold_integrator:
+            candidate_integral += gains.ki * error * dt
+            candidate_integral = self._clamp(
+                candidate_integral,
+                limits.integral_min,
+                limits.integral_max,
+            )
+
+        unsaturated = proportional + candidate_integral + derivative + feedforward
+        output = self._clamp(unsaturated, limits.output_min, limits.output_max)
+        saturated = not math.isclose(
+            output, unsaturated, rel_tol=0.0, abs_tol=1e-12
+        )
+
+        # Conditional integration: accept the new integral when not saturated,
+        # or when the signed error would drive saturation back toward range.
+        drives_back = (
+            (unsaturated > limits.output_max and error < 0.0)
+            or (unsaturated < limits.output_min and error > 0.0)
+        )
+        if not hold_integrator and (not saturated or drives_back):
+            self._integral_state = candidate_integral
+        else:
+            unsaturated = (
+                proportional + self._integral_state + derivative + feedforward
+            )
+            output = self._clamp(unsaturated, limits.output_min, limits.output_max)
+            saturated = not math.isclose(
+                output, unsaturated, rel_tol=0.0, abs_tol=1e-12
+            )
+
+        self._previous_measurement = measurement
+        self._last_result = PIDResult(
+            output=output,
+            error=error,
+            proportional=proportional,
+            integral=self._integral_state,
+            derivative=derivative,
+            saturated=saturated,
+            error_magnitude=abs(error),
+            pid_magnitude=abs(output),
+            direction=1 if output > 0.0 else (-1 if output < 0.0 else 0),
+            error_trend="SIGNED PID",
+        )
+        return self._last_result
+
+
 class NLAPID:
     """Stable adaptive-direction PID for trim-coil target increments.
 
@@ -183,18 +320,19 @@ class NLAPID:
     per second when the beam-sample rate changes. The GUI can continue to use
     ``target_next = target_current + result.output`` without modification.
 
-    Direction is determined from time-weighted averages of ``E`` over complete
-    observation windows. Two consecutive worsening windows are required by
-    default before reversal. Integral memory is a 20 s moving window by default:
-    only recent error contributes, and old error leaves continuously as new
-    samples arrive. It is always cleared on an actual direction reversal because
-    memory accumulated under the previous actuator sign must not be applied
-    immediately in the opposite direction.
+    With ``direction_each_update=True``, each fresh averaged ``E`` is compared
+    directly with the previous value: an increase reverses direction; a decrease
+    or exact equality keeps it. The legacy mode instead compares time-weighted
+    window means directly and retains its configured confirmation count.
+    Integral memory is a 20 s moving window by default: only recent error
+    contributes, and old error leaves continuously as new samples arrive. The
+    legacy mode clears it on reversal; the per-update mode uses the existing
+    ``reset_integral_on_direction_change`` setting.
 
     ``PIDLimits.output_max`` remains a final emergency limit on one returned
     target increment. ``output_min`` is intentionally ignored by this adaptive
     controller so a forced minimum step cannot sustain a limit cycle near the
-    setpoint. The conventional signed-error PID is not included in this module.
+    setpoint. The conventional ``PIDController`` above is unchanged.
     """
 
     def __init__(
@@ -222,13 +360,12 @@ class NLAPID:
         return validated
 
     @staticmethod
-    def _trend(current: float, previous: float | None, tolerance: float) -> str:
+    def _trend(current: float, previous: float | None) -> str:
         if previous is None:
             return "INITIALIZING"
-        change = current - previous
-        if change > tolerance:
+        if current > previous:
             return "INCREASING"
-        if change < -tolerance:
+        if current < previous:
             return "DECREASING"
         return "STEADY"
 
@@ -333,15 +470,9 @@ class NLAPID:
             self._direction_window_area / self._direction_window_elapsed
         )
         previous_mean = self._previous_direction_window_mean
-        # A direction reversal based on a change smaller than the control
-        # deadband is not physically meaningful and is usually measurement
-        # noise. The user trend tolerance is therefore never allowed to be
-        # smaller than the active deadband for direction decisions.
-        direction_tolerance = max(
-            settings.trend_tolerance,
-            settings.deadband,
-        )
-        trend = self._trend(mean_error, previous_mean, direction_tolerance)
+        # Compare the window means directly. The beam-error deadband controls
+        # zero output; it is not a threshold for changes in error magnitude.
+        trend = self._trend(mean_error, previous_mean)
         direction_changed = False
 
         if previous_mean is None:
@@ -453,7 +584,11 @@ class NLAPID:
         # A delayed packet must not create one large target jump. Timing,
         # derivative, integral, and rate-to-increment conversion all use the
         # same bounded control step.
-        control_dt = min(dt, settings.max_control_dt)
+        # In the simplified mode use real elapsed time in I/D mathematics.
+        # Only the commanded increment is capped to one configured loop interval;
+        # delayed feedback must never create a large catch-up target jump.
+        control_dt = dt if settings.direction_each_update else min(dt, settings.max_control_dt)
+        step_dt = min(dt, settings.max_control_dt)
         long_gap = dt > 2.0 * settings.max_control_dt
 
         signed_error = setpoint - measurement
@@ -482,10 +617,11 @@ class NLAPID:
             sample_trend = self._trend(
                 error_magnitude,
                 self._previous_error_magnitude,
-                settings.trend_tolerance,
             )
 
-        in_deadband = error_magnitude <= settings.deadband
+        in_deadband = error_magnitude <= settings.deadband or (
+            settings.direction_each_update and math.isclose(
+                error_magnitude, settings.deadband, rel_tol=1e-12, abs_tol=1e-12))
         if in_deadband:
             if settings.reset_integral_in_deadband:
                 self._clear_integral()
@@ -515,12 +651,22 @@ class NLAPID:
             )
             return self._last_result
 
-        self._append_direction_sample(error_magnitude, control_dt)
-        window_trend, direction_changed = self._evaluate_direction_window()
-        if window_trend is not None:
-            sample_trend = window_trend
+        if settings.direction_each_update:
+            # Measurement is already a complete beam-input average. Do not
+            # average absolute errors again or run a second direction timer.
+            direction_changed = sample_trend == "INCREASING"
+            if direction_changed:
+                self._direction *= -1
+                if settings.reset_integral_on_direction_change:
+                    self._clear_integral()
+                self._filtered_derivative = 0.0
+        else:
+            self._append_direction_sample(error_magnitude, control_dt)
+            window_trend, direction_changed = self._evaluate_direction_window()
+            if window_trend is not None:
+                sample_trend = window_trend
 
-        if long_gap or self._previous_error_magnitude is None or setpoint_changed:
+        if long_gap or self._previous_error_magnitude is None or setpoint_changed or (direction_changed and settings.direction_each_update):
             raw_derivative = 0.0
             self._filtered_derivative = 0.0
         else:
@@ -536,7 +682,7 @@ class NLAPID:
                     raw_derivative - self._filtered_derivative
                 )
 
-        if direction_changed:
+        if direction_changed and not settings.direction_each_update:
             # Hold one sample at the reversal so LabVIEW does not receive an
             # abrupt command under the new direction on the same measurement
             # that triggered the reversal.
@@ -582,9 +728,9 @@ class NLAPID:
         raw_derivative_rate = gains.kd * self._filtered_derivative
         derivative_rate = min(0.0, raw_derivative_rate)
 
-        proportional_step = proportional_rate * control_dt
-        integral_step = integral_rate * control_dt
-        derivative_step = derivative_rate * control_dt
+        proportional_step = proportional_rate * step_dt
+        integral_step = integral_rate * step_dt
+        derivative_step = derivative_rate * step_dt
 
         # Retain the legacy integral maximum only as a hidden numerical guard.
         # The lower value is not forced in adaptive mode.
@@ -615,7 +761,7 @@ class NLAPID:
             self._remove_last_integral_sample()
             integral_rate = gains.ki * self._integral_area
             integral_step = min(
-                integral_rate * control_dt,
+                integral_rate * step_dt,
                 integral_upper,
             )
             unsaturated_step = max(
@@ -645,12 +791,19 @@ class NLAPID:
             pid_magnitude=pid_magnitude,
             direction=self._direction,
             error_trend=sample_trend,
-            direction_changed=False,
+            direction_changed=direction_changed,
             in_deadband=False,
         )
         return self._last_result
 
 
 __all__ = [
-    "NLAPID", "PIDGains", "PIDLimits", "PIDResult", "AdaptiveDirectionSettings",
+    "PIDGains",
+    "PIDLimits",
+    "AdaptiveDirectionSettings",
+    "PIDResult",
+    "PIDController",
+    "AdaptiveDirectionPIDController",
 ]
+
+AdaptiveDirectionPIDController = NLAPID

@@ -214,7 +214,7 @@ class HybridPIDOptimizer(BotorchPidOptimizer):
         groups = defaultdict(list)
 
         for r in self.safe_results:
-            if r.candidate not in self.rejected_validation_candidates and r.metrics and not r.metrics.sustained_oscillation:
+            if r.candidate not in self.rejected_validation_candidates and r.metrics:
                 groups[r.candidate].append(r)
         if not groups:
             return None
@@ -480,8 +480,7 @@ class HybridPIDOptimizer(BotorchPidOptimizer):
                 True if the result is eligible, False otherwise.
         """
         m = result.metrics
-        return bool(result.safe and m and m.settled and not m.sustained_oscillation
-                    and m.steady_state_error <= m.tolerance)
+        return bool(result.safe and m and math.isfinite(result.score))
 
     def record_results(self, results):
         """

@@ -9,14 +9,14 @@ from dataclasses import replace
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QObject, QEvent
+from PySide6.QtCore import QObject, QEvent, QCoreApplication
 from PySide6.QtWidgets import QAbstractSpinBox, QPushButton
 from source.Python.Control.NLAPID import NLAPID, PIDGains
 from source.Python.Control.CppPIDAdapter import CppPIDAdapter
 from source.Python.Optimization.genetic_optimizer import GAPIDTuner, GainBounds, GATuningConfig
 from source.Python.Automation.ga_evaluation import GACandidateEvaluator, GAEvaluationConfig, append_summary_csv, write_evaluation_csv
 from source.Python.Automation.ga_backend_adapter import GABackendAdapter
-from source.Python.Automation.ga_recovery import GARecoveryManager, GARecoveryConfig
+from source.Python.Automation.ga_recovery import GARecoveryManager
 from python.app.Automation.GAPIDPage import GAPIDPage, PythonGAPIDPage
 
 
@@ -71,25 +71,28 @@ class GATest(unittest.TestCase):
             self.assertEqual(len((path/'samples.csv').read_text().splitlines()),3)
             self.assertEqual(len((path/'summary.csv').read_text().splitlines()),3)
         e.start(candidate_number=2,generation_number=1,gains=PIDGains(),setpoint_nA=1,baseline_target_a=10,baseline_actual_a=10,timestamp_s=0)
-        result=e.observe(timestamp_s=.5,**dict(sample,beam_nA=0)).result
+        self.assertIsNone(e.observe(timestamp_s=.5,**dict(sample,beam_nA=0)).result)
+        result=e.observe(timestamp_s=1,**dict(sample,beam_nA=float('nan'))).result
         self.assertTrue(result.safety_violation)
         self.assertGreaterEqual(result.score,1000000)
 
-    def test_recovery_requires_measured_stability(self):
+    def test_recovery_resets_full_target_without_measured_hold(self):
         r=GARecoveryManager()
-        reference=r.capture(targets_a=[10],actual_values_a=[10],beam_nA=1,channel_indices=[0],timestamp_s=0)
-        r.start(reference=reference,config=GARecoveryConfig(stable_hold_s=1),timestamp_s=0)
-        self.assertAlmostEqual(r.next_command([11]).delta_a,-.02)
-        sample=dict(current_targets_a=[10],actual_values_a=[10],beam_nA=1)
-        self.assertFalse(r.observe(timestamp_s=1,**sample).complete)
-        self.assertFalse(r.observe(timestamp_s=1.5,**dict(sample,beam_nA=float('nan'))).complete)
-        self.assertFalse(r.observe(timestamp_s=2,**sample).complete)
-        self.assertTrue(r.observe(timestamp_s=3,**sample).complete)
+        reference=r.capture(targets_a=[10],actual_values_a=[9],beam_nA=0,channel_indices=[0],timestamp_s=0)
+        r.start(reference=reference)
+        self.assertAlmostEqual(r.next_command([11]).delta_a,-1)
+        self.assertIsNone(r.next_command([10]))
+        self.assertFalse(r.active)
 
 
 class GAPageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls): cls.app=QApplication.instance() or QApplication([])
+
+    def doCleanups(self):
+        result = super().doCleanups()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        return result
 
     def make_page(self,kind=PythonGAPIDPage,backend=None):
         b=backend or Backend()
@@ -98,6 +101,9 @@ class GAPageTest(unittest.TestCase):
         self.addCleanup(p.stop_backend)
         p.timer.stop()
         p.workspace._display_timer.stop()
+        # Fast synthetic packets: bypass averaging in legacy transport tests.
+        p.workspace.direction_check_spin.setValue(0)
+        b.stamp = time.time()
         return p,b
 
     def test_cpp_editors_are_never_shown_as_windows(self):
@@ -284,8 +290,8 @@ class GAPageTest(unittest.TestCase):
                 # Advance the simulated telemetry clock with a matching wall clock.
                 b.stamp=time.time()
                 if w._ga_sequence_state=='EVALUATING':
-                    w.ga_evaluator.start_time -= .2
-                    w.ga_evaluator.last_time -= .2
+                    w.ga_evaluator._start_timestamp_s -= .2
+                    w.ga_evaluator._last_timestamp_s -= .2
                     w._last_processed_beam_timestamp=0
                     w._last_pid_time=time.monotonic()-.02
                     w._pid_step()

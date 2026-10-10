@@ -27,7 +27,7 @@ class QualityMetricsTest(unittest.TestCase):
         self.assertTrue(result.settled)
         self.assertEqual(result.quality_settings['oscillation_min_cycles'], 4)
 
-    def test_large_persistent_oscillation_still_rejected(self):
+    def test_large_persistent_oscillation_is_labelled(self):
         self.assertTrue(evaluate_trial(wave(.3, 12), 4, quality=TuningQuality()).sustained_oscillation)
         self.assertFalse(evaluate_trial(wave(.3, 9), 4, quality=TuningQuality()).sustained_oscillation)
         self.assertFalse(evaluate_trial(wave(.3, 12, frequency=.25), 4, quality=TuningQuality()).sustained_oscillation)
@@ -51,30 +51,24 @@ class QualityMetricsTest(unittest.TestCase):
 
 
 class QualityPageTest(unittest.TestCase):
-    def test_persistence_and_session_freeze(self):
+    def test_legacy_thresholds_are_ignored_and_popup_is_removed(self):
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QApplication
         from python.app.Automation.PidControlPage import PidControlPage
-        from python.app.Automation.TuningQualityDialog import TuningQualityDialog
+        from python.app.Automation.HybridPIDPage import HybridPIDPage
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as directory:
             settings = QSettings(str(Path(directory)/'test.ini'), QSettings.IniFormat)
-            with patch('python.app.Automation.TuningQualityDialog.QSettings', return_value=settings):
-                page = PidControlPage(lambda: None, backend_mode='simulation')
+            for page_type in (PidControlPage, HybridPIDPage):
+                prefix = f'tuning_quality/{page_type.__name__}/'
+                settings.setValue(prefix+'oscillation_amplitude', .01)
+                settings.setValue(prefix+'hold_seconds', 30)
+                with patch('PySide6.QtCore.QSettings', return_value=settings):
+                    page = page_type(lambda: None, backend_mode='simulation')
                 try:
-                    page.tuning_quality_dialog.inputs['settling_tolerance'].setValue(.25)
-                    reopened = TuningQualityDialog(page, 'nA')
-                    self.assertEqual(reopened.snapshot().settling_tolerance, .25)
-                    reopened.deleteLater()
-                    with patch.object(page, '_request_tuning_candidate'):
-                        page._prepare_tuning_session()
-                    self.assertTrue(page.tuning_session_active)
-                    self.assertEqual(page._tuning_quality_settings.settling_tolerance, .25)
-                    self.assertTrue(all(not w.isEnabled() for w in page.tuning_quality_dialog.inputs.values()))
-                    page.tuning_quality_dialog.inputs['settling_tolerance'].setValue(.3)
-                    self.assertEqual(page._tuning_quality_settings.settling_tolerance, .25)
-                    page._stop_tuning_session()
-                    self.assertTrue(all(w.isEnabled() for w in page.tuning_quality_dialog.inputs.values()))
+                    self.assertFalse(hasattr(page, 'tuning_quality_dialog'))
+                    self.assertFalse(hasattr(page, 'tuning_quality_button'))
+                    self.assertEqual(page._tuning_quality_settings, TuningQuality())
                 finally:
                     page.stop_backend()
                     page.deleteLater()

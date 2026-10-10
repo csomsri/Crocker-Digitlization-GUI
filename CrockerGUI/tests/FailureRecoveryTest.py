@@ -53,7 +53,7 @@ class RecoveryTest(unittest.TestCase):
                            beam_timestamp=self.backend.stamp, **kwargs)
 
     def test_ga_uses_shared_planner(self):
-        self.assertIs(GARecoveryManager, RecoveryManager)
+        self.assertIsInstance(self.recovery.planner, GARecoveryManager)
 
     def test_bounded_restore_and_verified_completion(self):
         self.backend.target = self.backend.actual = 201.
@@ -61,11 +61,11 @@ class RecoveryTest(unittest.TestCase):
         self.poll()
         self.assertEqual(self.backend.target, 200.)
         self.assertTrue(self.recovery.active)  # Actual is still displaced.
-        self.backend.actual = 200.
+        # Physical readback can remain displaced after the software target reset.
         self.backend.stamp = time.time()
         self.poll()
         self.assertFalse(self.recovery.active)
-        self.assertIn('Reference recovered', self.recovery.status)
+        self.assertIn('captured target restored', self.recovery.status)
         self.assertEqual(self.backend.writes, [(200., True, True)])
 
     def test_hardware_protection_blocks_without_writes(self):
@@ -78,21 +78,18 @@ class RecoveryTest(unittest.TestCase):
                 self.assertEqual(self.backend.writes, [])
                 setattr(self.backend, attribute, previous)
 
-    def test_lost_beam_or_authorization_stops_recovery(self):
-        self.assertTrue(self.start())
-        self.recovery.poll(authorized=True, beam=float('nan'), beam_valid=False)
-        self.assertFalse(self.recovery.active)
-        self.assertEqual(self.backend.writes, [])
-        self.assertTrue(self.start())
-        self.recovery.poll(authorized=False, beam=1., beam_valid=True)
-        self.assertFalse(self.recovery.active)
-        self.assertEqual(self.backend.writes, [])
-
-    def test_timeout_prevents_further_commands(self):
+    def test_reset_does_not_require_beam_stability(self):
         self.backend.target = 500.
         self.assertTrue(self.start())
-        self.recovery.planner.start_time -= 30
-        self.poll()
+        self.recovery.poll(authorized=True, beam=float('nan'), beam_valid=False)
+        self.assertEqual(self.backend.target, 200.)
+        self.recovery.poll(authorized=True, beam=float('nan'), beam_valid=False)
+        self.assertFalse(self.recovery.active)
+
+    def test_authorization_stops_reset(self):
+        self.backend.target = 500.
+        self.assertTrue(self.start())
+        self.recovery.poll(authorized=False, beam=1., beam_valid=True)
         self.assertFalse(self.recovery.active)
         self.assertEqual(self.backend.writes, [])
 

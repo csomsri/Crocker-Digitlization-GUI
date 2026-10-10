@@ -1,5 +1,8 @@
 # Database A and PID Database B
 
+For numbered viewer instructions and paper-ready PID queries, see
+[HowToReadDataBase.md](HowToReadDataBase.md).
+
 Database A remains `data/crocker_pipeline.sqlite3`. Database B is
 `crocker_pid.sqlite3` beside the configured A database. Existing A history is
 preserved. The migration adds nullable `runs.session_id` and

@@ -198,11 +198,11 @@ class PolicyTest(unittest.TestCase):
         self.assertEqual(o.state,'GA')
         self.assertEqual(self.feed(o),'GA')
 
-    def test_unsettled_challenger_never_takes_over(self):
+    def test_unsettled_challenger_is_ranked_by_fitness(self):
         o=self.make()
         self.warm(o)
         self.feed(o,1,settled=False)
-        self.assertEqual(o.state,'GA')
+        self.assertEqual(o.state,'Confirmation')
 
     def test_noise_and_uncertainty_prevent_challenger_trial(self):
         o=self.make()
@@ -243,7 +243,7 @@ class PolicyTest(unittest.TestCase):
             c=o.propose_batch(1)[0]
             is_bo=o.pending_source=='Confirm BO'
             o.record_results([result(c,5 if is_bo else 10,settled=not is_bo)])
-        self.assertEqual(o.state,'GA')
+        self.assertEqual(o.state,'BO')
         o.propose_batch(1)
         with self.assertRaises(ValueError):
             o.record_results([result(PidGainCandidate(99,99,99))])
@@ -445,15 +445,13 @@ class PageTest(unittest.TestCase):
         self.assertTrue(p._service_pid_active,p.last_safety_message)
         self.tick_until(lambda:p.backend.PidTrialStatus()['iterations']>0)
 
-    def test_recovery_timeout_never_starts_next_candidate(self):
+    def test_target_reset_starts_next_candidate_without_hold(self):
         p=self.p
         p._start_auto_tuning()
         self.assertTrue(p.recovering)
-        p.recovery.start_time-=30
-        p._tick_feedback()
-        self.assertFalse(p.tuning_session_active)
-        self.assertEqual(len(p.tuning_results),0)
-        self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
+        self.tick_until(lambda:not p.recovering)
+        self.assertTrue(p.tuning_session_active)
+        self.assertIsNotNone(p.tuning_proposal)
 
     def test_failed_trial_transfers_to_shared_recovery_without_resume(self):
         p = self.p
@@ -467,7 +465,7 @@ class PageTest(unittest.TestCase):
         self.assertTrue(p.backend.PendingCommand()[0]['enabled'])
         self.assertFalse(p._is_safe_to_run())
         self.tick_until(lambda: not p._failure_recovery.active)
-        self.assertIn('Reference recovered', p.tuner_status.text())
+        self.assertIn('captured target restored', p.tuner_status.text())
         self.assertFalse(p.pid_enabled)
         self.assertIsNone(p.tuning_trial_candidate)
         self.assertAlmostEqual(p.backend.PendingCommand()[0]['target'], 50, places=2)
@@ -564,7 +562,7 @@ class PageTest(unittest.TestCase):
         self.assertFalse(p.apply_tuned_gains_button.isEnabled())
         self.tick_until(lambda:not p._validating_gains,timeout=70)
         self.assertTrue(p.apply_tuned_gains_button.isEnabled(),p.tuner_status.text())
-        self.assertGreaterEqual(p.tuning_samples[-1][0],59.5)
+        self.assertGreaterEqual(p.tuning_samples[-1][0],p._validation_seconds()-.5)
         self.assertAlmostEqual(p.backend.PendingCommand()[0]['target'],50,places=2)
         self.assertFalse(p.backend.PendingCommand()[0]['enabled'])
         p._apply_tuned_gains()

@@ -2,7 +2,7 @@
 import math
 import time
 
-from .reference_recovery import RecoveryManager, RecoveryConfig
+from .ga_recovery import GARecoveryManager
 from .ga_backend_adapter import GABackendAdapter
 
 
@@ -10,7 +10,7 @@ class FailureRecovery:
     def __init__(self, backend):
         self.backend = backend
         self.adapter = GABackendAdapter(backend)
-        self.planner = RecoveryManager()
+        self.planner = GARecoveryManager()
         self.reference = None
         self.active = False
         self.status = 'No recovery reference captured'
@@ -57,11 +57,7 @@ class FailureRecovery:
             if not authorized or dry_run:
                 raise ValueError('Recovery requires armed output and dry run off')
             self._snapshot(self.index)
-            config = config or RecoveryConfig()
-            if not self.beam_required:
-                from dataclasses import replace
-                config = replace(config, minimum_beam_nA=0., minimum_beam_fraction=0., beam_reference_tolerance_nA=0.)
-            self.planner.start(reference=self.reference, config=config, timestamp_s=time.monotonic())
+            self.planner.start(reference=self.reference)
             self.last_sample = None
             self.last_command_time = float('-inf')
             self.active = True
@@ -76,34 +72,19 @@ class FailureRecovery:
         try:
             if not authorized:
                 raise ValueError('Output authorization removed')
-            if time.monotonic() - self.planner.start_time >= self.planner.config.timeout_s:
-                raise ValueError('Recovery timed out')
-            snapshot = self._snapshot(self.index)
-            if self.beam_required and (not beam_valid or not math.isfinite(beam) or
-                    beam_timestamp is None or not math.isfinite(beam_timestamp) or
-                    not 0 <= time.time() - beam_timestamp <= 1):
-                raise ValueError('Fresh beam telemetry required')
-            sample = (float(snapshot['timestamp']), beam_timestamp if self.beam_required else None)
-            if self.last_sample is not None and (sample[0] <= self.last_sample[0] or
-                    (self.beam_required and (sample[1] is None or sample[1] <= self.last_sample[1]))):
-                return
-            self.last_sample = sample
+            self._snapshot(self.index)
             targets = [float(c['target']) for c in self.backend.PendingCommand()]
             proposal = self.planner.next_command(targets)
             if proposal:
-                if time.monotonic() - self.last_command_time < .05:
-                    return
                 if not self.adapter.apply_delta(proposal.channel_index, proposal.delta_a, self.limits,
-                                                authorized=authorized, max_age_s=1):
-                    raise ValueError('Recovery command rejected')
-                self.last_command_time = time.monotonic()
-                targets = [float(c['target']) for c in self.backend.PendingCommand()]
-            state = self.planner.observe(timestamp_s=time.monotonic(), current_targets_a=targets,
-                actual_values_a=[float(c['actual']) for c in snapshot['channels']],
-                beam_nA=beam if self.beam_required else 0.)
-            self.status = f'{self.reason}: {state.status}; PID and tuning stopped'
-            if state.complete:
-                self.active = False
+                        authorized=authorized, max_age_s=1, fresh_decision=False):
+                    raise ValueError('Target reset rejected')
+                target = float(self.backend.PendingCommand()[proposal.channel_index]['target'])
+                if round(target, 2) != round(proposal.reference_target_a, 2):
+                    raise ValueError('Captured target was not restored')
+                return
+            self.status = f'{self.reason}: captured target restored; PID and tuning stopped'
+            self.active = False
         except Exception as exc:
             self.active = False
             self.status = f'{self.reason}: recovery stopped — {exc}'

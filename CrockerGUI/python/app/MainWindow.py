@@ -175,7 +175,7 @@ class MainWindow(QMainWindow):
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
-                    page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["tuning_enabled"] = True
                     page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
                     if "GA + " in title or title in {"PID Control", "Hybrid GA + BO PID"}:
@@ -493,7 +493,7 @@ class MainWindow(QMainWindow):
                     field_page = self.pages.get("Field Ctrl")
                     if isinstance(field_page, FieldCtrlPage):
                         page_kwargs["shared_backend"] = field_page.backend
-                    page_kwargs["tuning_enabled"] = self.simulation_mode is not None
+                    page_kwargs["tuning_enabled"] = True
                     page_kwargs["simulation_mode"] = self.simulation_mode
                     page_kwargs["manage_backend"] = False
                     if "GA + " in page_name or page_name in {"PID Control", "Hybrid GA + BO PID"}:

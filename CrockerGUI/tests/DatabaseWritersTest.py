@@ -147,6 +147,8 @@ class PageRecordingTest(unittest.TestCase):
                        get_beam_state=backend.beam)
             page._database_recorder = PagePIDRecorder(page, self.b, self.a, backend.beam)
             try:
+                # This checks persistence of one decision, not averaging timing.
+                page.workspace.direction_check_spin.setValue(0)
                 page.workspace.setpoint_spin.setValue(1.2)
                 backend.stamp = time.time()
                 page.workspace.start_pid()
@@ -193,6 +195,7 @@ class PageRecordingTest(unittest.TestCase):
         backend = Backend()
         page = PythonPIDPage(lambda: None, 'simulation', shared_backend=backend)
         page.timer.stop()
+        page.direction_interval_input.setValue(.05)
         page.run_metrics.directory = self.root/'exports'
         page.log_path = self.root/'commands.csv'
         page._database_recorder = PagePIDRecorder(page, self.b, self.a,

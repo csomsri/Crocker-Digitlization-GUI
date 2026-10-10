@@ -128,6 +128,7 @@ class PageTest(unittest.TestCase):
         p = self.page
         p.tuner_trials.setValue(7)
         p.tuner_duration.setValue(0.5)
+        p.nla_window_input.setValue(.05)
         p.tuner_target.setValue(10)
         p._start_auto_tuning()
         deadline = time.monotonic() + 120
@@ -151,9 +152,7 @@ class PageTest(unittest.TestCase):
             m = result.metrics
             self.assertIsNotNone(m.command_movement)
             self.assertIsNotNone(m.saturation_time)
-            self.assertAlmostEqual(result.score, m.tracking_error + 4*m.steady_state_error
-                                   + .01*m.command_movement + 10*m.saturation_time
-                                   + m.oscillation_penalty)
+            self.assertAlmostEqual(result.score, m.october_score)
         self.assertTrue(p.tuning_optimizer.optimizer._botorch_ready)  # passed Sobol initialization
         self.assertEqual(p.backend.PidTrialStatus()['controller_kind'], 'nla')
         self.assertFalse(p.pid_enabled)
@@ -189,7 +188,8 @@ class PageTest(unittest.TestCase):
                 LatestSnapshot=lambda: dict(channels=[dict(interlocked=True)]),
                 StopPidTrial=lambda disable: stopped.append(disable))
             self.assertFalse(p._check_tuning_hold())
-            self.assertEqual(stopped, [True])
+            # Fault recovery stops the worker while retaining the last target.
+            self.assertEqual(stopped, [False])
             self.assertFalse(p._tuning_output_held)
         finally:
             p.backend = native

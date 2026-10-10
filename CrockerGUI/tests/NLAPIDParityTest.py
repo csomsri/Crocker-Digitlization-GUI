@@ -69,7 +69,7 @@ class ParityTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 cpp.update(*inputs)
         with self.assertRaises(ValueError):
-            cpp.set_gains(cpp_struct('NLAPIDGains', dict(kp=-1)))
+            cpp.set_gains(cpp_struct('NLAPIDGains', dict(kp=float('nan'))))
 
 
 if __name__ == '__main__':

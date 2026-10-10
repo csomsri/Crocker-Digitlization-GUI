@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QLabel
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Automation.PIDRecording import recording
 from source.Python.Control.PythonNLATrial import PythonNLATrial
+from source.Python.Control.FeedbackAverage import FeedbackAverage
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox as QComboBox
 from source.Python.Control.NLAPID import (
     NLAPID, PIDGains, PIDLimits, AdaptiveDirectionSettings,
@@ -42,24 +43,24 @@ class PythonPIDPage(PidControlPage):
         self.cpp_nla_panel.hide()
         layout = panel.layout()
         self.deadband_input = self._make_spinbox(0.0, 100.0, 0.01, " A")
-        self.deadband_input.setValue(0.05)
+        self.deadband_input.setValue(0.2)
         self.direction_input = QComboBox()
         self.direction_input.addItem("Increase target first", 1)
         self.direction_input.addItem("Decrease target first", -1)
         self.direction_input.currentIndexChanged.connect(lambda _: self._reset_pid_state())
         self.direction_interval_input = self._make_spinbox(0.05, 60.0, 0.05, " s")
-        self.direction_interval_input.setValue(1.0)
+        self.direction_interval_input.setValue(0.3)
         self.trend_tolerance_input = self._make_spinbox(0.0, 100.0, 0.01, " A")
-        self.trend_tolerance_input.setValue(0.05)
+        self.trend_tolerance_input.setValue(0.0)
+        self.trend_tolerance_input.hide()
         for column, (name, widget) in enumerate((
             ("Deadband", self.deadband_input),
             ("Initial direction", self.direction_input),
-            ("Direction window", self.direction_interval_input),
-            ("Trend tolerance", self.trend_tolerance_input),
+            ("Feedback average", self.direction_interval_input),
         )):
             layout.addWidget(QLabel(name), 7, column)
             layout.addWidget(widget, 8, column)
-        self.nla_status = QLabel("NLA ready")
+        self.nla_status = QLabel("October PID ready (Python)")
         self.nla_status.setWordWrap(True)
         layout.addWidget(self.nla_status, 9, 0, 1, 4)
         return panel
@@ -67,12 +68,17 @@ class PythonPIDPage(PidControlPage):
     def _controller_config(self) -> dict:
         return {
             "controller_kind": "python_nla",
+            "nla_direction_each_update": True,
+            "feedback_average_seconds": self.direction_interval_input.value(),
             "nla_deadband": self.deadband_input.value(),
             "nla_trend_tolerance": self.trend_tolerance_input.value(),
             "nla_direction_check_interval": self.direction_interval_input.value(),
             "nla_initial_direction": int(self.direction_input.currentData()),
             "nla_integral_memory_s": 20.0,
-            "nla_output_max": self.max_step_input.value(),
+            "nla_output_max": max(1e-6, self.max_output_input.value()-self.min_output_input.value()),
+            "nla_integral_max": max(1e-6, self.max_output_input.value()-self.min_output_input.value()),
+            "nla_derivative_filter_tau": .2,
+            "nla_max_control_dt": self.direction_interval_input.value(),
         }
 
     def _restore_controller_config(self, approved: dict) -> None:
@@ -80,7 +86,6 @@ class PythonPIDPage(PidControlPage):
         self.trend_tolerance_input.setValue(approved["nla_trend_tolerance"])
         self.direction_interval_input.setValue(approved["nla_direction_check_interval"])
         self.direction_input.setCurrentIndex(self.direction_input.findData(approved["nla_initial_direction"]))
-        self.max_step_input.setValue(approved["nla_output_max"])
 
     def _lock_controller_inputs(self, locked: bool) -> None:
         super()._lock_controller_inputs(locked)
@@ -92,7 +97,8 @@ class PythonPIDPage(PidControlPage):
         recording(self, 'check_trial')
         self.python_trial.backend = self.backend
         self.python_trial.start(config)
-        recording(self, 'started', config=config)
+        from uuid import uuid4
+        self._active_trial_id = recording(self, 'started', config=config) or uuid4().hex
 
     def _trial_status(self) -> dict:
         return self.python_trial.status()
@@ -104,6 +110,8 @@ class PythonPIDPage(PidControlPage):
         super()._reset_pid_state()
         self._last_sample_time = None
         self._last_fresh_time = time.perf_counter()
+        self._feedback_average = FeedbackAverage(self.direction_interval_input.value())
+        self._last_decision_time = None
         self.pid.reset(direction=int(self.direction_input.currentData()))
 
     def _stop_pid(self, reason):
@@ -140,7 +148,7 @@ class PythonPIDPage(PidControlPage):
                 snapshot = self.backend.LatestSnapshot()
                 sample_time = float(snapshot["timestamp"])
                 measurement = float(snapshot["channels"][self.selected_index]["actual"])
-                if not math.isfinite(sample_time) or time.time() - sample_time > 2.0:
+                if not math.isfinite(sample_time) or not math.isfinite(measurement) or time.time() - sample_time > 2.0:
                     self._stop_pid("Stale telemetry")
                     return
             except Exception as exc:
@@ -159,18 +167,32 @@ class PythonPIDPage(PidControlPage):
         if self._last_sample_time is None:
             self._last_sample_time = sample_time
             self._last_fresh_time = now
+            self._last_decision_time = sample_time
+            self._feedback_average.add(sample_time, measurement)
             self.pid.reset(setpoint=self.setpoint_input.value(), measurement=measurement,
                            direction=int(self.direction_input.currentData()))
             return
         dt = sample_time - self._last_sample_time
         self._last_sample_time = sample_time
         self._last_fresh_time = now
+        if self._feedback_average.seconds != self.direction_interval_input.value():
+            self._feedback_average = FeedbackAverage(self.direction_interval_input.value())
+            self._last_decision_time = sample_time
+        averaged = self._feedback_average.add(sample_time, measurement)
+        if averaged is None:
+            return
+        measurement = averaged
+        dt = sample_time - self._last_decision_time
+        self._last_decision_time = sample_time
         try:
             self.pid.set_gains(PIDGains(self.kp_input.value(), self.ki_input.value(), self.kd_input.value()))
-            self.pid.set_limits(PIDLimits(output_min=0.0, output_max=self.max_step_input.value()))
+            span = max(1e-6, self.max_output_input.value()-self.min_output_input.value())
+            self.pid.set_limits(PIDLimits(output_min=0.0, output_max=span,
+                integral_max=span, derivative_filter_tau=.2))
             self.pid.set_settings(AdaptiveDirectionSettings(
+                direction_each_update=True,
+                max_control_dt=self.direction_interval_input.value(),
                 deadband=self.deadband_input.value(),
-                trend_tolerance=self.trend_tolerance_input.value(),
                 direction_check_interval=self.direction_interval_input.value(),
                 initial_direction=int(self.direction_input.currentData()),
             ))

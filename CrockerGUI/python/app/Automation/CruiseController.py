@@ -45,7 +45,7 @@ class CruiseControllerMixin:
             return True
         # Leave enough observations for GP-guided trials before using plateau detection.
         initial = self.tuning_optimizer.optimizer.initial_safe_trials
-        eligible = [r.score for r in self.tuning_results if r.safe and not (r.metrics and r.metrics.sustained_oscillation)]
+        eligible = [r.score for r in self.tuning_results if r.safe]
         patience = w.patience.value()
         if len(eligible) < initial+patience:
             return False

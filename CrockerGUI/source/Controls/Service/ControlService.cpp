@@ -321,7 +321,8 @@ void ControlService::StartPidTrial(const PidTrialConfig& config)
     if (!snapshot.simulated && !config.dryRun && !config.allocationCalibrated) {
         // Direct trim-coil current control uses the transport's existing engineering
         // scaling; it does not need a separate field-allocation calibration.
-        bool directTrimCoil = !config.externalBeamMeasurement && config.measurementChannel < 12;
+        bool directTrimCoil = (!config.externalBeamMeasurement || config.nlaSettings.directionEachUpdate)
+            && config.measurementChannel < 12;
         for (ChannelId channel = 0; channel < ChannelCount; ++channel) {
             directTrimCoil = directTrimCoil && config.allocation[channel] == (channel == config.measurementChannel ? 1.0 : 0.0);
         }
@@ -412,6 +413,9 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
         auto nextTick = started;
         NLAPID nla({config.kp, config.ki, config.kd}, config.nlaLimits, config.nlaSettings);
         std::optional<double> lastSampleTime;
+        double averageSum = 0.0;
+        std::size_t averageCount = 0;
+        std::optional<double> averageStart, lastDecisionTime;
         bool holdIntegral = false;
         double saturationSeconds = 0.0;
         ControlCommand lastCommand = PendingCommand();
@@ -468,6 +472,8 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 }
                 if (!lastSampleTime) {
                     nla.reset(config.setpoint, measurement.actual);
+                    averageStart = lastDecisionTime = stamp;
+                    averageSum = measurement.actual; averageCount = 1;
                     lastSampleTime = stamp;
                     nextTick += std::chrono::duration_cast<clock::duration>(period);
                     std::this_thread::sleep_until(nextTick);
@@ -481,18 +487,32 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 dt = stamp - *lastSampleTime;
                 lastSampleTime = stamp;
             }
-            const double error = config.setpoint - measurement.actual;
-            if (std::abs(error) > config.maxAbsoluteError) {
+            double error = config.setpoint - measurement.actual;
+            if (!config.nlaSettings.directionEachUpdate && std::abs(error) > config.maxAbsoluteError) {
                 SetPidTrialFault("Absolute error abort limit exceeded");
                 if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
             }
-            if (measurement.actual - config.setpoint > config.maxOvershoot) {
+            if (!config.nlaSettings.directionEachUpdate && measurement.actual - config.setpoint > config.maxOvershoot) {
                 SetPidTrialFault("Overshoot abort limit exceeded");
                 if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
                 break;
+            }
+            if (config.feedbackAverageSeconds > 0.0) {
+                averageSum += measurement.actual;
+                ++averageCount;
+                if (sampleTimestamp - *averageStart < config.feedbackAverageSeconds) {
+                    nextTick += std::chrono::duration_cast<clock::duration>(period);
+                    std::this_thread::sleep_until(nextTick);
+                    continue;
+                }
+                measurement.actual = averageSum / averageCount;
+                error = config.setpoint - measurement.actual;
+                dt = sampleTimestamp - *lastDecisionTime;
+                averageStart = lastDecisionTime = sampleTimestamp;
+                averageSum = 0.0; averageCount = 0;
             }
             const auto calculationStarted = clock::now();
             const NLAPIDResult nlaResult = nla.update(config.setpoint, measurement.actual, dt, holdIntegral);
@@ -500,7 +520,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
             const double calculationMicroseconds =
                 std::chrono::duration<double, std::micro>(clock::now() - calculationStarted).count();
             if (!std::isfinite(output)) throw std::runtime_error("Nonfinite PID output");
-            if (std::abs(output) > config.maxControlOutput) {
+            if (!config.nlaSettings.directionEachUpdate && std::abs(output) > config.maxControlOutput) {
                 SetPidTrialFault("Control-output abort limit exceeded");
                 if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
@@ -520,7 +540,7 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
                 saturated = saturated || bounded != requested;
                 const double maximumDelta = config.maximumSlewPerSecond[channel] * dt;
                 // Zero delegates physical ramping to LabVIEW; absolute bounds remain active.
-                const double slewed = config.maximumSlewPerSecond[channel] == 0.0 ? bounded : std::clamp(
+                const double slewed = (config.nlaSettings.directionEachUpdate || config.maximumSlewPerSecond[channel] == 0.0) ? bounded : std::clamp(
                     bounded,
                     lastCommand[channel].target - maximumDelta,
                     lastCommand[channel].target + maximumDelta);
@@ -533,9 +553,9 @@ void ControlService::RunPidTrial(PidTrialConfig config) noexcept
 
             // External actuator constraints are separate from the NLA engine limits.
             // Age its integral on the next update when the actuator cannot follow.
-            holdIntegral = saturated || rateLimited;
+            holdIntegral = !config.nlaSettings.directionEachUpdate && (saturated || rateLimited);
             saturationSeconds = saturated ? saturationSeconds + dt : 0.0;
-            if (saturationSeconds > config.maxSaturationSeconds) {
+            if (!config.nlaSettings.directionEachUpdate && saturationSeconds > config.maxSaturationSeconds) {
                 SetPidTrialFault("Command saturation persisted beyond abort limit");
                 if (!config.dryRun) DisableAllFromWorker();
                 pidTrialRunning_.store(false);
@@ -620,6 +640,8 @@ void ControlService::ValidatePidTrialConfig(const PidTrialConfig& config)
     if (config.kp < 0.0 || config.ki < 0.0 || config.kd < 0.0) {
         throw std::invalid_argument("PID gains must be non-negative");
     }
+    if (!std::isfinite(config.feedbackAverageSeconds) || config.feedbackAverageSeconds < 0.0)
+        throw std::invalid_argument("Feedback averaging time must be finite and nonnegative");
     if (config.updateRateHz <= 0.0 || config.durationSeconds <= 0.0
         || config.telemetryTimeoutSeconds <= 0.0 || config.maxAbsoluteError <= 0.0
         || config.maxOvershoot <= 0.0 || config.maxControlOutput <= 0.0

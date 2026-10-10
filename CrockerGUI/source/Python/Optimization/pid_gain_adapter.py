@@ -43,6 +43,9 @@ class PidTrialResult:
     controller_kind: str = "nla"
     metrics: TrialMetrics | None = None
     termination_reason: str = "Completed"
+    trial_id: str | None = None
+    started_at: float | None = None
+    ended_at: float | None = None
 
 
 class BotorchPidOptimizer:
@@ -87,8 +90,7 @@ class BotorchPidOptimizer:
 
     @property
     def best_result(self) -> PidTrialResult | None:
-        safe = [r for r in self.safe_results if r.candidate not in self.rejected_validation_candidates
-                and not (r.metrics and r.metrics.sustained_oscillation)]
+        safe = [r for r in self.safe_results if r.candidate not in self.rejected_validation_candidates]
 
         return min(safe, key=lambda result: result.score) if safe else None
 

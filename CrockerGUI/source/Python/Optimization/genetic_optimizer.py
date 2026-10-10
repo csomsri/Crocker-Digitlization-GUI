@@ -3,6 +3,7 @@ from dataclasses import dataclass, replace
 import math
 import random
 from source.Python.Control.NLAPID import PIDGains
+from . import october_ga
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class PIDCandidate:
     generation: int
     index: int
     fitness: float | None = None
+    valid: bool = True
 
 
 class GAPIDTuner:
@@ -76,16 +78,17 @@ class GAPIDTuner:
         return PIDCandidate(self.population[self.index], self.generation, self.index)
 
     def best_candidate(self):
-        return min(self.history, key=lambda c: c.fitness) if self.history else None
+        valid = [c for c in self.history if c.valid]
+        return min(valid, key=lambda c: c.fitness) if valid else None
 
     def progress(self):
         return self.generation + 1, self.config.generations, self.index + 1, self.config.population_size
 
-    def submit_fitness(self, fitness):
+    def submit_fitness(self, fitness, *, valid=True):
         if not math.isfinite(fitness) or fitness < 0:
             raise ValueError('Fitness must be finite and nonnegative')
 
-        self.history.append(replace(self.current_candidate(), fitness=float(fitness)))
+        self.history.append(replace(self.current_candidate(), fitness=float(fitness), valid=bool(valid)))
         self.index += 1
 
         if self.index == self.config.population_size:
@@ -95,26 +98,22 @@ class GAPIDTuner:
 
                 return None
 
-            ranked = sorted(self.history[-self.config.population_size:], key=lambda c: c.fitness)
-            parents = ranked[:max(2, len(ranked)//2)]
-
-            population = [ranked[0].gains]
-
-            while len(population) < self.config.population_size:
-                a, b = self.rng.sample(parents, 2)
-                genes = []
-
-                for name in ('kp', 'ki', 'kd'):
-                    low, high = getattr(self.bounds, name)
-                    mix = self.rng.random()
-
-                    value = mix * getattr(a.gains, name) + (1-mix) * getattr(b.gains, name)
-                    if self.rng.random() < self.config.mutation_probability:
-                        value += self.rng.gauss(0, self.config.mutation_scale * (high-low))
-
-                    genes.append(max(low, min(high, value)))
-
-                population.append(PIDGains(*genes))
+            # Use OctoberPID's validity-aware tournament, blend crossover,
+            # mutation and elitism while retaining the hybrid optimizer API.
+            engine = october_ga.GAPIDTuner(
+                october_ga.GainBounds(self.bounds.kp, self.bounds.ki, self.bounds.kd),
+                october_ga.GATuningConfig(
+                    population_size=self.config.population_size,
+                    generations=self.config.generations,
+                    mutation_probability=self.config.mutation_probability,
+                    mutation_scale=self.config.mutation_scale,
+                    random_seed=self.config.seed))
+            engine._rng = self.rng
+            engine.generation_index = self.generation
+            engine.population = [october_ga.PIDCandidate(
+                c.gains, c.fitness, c.generation, c.index, c.valid)
+                for c in self.history[-self.config.population_size:]]
+            population = [c.gains for c in engine._create_next_generation()]
             self.population = population
 
             self.generation += 1

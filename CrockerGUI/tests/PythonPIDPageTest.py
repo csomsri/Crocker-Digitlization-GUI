@@ -23,10 +23,10 @@ class Backend:
         return dict(connection="Connected", endpoint="test", received_packets=1)
 
     def LatestSnapshot(self):
-        return dict(timestamp=self.timestamp, channels=[dict(actual=1.0)])
+        return dict(timestamp=self.timestamp, channels=[dict(actual=1.0, on=True, enabled=True, status="Ready", interlocked=False)])
 
     def PendingCommand(self):
-        return [dict(target=2.0)]
+        return [dict(target=2.0, on=True, enabled=True)]
 
     def SetChannelCommand(self, *args):
         self.writes += 1
@@ -44,6 +44,7 @@ class PythonPIDPageTest(unittest.TestCase):
         self.backend = Backend()
         self.page = PythonPIDPage(lambda: None, "simulation", shared_backend=self.backend)
         self.page.timer.stop()
+        self.page.direction_interval_input.setValue(.05)
         self.page._log_command = lambda *args: None
         self.page.channel_on[0] = self.page.channel_enabled[0] = True
         self.page.setpoint_input.setValue(10)
@@ -67,6 +68,13 @@ class PythonPIDPageTest(unittest.TestCase):
         previous = p.command_values[0]
         p._tick_pid_controller()
         self.assertEqual(previous, p.command_values[0])
+
+    def test_nonfinite_feedback_stops_before_averaging(self):
+        self.backend.LatestSnapshot = lambda: dict(timestamp=self.backend.timestamp,
+                                                   channels=[dict(actual=float('nan'))])
+        self.page._tick_pid_controller()
+        self.assertFalse(self.page.pid_enabled)
+        self.assertEqual(self.backend.writes, 0)
 
     def test_rejection_stops_without_retry(self):
         p = self.page

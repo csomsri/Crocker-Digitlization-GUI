@@ -59,11 +59,8 @@ class CruiseIntegrationTest(unittest.TestCase):
             get_beam_state=lambda: dict(current_ua=.001, timestamp=time.time(), quality='ok'))
         self.page.setpoint_input.setValue(1)
         self.page.timer.stop()
-        self.quality_values = {k: w.value() for k, w in self.page.tuning_quality_dialog.inputs.items()}
 
     def tearDown(self):
-        for key, value in self.quality_values.items():
-            self.page.tuning_quality_dialog.inputs[key].setValue(value)
         self.page.stop_backend()
         self.page.deleteLater()
         self.app.processEvents()
@@ -93,8 +90,6 @@ class CruiseIntegrationTest(unittest.TestCase):
         p.tuner_trials.setValue(3)
         p.tuner_duration.setValue(.6)
         p.validation_duration.setValue(1)
-        p.tuning_quality_dialog.inputs['hold_seconds'].setValue(.5)
-        p.tuning_quality_dialog.inputs['oscillation_min_seconds'].setValue(1)
         p._start_cruise()
         previous = p._cruise_snapshot()
         p._begin_cruise_tuning()

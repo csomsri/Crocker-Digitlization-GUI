@@ -261,7 +261,10 @@ Controls::PidTrialConfig PidTrialConfigFromDict(const py::dict& source)
     if (kind != "nla") throw py::value_error("Only C++ NLAPID (controller_kind=nla) is supported");
     config.controllerKind = Controls::PidControllerKind::NLA;
     if (source.contains("continuous")) config.continuous = source["continuous"].cast<bool>();
+    if (source.contains("feedback_average_seconds")) config.feedbackAverageSeconds = source["feedback_average_seconds"].cast<double>();
     if (source.contains("nla_deadband")) config.nlaSettings.deadband = source["nla_deadband"].cast<double>();
+    if (source.contains("nla_direction_each_update")) config.nlaSettings.directionEachUpdate = source["nla_direction_each_update"].cast<bool>();
+    if (source.contains("nla_reset_integral_on_direction_change")) config.nlaSettings.resetIntegralOnDirectionChange = source["nla_reset_integral_on_direction_change"].cast<bool>();
     if (source.contains("nla_trend_tolerance")) config.nlaSettings.trendTolerance = source["nla_trend_tolerance"].cast<double>();
     if (source.contains("nla_direction_check_interval")) config.nlaSettings.directionCheckInterval = source["nla_direction_check_interval"].cast<double>();
     if (source.contains("nla_initial_direction")) config.nlaSettings.initialDirection = source["nla_initial_direction"].cast<int>();
@@ -522,6 +525,8 @@ void BindControlService(py::module_& module)
     py::class_<Controls::NLAPIDSettings>(module, "NLAPIDSettings")
         .def(py::init<>())
         .def_readwrite("deadband", &Controls::NLAPIDSettings::deadband)
+        .def_readwrite("direction_each_update", &Controls::NLAPIDSettings::directionEachUpdate)
+        .def_readwrite("reset_integral_on_direction_change", &Controls::NLAPIDSettings::resetIntegralOnDirectionChange)
         .def_readwrite("trend_tolerance", &Controls::NLAPIDSettings::trendTolerance)
         .def_readwrite("direction_check_interval", &Controls::NLAPIDSettings::directionCheckInterval)
         .def_readwrite("initial_direction", &Controls::NLAPIDSettings::initialDirection)

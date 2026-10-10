@@ -88,6 +88,7 @@ struct PidTrialConfig {
     ChannelId measurementChannel = 0;
     // Calibrated beam feedback is independent of the allocated trim-coil output.
     bool externalBeamMeasurement = false;
+    double feedbackAverageSeconds = 0.0; // Non-overlapping fresh means; zero for legacy replay.
     double setpoint = 0.0;
     double kp = 0.0;
     double ki = 0.0;

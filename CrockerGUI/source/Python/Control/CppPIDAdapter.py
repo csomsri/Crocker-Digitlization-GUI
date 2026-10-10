@@ -8,12 +8,17 @@ class CppPIDAdapter:
         try:
             import CycloViz
             self.module = CycloViz
+            if not hasattr(CycloViz.NLAPIDSettings(), "direction_each_update"):
+                raise RuntimeError("Rebuild CycloViz to use the OctoberPID controller")
             self.engine = CycloViz.NLAPID()
         except (ImportError, AttributeError) as exc:
             raise RuntimeError('Build CycloViz with NLAPID bindings to use the C++ GA page') from exc
 
     def _convert(self, value, typename):
         converted = getattr(self.module, typename)()
+        if (typename == 'NLAPIDSettings' and getattr(value, 'direction_each_update', False)
+                and not hasattr(converted, 'direction_each_update')):
+            raise RuntimeError('Rebuild CycloViz to use the OctoberPID controller')
         for key, item in asdict(value).items():
             if hasattr(converted, key):
                 setattr(converted, key, item)

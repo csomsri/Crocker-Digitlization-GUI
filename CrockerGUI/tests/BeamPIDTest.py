@@ -160,7 +160,8 @@ class BeamPageTest(unittest.TestCase):
             p.backend_mode = 'hardware'
             settings = config(continuous=True)
             reviewed = dict(settings, allocation_calibrated=True, max_absolute_error=3)
-            with patch('python.app.Automation.PidControlPage.apply_hardware_profile', return_value=reviewed) as loader:
+            with patch('python.app.Automation.PidControlPage.apply_hardware_profile', return_value=reviewed) as loader, \
+                    patch.object(p, '_capture_failure_reference'):
                 p._start_trial(settings)
                 self.assertEqual(loader.call_args.args[1].name, 'pid_hardware_profile.json')
                 sent = p.backend.StartPidTrial.call_args.args[0]
@@ -173,7 +174,8 @@ class BeamPageTest(unittest.TestCase):
                     p._start_trial(settings)
                 p.backend.StartPidTrial.assert_not_called()
             p.backend_mode = 'simulation'
-            with patch('python.app.Automation.PidControlPage.apply_hardware_profile') as loader:
+            with patch('python.app.Automation.PidControlPage.apply_hardware_profile') as loader, \
+                    patch.object(p, '_capture_failure_reference'):
                 p._start_trial(settings)
                 loader.assert_not_called()
         finally:
