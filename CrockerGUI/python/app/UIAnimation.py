@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QPushButton,
     QStackedWidget,
+    QStyle,
     QWidget,
 )
 
@@ -75,8 +76,13 @@ class UIAnimationController(QObject):
             return
         button.setProperty("motionHover", hover)
         button.setProperty("motionPressed", pressed)
-        button.style().unpolish(button)
-        button.style().polish(button)
+        # Keep the style wrapper alive across both calls. Some PySide builds
+        # can return an unrelated wrapper here; motion polish must not prevent
+        # the window from opening in that case.
+        style = button.style()
+        if isinstance(style, QStyle):
+            style.unpolish(button)
+            style.polish(button)
         button.update()
 
     def _is_app_widget(self, widget: QWidget) -> bool:
