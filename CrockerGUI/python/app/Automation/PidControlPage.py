@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from python.app.ResponsiveLayout import ResponsiveRow
+from python.app.widgets.DisplayNumbers import CompactDoubleSpinBox
 from python.app.Automation.ControlOwnership import active_controller
 from python.app.Automation.PIDRecording import recording
 from source.Python.Automation.failure_recovery import FailureRecovery
@@ -213,6 +214,12 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self.header.hide()
             # Keep the existing tools available, but make the operator workspace primary.
             self.cruise_workspace = CruiseWorkspace(self)
+            # The live plots now belong to Beam control. Use the settings tab
+            # for its actual editors instead of leaving an empty former plot area.
+            self._inline_controller_settings = True
+            self.controller_settings_scroll.takeWidget()
+            layout.addWidget(self.controller_settings_content)
+            self.controller_settings_button.hide()
             self.page_stack.insertWidget(0, self.cruise_workspace)
             self.page_stack.setCurrentWidget(self.cruise_workspace)
             self._advanced_control_page = control_page
@@ -300,7 +307,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         title_layout = QVBoxLayout(title_panel)
         title_layout.setContentsMargins(10, 5, 10, 5)
         title_layout.setSpacing(1)
-        title = QLabel("BEAM PID Â· TRIM-COIL OUTPUT" if self.beam_feedback else "PID CHANNEL CONTROL")
+        title = QLabel("BEAM PID · TRIM-COIL OUTPUT" if self.beam_feedback else "PID CHANNEL CONTROL")
         title.setObjectName("pidControlTitle")
         subtitle = QLabel("REAL-TIME CLOSED-LOOP CONTROL")
         subtitle.setObjectName("pidControlSubtitle")
@@ -449,7 +456,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             nla_layout.addWidget(widget, row * 2 + 1, column)
         self.cpp_nla_status = QLabel("October PID ready (C++)")
         self.cpp_nla_status.setWordWrap(True)
-        self.cpp_nla_status.setStyleSheet("color: #cbd5e1; font-size: 12px;")
+        self.cpp_nla_status.setStyleSheet("color: #c4c7cc; font-size: 12px;")
         nla_layout.addWidget(self.cpp_nla_status, 2, 0, 1, 6)
         self.controller_kind_input.currentIndexChanged.connect(self._controller_kind_changed)
         layout.addWidget(self.cpp_nla_panel, 7, 0, 1, 4)
@@ -459,7 +466,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         grid = self.control_panel.layout()
         details = QWidget()
         details.setObjectName('pidSettingsContents')
-        details.setStyleSheet('QWidget#pidSettingsContents { background: #101a29; }')
+        details.setStyleSheet('QWidget#pidSettingsContents { background: #1a1c1f; }')
         detail_grid = QVBoxLayout(details)
         detail_grid.setContentsMargins(0, 0, 0, 0)
         detail_grid.setSpacing(12)
@@ -482,13 +489,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             status = self.cpp_nla_status
         for heading, group_fields in [('OUTPUT LIMITS', fields[:2]), ('ADAPTIVE CONTROLLER', fields[2:])]:
             card = QFrame()
-            card.setStyleSheet('QFrame { background: #142235; border-radius: 6px; }')
+            card.setStyleSheet('QFrame { background: #23262a; border-radius: 6px; }')
             group = QGridLayout(card)
             group.setContentsMargins(12, 10, 12, 12)
             group.setHorizontalSpacing(14)
             group.setVerticalSpacing(6)
             title = QLabel(heading)
-            title.setStyleSheet('color: #91aacb; font-size: 11px; font-weight: 600;')
+            title.setStyleSheet('color: #a5a8ae; font-size: 11px; font-weight: 600;')
             group.addWidget(title, 0, 0, 1, 2)
             for index, (name, widget) in enumerate(group_fields):
                 row, column = divmod(index, 2)
@@ -506,9 +513,11 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.settings_dialog.setWindowTitle('Controller settings and output limits')
         dialog_layout = setup_pid_dialog(self.settings_dialog, 'Controller Settings', window_controls=False)
         scroll = QScrollArea()
-        scroll.setStyleSheet('QScrollArea { background: #101a29; border: none; }')
+        scroll.setStyleSheet('QScrollArea { background: #1a1c1f; border: none; }')
         scroll.setWidgetResizable(True)
         scroll.setWidget(details)
+        self.controller_settings_content = details
+        self.controller_settings_scroll = scroll
         dialog_layout.addWidget(scroll)
         close = QPushButton('Close')
         close.setFixedSize(100, 36)
@@ -526,8 +535,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                 grid.addLayout(item.layout(), 5, 0, 1, 4)
                 break
         toggle = QPushButton('Control Settings and Output Limits')
+        self.controller_settings_button = toggle
         toggle.setStyleSheet('text-align: center;')
         def open_settings():
+            if getattr(self, '_inline_controller_settings', False):
+                self.page_stack.setCurrentWidget(self._advanced_control_page)
+                self.scroll_area.verticalScrollBar().setValue(0)
+                return
             available = self.screen().availableGeometry()
             self.settings_dialog.resize(min(680, available.width()-40), min(650, available.height()-80))
             self.settings_dialog.show()
@@ -681,15 +695,15 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         title_box = QVBoxLayout()
         title = QLabel("PID Gain Tuning")
         title.setObjectName("pidTitle")
-        title.setStyleSheet("font-family: Segoe UI; font-size: 18px; font-weight: 600; color: #e5edf7;")
+        title.setStyleSheet("font-family: Segoe UI; font-size: 18px; font-weight: 600; color: #f3f3f4;")
         subtitle = QLabel("Bayesian optimization-assisted commissioning \u2014 C++ NLAPID")
         self.tuner_engine_label = subtitle
         subtitle.setObjectName("pidTunerSubtitle")
         subtitle.setWordWrap(True)
-        subtitle.setStyleSheet("font-family: Segoe UI; font-size: 13px; color: #a9b9ce;")
+        subtitle.setStyleSheet("font-family: Segoe UI; font-size: 13px; color: #a5a8ae;")
         title_box.addWidget(title)
         title_box.addWidget(subtitle)
-        heading.addLayout(title_box)
+        heading.addLayout(title_box, 1)
         heading.addStretch(1)
         self.smoke2_preset_button = QPushButton("Load smoke2 BO preset")
         self.smoke2_preset_button.setObjectName("pidCompactAction")
@@ -845,7 +859,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         response_note = QLabel('October fitness scores the full trial. Oscillation and settling '
                               'do not impose rejection limits.')
         response_note.setWordWrap(True)
-        response_note.setStyleSheet('color: #cbd5e1;')
+        response_note.setStyleSheet('color: #c4c7cc;')
         candidate_layout.addWidget(response_note)
         self.tuner_status = QLabel("Not started. Configure and review the safe bounds.")
         self.tuner_status.setObjectName("pidTunerStatus")
@@ -886,7 +900,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         tuner_viewport_layout = QVBoxLayout(self.tuner_viewport)
         tuner_viewport_layout.setContentsMargins(0, 0, 0, 0)
         self.coil_status = QLabel("Beam feedback / TC output | Waiting for a trial" if self.beam_feedback else "Trim coil response | Waiting for a trial")
-        self.coil_status.setStyleSheet('color: #cbd5e1; padding: 8px 12px;')
+        self.coil_status.setStyleSheet('color: #c4c7cc; padding: 8px 12px;')
         self.coil_status.setWordWrap(True)
         tuner_viewport_layout.addWidget(self.coil_status)
         self.coil_plot = (BeamResponsePlot if self.beam_feedback else CoilResponsePlot)(self.tuner_viewport)
@@ -934,7 +948,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         setup_note = QLabel('Choose the channel, target and trial window, then set the gain ranges. '
                             'Run the budget automatically, or prepare a session and run one proposed trial at a time.')
         setup_note.setWordWrap(True)
-        setup_note.setStyleSheet('color: #cbd5e1; padding: 4px;')
+        setup_note.setStyleSheet('color: #c4c7cc; padding: 4px;')
         setup_note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         grid.insertWidget(0, setup_note)
 
@@ -976,7 +990,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         actions.addWidget(self.stop_tuning_button)
         review_actions = ResponsiveRow()
         review_label = QLabel('Review and apply')
-        review_label.setStyleSheet('color: #cbd5e1;')
+        review_label.setStyleSheet('color: #c4c7cc;')
         review_actions.addWidget(review_label)
         review_actions.addWidget(self.review_history_button)
         self.metrics_button = QPushButton("Response Metrics")
@@ -1938,7 +1952,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         return panel
 
     def _make_spinbox(self, lower: float, upper: float, step: float, suffix: str = "") -> QDoubleSpinBox:
-        spinbox = QDoubleSpinBox()
+        spinbox = CompactDoubleSpinBox()
         spinbox.setObjectName("pidSpin")
         spinbox.setRange(lower, upper)
         spinbox.setDecimals(3 if step < 0.1 else 2)
@@ -2352,7 +2366,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         )
         self.safety_label.setToolTip(self.safety_label.text())
         if hasattr(self, 'cruise_workspace'):
-            self._advanced_target_label.setText(f'{self.setpoint_input.value():g} nA Â· Set on Cruise screen')
+            self._advanced_target_label.setText(f'{self.setpoint_input.value():g} nA · Set on Cruise screen')
             self.cruise_workspace.refresh()
 
     def _start_backend(self) -> None:

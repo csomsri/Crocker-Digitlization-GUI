@@ -1,5 +1,5 @@
 QDateEdit {
-    background: #152238;
+    background: #111214;
     color: #e2edf9;
     border: 1px solid #405674;
     border-radius: 8px;
@@ -7,10 +7,10 @@ QDateEdit {
     padding: 5px 38px 5px 12px;
     font-family: "Segoe UI";
     font-size: 13px;
-    selection-background-color: #254b78;
+    selection-background-color: #36383d;
     selection-color: white;
 }
-QDateEdit:hover { background: #1b2d47; border-color: #6587b0; }
+QDateEdit:hover { background: #23262a; border-color: #6587b0; }
 QDateEdit:focus { border-color: #7aade5; }
 QDateEdit::drop-down {
     subcontrol-origin: border;
@@ -20,12 +20,12 @@ QDateEdit::drop-down {
     border-left: 1px solid #405674;
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
-    background: #1e324d;
+    background: #23262a;
 }
 QDateEdit::down-arrow { image: url("__CHEVRON_PATH__"); width: 16px; height: 16px; }
-QCalendarWidget QWidget { background: #111c30; color: #e2edf9; }
+QCalendarWidget QWidget { background: #111214; color: #e2edf9; }
 QCalendarWidget QToolButton {
-    background: #1e324d;
+    background: #23262a;
     color: #e2edf9;
     border: none;
     border-radius: 5px;
@@ -33,18 +33,18 @@ QCalendarWidget QToolButton {
     font-family: "Segoe UI";
     font-size: 13px;
 }
-QCalendarWidget QToolButton:hover { background: #29466a; }
+QCalendarWidget QToolButton:hover { background: #36383d; }
 QCalendarWidget QAbstractItemView {
-    background: #111c30;
-    alternate-background-color: #17263c;
+    background: #111214;
+    alternate-background-color: #1a1c1f;
     color: #e2edf9;
-    selection-background-color: #315d8b;
+    selection-background-color: #41444a;
     selection-color: #ffffff;
     border: none;
     outline: 0;
     font-family: "Segoe UI";
     font-size: 13px;
 }
-QCalendarWidget QMenu { background: #152238; color: #e2edf9; border: 1px solid #405674; }
+QCalendarWidget QMenu { background: #111214; color: #e2edf9; border: 1px solid #405674; }
 QCalendarWidget QMenu::item { padding: 6px 14px; }
-QCalendarWidget QMenu::item:selected { background: #254b78; }
+QCalendarWidget QMenu::item:selected { background: #36383d; }

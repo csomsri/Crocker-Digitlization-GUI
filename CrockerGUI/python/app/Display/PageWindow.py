@@ -14,7 +14,8 @@ class PageWindow(QMainWindow):
         self.setStyleSheet(owner.styleSheet())
         self.attach_page(page)
         menu = self.menuBar().addMenu("Workspace")
-        menu.addAction("Home", owner.show_home)
+        menu.addAction("Go to main workspace", lambda: owner.go_to_page(self.page_name))
+        menu.addAction("Home", lambda: owner.navigate_from(self.page_name, 'Home'))
         menu.addAction("Bring all windows forward", owner.bring_page_windows_forward)
         menu.addAction("Tile windows", owner.tile_page_windows)
         menu.addAction("Reset this window position", self.reset_position)
@@ -29,6 +30,11 @@ class PageWindow(QMainWindow):
         # QStackedWidget.removeWidget explicitly hides its page. Reparenting it
         # alone preserves that state, leaving the new window's content blank.
         page.show()
+
+    def set_page(self, name, page):
+        self.page_name, self.page = name, page
+        self.setWindowTitle(f'{name} — Crocker Digitalization')
+        self.attach_page(page)
 
     def reset_position(self):
         screen = self.owner.screen()
@@ -81,6 +87,7 @@ class PageWindow(QMainWindow):
                 event.ignore()
                 return
         self.owner._settings.setValue(f"workspace/{self.page_name}/geometry", self.saveGeometry())
+        self._workspace_visible = False
         for child in self.page.findChildren(AppDialog):
             child.hide()
         event.accept()

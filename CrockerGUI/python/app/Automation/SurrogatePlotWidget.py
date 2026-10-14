@@ -71,14 +71,14 @@ class SurrogatePlotWidget(PlotSurface):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setFont(QFont('Segoe UI', 9))
-        p.fillRect(self.rect(), QColor("#0f172a"))
-        p.setPen(QColor("#e5e7eb"))
+        p.fillRect(self.rect(), QColor("#111214"))
+        p.setPen(QColor("#e6e7e9"))
         p.drawText(QRectF(16, 8, self.width()-32, 22), Qt.AlignLeft | Qt.AlignVCenter,
                    f"Gaussian process: cost vs {self._axis.capitalize()}")
         grid = self._grid or {}
         fixed = grid.get("fixed_values", {})
         fixed_text = "  |  ".join(f"{name.capitalize()} = {display_number(value)}" for name, value in fixed.items())
-        p.setPen(QColor("#94a3b8"))
+        p.setPen(QColor("#a5a8ae"))
         p.drawText(QRectF(16, 31, self.width()-32, 20), Qt.AlignLeft | Qt.AlignVCenter,
                    f"Fixed at best safe trial (or midpoints): {fixed_text}" if fixed else "Preparing slice; other gains will be held fixed")
         x, y = 16, 62
@@ -102,7 +102,7 @@ class SurrogatePlotWidget(PlotSurface):
             else:
                 p.setBrush(Qt.NoBrush)
                 p.drawEllipse(QPointF(x+12, y+8), 4.5, 4.5)
-            p.setPen(QColor('#cbd5e1'))
+            p.setPen(QColor('#c4c7cc'))
             p.drawText(QRectF(x+32, y-2, width-32, 22), Qt.AlignVCenter, label)
             x += width
         plot = QRectF(self.rect()).adjusted(82, y+36, -24, -66)
@@ -123,7 +123,7 @@ class SurrogatePlotWidget(PlotSurface):
             return QPointF(plot.left() + (x-x_bounds[0]) / max(1e-12, x_bounds[1]-x_bounds[0]) * plot.width(),
                            plot.bottom() - (y-y_bounds[0]) / max(1e-12, y_bounds[1]-y_bounds[0]) * plot.height())
 
-        p.fillRect(plot, QColor("#111827"))
+        p.fillRect(plot, QColor("#1a1c1f"))
         for i in range(5):
             ratio = i/4
             x = x_bounds[0] + ratio * (x_bounds[1]-x_bounds[0])
@@ -132,7 +132,7 @@ class SurrogatePlotWidget(PlotSurface):
             p.setPen(QPen(QColor("#273449"), 1))
             p.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()))
             p.drawLine(QPointF(plot.left(), py), QPointF(plot.right(), py))
-            p.setPen(QColor("#cbd5e1"))
+            p.setPen(QColor("#c4c7cc"))
             p.drawText(QRectF(px-40, plot.bottom()+7, 80, 18), Qt.AlignCenter, display_number(x))
             p.drawText(QRectF(12, py-9, 62, 18), Qt.AlignRight | Qt.AlignVCenter, display_number(y))
         p.drawText(QRectF(plot.left(), plot.bottom()+28, plot.width(), 18), Qt.AlignCenter, self._axis.capitalize())
@@ -167,13 +167,13 @@ class SurrogatePlotWidget(PlotSurface):
             p.setPen(QPen(QColor("#c4b5fd"), 1.3, Qt.DashLine))
             p.drawLine(QPointF(px, plot.top()), QPointF(px, plot.bottom()))
         if not ready:
-            p.setPen(QColor("#e5e7eb"))
+            p.setPen(QColor("#e6e7e9"))
             p.drawText(plot.adjusted(10, 5, -10, -5), Qt.AlignCenter,
                        grid.get("message", "Waiting for safe trials to fit the Gaussian process"))
         p.restore()
-        p.setPen(QPen(QColor("#475569"), 1))
+        p.setPen(QPen(QColor("#41444a"), 1))
         p.drawRect(plot)
-        p.setPen(QColor("#94a3b8"))
+        p.setPen(QColor("#a5a8ae"))
         excluded = len(self._results) - len(safe)
         p.drawText(QRectF(16, self.height()-21, self.width()-32, 18), Qt.AlignLeft,
                    f"Trials without plottable values: {excluded}   ·   Hover for interpretation")

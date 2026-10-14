@@ -59,7 +59,7 @@ class ControlActivity(QWidget):
         painter.setRenderHint(QPainter.Antialiasing)
         painter.setPen(Qt.NoPen)
         for index in range(3):
-            color = QColor('#91b9e6' if self.busy else '#71869f')
+            color = QColor('#e6e7e9' if self.busy else '#80858e')
             color.setAlpha(255 if self.busy and index == self.phase else 85)
             painter.setBrush(color)
             painter.drawEllipse(3+index*12, 8, 6, 6)
@@ -70,17 +70,17 @@ class CruiseWorkspace(QWidget):
         super().__init__()
         self.setObjectName('cruiseWorkspace')
         self.setStyleSheet('''
-            QWidget#cruiseWorkspace { background: #0d1726; }
-            QWidget#cruiseWorkspace QLabel { color: #c5d6e9; }
-            QFrame#cruiseSection { background: #101d2d; border: 1px solid #2c4058; border-radius: 8px; }
-            QWidget#cruiseWorkspace QPushButton { background: #1d324b; color: #e9f1fa; border: 1px solid #3d5878;
+            QWidget#cruiseWorkspace { background: #111214; }
+            QWidget#cruiseWorkspace QLabel { color: #e6e7e9; }
+            QFrame#cruiseSection { background: #1a1c1f; border: 1px solid #33363b; border-radius: 8px; }
+            QWidget#cruiseWorkspace QPushButton { background: #23262a; color: #f3f3f4; border: 1px solid #41444a;
                 border-radius: 6px; padding: 9px 14px; font-size: 13px; font-weight: 600; }
-            QWidget#cruiseWorkspace QPushButton:hover { background: #294764; }
-            QWidget#cruiseWorkspace QPushButton:disabled { color: #71869f; background: #162337; border-color: #293b50; }
-            QWidget#cruiseWorkspace QPushButton#cruiseStart:enabled { border-color: #91b9e6; }
-            QWidget#cruiseWorkspace QPushButton#cruiseApply:enabled { border-color: #91b9e6; }
-            QWidget#cruiseWorkspace QPushButton#cruiseStop:enabled { border-color: #91b9e6; }
-            QWidget#cruiseWorkspace QDoubleSpinBox { background: #182b40; color: #edf4fc; border: 1px solid #3d5878;
+            QWidget#cruiseWorkspace QPushButton:hover { background: #303338; }
+            QWidget#cruiseWorkspace QPushButton:disabled { color: #80858e; background: #1c1e22; border-color: #303238; }
+            QWidget#cruiseWorkspace QPushButton#cruiseStart:enabled { background: #e82138; border-color: #e82138; color: #ffffff; }
+            QWidget#cruiseWorkspace QPushButton#cruiseApply:enabled { border-color: #e6e7e9; }
+            QWidget#cruiseWorkspace QPushButton#cruiseStop:enabled { background: #301a20; border-color: #a33a48; color: #ffb0bb; }
+            QWidget#cruiseWorkspace QDoubleSpinBox { background: #111315; color: #f3f3f4; border: 1px solid #41444a;
                 border-radius: 6px; padding: 7px; min-height: 24px; }
         ''')
         self.page = page
@@ -124,7 +124,7 @@ class CruiseWorkspace(QWidget):
         layout.addWidget(control_section)
         self.status = QLabel('Stopped · Set the beam target, then Start.')
         self.status.setWordWrap(True)
-        self.status.setStyleSheet('color: #e5edf7; padding: 4px;')
+        self.status.setStyleSheet('color: #f3f3f4; padding: 4px;')
         state_row = ResponsiveRow()
         self.activity = ControlActivity()
         state_row.addWidget(self.activity)

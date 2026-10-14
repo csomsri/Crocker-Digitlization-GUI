@@ -25,15 +25,15 @@ class TelemetryTrend(QWidget):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#111827"))
-        painter.setPen(QColor("#cbd5e1"))
+        painter.fillRect(self.rect(), QColor("#1a1c1f"))
+        painter.setPen(QColor("#c4c7cc"))
         painter.drawText(14, 24, self.caption)
         plot = QRectF(80, 45, max(1, self.width() - 102), max(1, self.height() - 85))
-        painter.setPen(QPen(QColor("#334155"), 1))
+        painter.setPen(QPen(QColor("#33363b"), 1))
         painter.drawRect(plot)
         valid = [(stamp, value) for stamp, value in self.samples if value is not None]
         if not valid:
-            painter.setPen(QColor("#94a3b8"))
+            painter.setPen(QColor("#a5a8ae"))
             painter.drawText(plot, Qt.AlignCenter, "Waiting for readings")
             return
         low, high = min(v for _, v in valid), max(v for _, v in valid)
@@ -41,7 +41,7 @@ class TelemetryTrend(QWidget):
         low, high = low - pad, high + pad
         end = self.samples[-1][0]
         start = min(self.samples[0][0], end - 1)
-        painter.setPen(QColor("#94a3b8"))
+        painter.setPen(QColor("#a5a8ae"))
         painter.drawText(5, 52, f"{high:.3g}")
         painter.drawText(5, int(plot.bottom()), f"{low:.3g}")
         painter.drawText(int(plot.left()), self.height() - 12, f"{start - end:.0f} s")
@@ -79,7 +79,7 @@ class LiveTelemetryPage(DetailPage):
         _, layout = self.add_workspace()
         controls = QHBoxLayout()
         self.status = QLabel("Waiting for LabVIEW")
-        self.status.setStyleSheet("color: #cbd5e1;")
+        self.status.setStyleSheet("color: #c4c7cc;")
         controls.addWidget(self.status, 1)
         self.pause_button = QPushButton("Pause")
         self.pause_button.clicked.connect(self.toggle_pause)
@@ -90,9 +90,10 @@ class LiveTelemetryPage(DetailPage):
         layout.addLayout(controls)
         note = QLabel("Numbered readings follow the LabVIEW packet order. Raw values await device names and calibration.")
         note.setWordWrap(True)
-        note.setStyleSheet("color: #94a3b8;")
+        note.setStyleSheet("color: #a5a8ae;")
         layout.addWidget(note)
-        split = QSplitter(Qt.Horizontal)
+        split = self.reading_splitter = QSplitter(Qt.Horizontal)
+        split.setChildrenCollapsible(False)
         self.table = QTableWidget(len(self.specs), 4)
         self.table.setHorizontalHeaderLabels(["Reading", "Actual", "Units", "Status"])
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -118,6 +119,20 @@ class LiveTelemetryPage(DetailPage):
         self.timer.setInterval(250)
         self.timer.timeout.connect(self.refresh)
         self.timer.start()
+
+    def resizeEvent(self, event):
+        if hasattr(self, 'reading_splitter'):
+            vertical = self.width() < 980 or len(self.specs) <= 2
+            self.reading_splitter.setOrientation(Qt.Vertical if vertical else Qt.Horizontal)
+            if vertical:
+                rows = self.table.rowCount()
+                height = self.table.horizontalHeader().height() + rows * self.table.verticalHeader().defaultSectionSize() + 8
+                self.table.setMaximumHeight(min(340, max(96, height)))
+                self.reading_splitter.setSizes([min(340, max(96, height)), 440])
+            else:
+                self.table.setMaximumHeight(16777215)
+                self.reading_splitter.setSizes([440, 650])
+        super().resizeEvent(event)
 
     def set_snapshot_source(self, source):
         self.snapshot_source = source

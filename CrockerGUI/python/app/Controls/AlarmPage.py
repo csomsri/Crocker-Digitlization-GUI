@@ -75,6 +75,7 @@ class AlarmPage(DetailPage):
         self.table.setHorizontalHeaderLabels(["Code", "Channel", "Severity", "State", "Message"])
         self.table.verticalHeader().setVisible(False)
         self.table.setAlternatingRowColors(True)
+        self.table.horizontalHeader().setStretchLastSection(True)
         workspace.addWidget(self.table, 1)
 
         self._load_config_fields()

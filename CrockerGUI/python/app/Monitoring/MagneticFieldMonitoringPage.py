@@ -2,10 +2,11 @@ from __future__ import annotations
 from python.app.widgets.NativeRenderLifecycle import NativeRenderLifecycle
 
 import math
+import time
 from collections.abc import Callable
 
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen, QGuiApplication
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -105,12 +106,12 @@ class QtMagneticBarPlot(QWidget):
                 painter.fillPath(path, color)
 
                 target_y = plot.bottom() - plot.height() * min(1.0, target / MAX_GAUGE_VALUE)
-                target_pen = QPen(QColor("#e5e7eb"), 1.4)
+                target_pen = QPen(QColor("#e6e7e9"), 1.4)
                 target_pen.setStyle(Qt.DashLine)
                 painter.setPen(target_pen)
                 painter.drawLine(QPointF(left, target_y), QPointF(right, target_y))
 
-            painter.setPen(QColor("#cbd5e1") if checked else QColor("#64748b"))
+            painter.setPen(QColor("#c4c7cc") if checked else QColor("#80858e"))
             painter.drawText(
                 QRectF(plot.left() + lane * slot, plot.bottom() + 8.0, slot, 18.0),
                 Qt.AlignCenter,
@@ -123,10 +124,10 @@ class QtMagneticBarPlot(QWidget):
             )
 
     def _paint_surface(self, painter: QPainter) -> None:
-        painter.fillRect(self.rect(), QColor("#0f172a"))
-        painter.setPen(QPen(QColor("#334155"), 1.0))
+        painter.fillRect(self.rect(), QColor("#111214"))
+        painter.setPen(QPen(QColor("#33363b"), 1.0))
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0)
-        painter.setPen(QColor("#e5e7eb"))
+        painter.setPen(QColor("#e6e7e9"))
         title_font = QFont(self.font())
         point_size = title_font.pointSize()
         title_font.setPointSize(point_size if point_size > 0 else 9)
@@ -139,10 +140,10 @@ class QtMagneticBarPlot(QWidget):
         for step in range(5):
             y = plot.top() + plot.height() * step / 4
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
-        painter.setPen(QPen(QColor("#64748b"), 1.0))
+        painter.setPen(QPen(QColor("#80858e"), 1.0))
         painter.drawRect(plot)
 
-        painter.setPen(QColor("#cbd5e1"))
+        painter.setPen(QColor("#c4c7cc"))
         for step in range(5):
             value = MAX_GAUGE_VALUE - MAX_GAUGE_VALUE * step / 4
             y = plot.top() + plot.height() * step / 4
@@ -151,7 +152,7 @@ class QtMagneticBarPlot(QWidget):
         painter.drawText(QRectF(plot.left(), plot.bottom() + 28.0, plot.width(), 18.0), Qt.AlignCenter, "Channel")
 
     def _draw_empty(self, painter: QPainter, plot: QRectF) -> None:
-        painter.setPen(QColor("#94a3b8"))
+        painter.setPen(QColor("#a5a8ae"))
         painter.drawText(plot, Qt.AlignCenter, "Plot toggles are off")
 
 
@@ -175,8 +176,8 @@ class QtMagneticLinePlot(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#0f172a"))
-        painter.setPen(QPen(QColor("#334155"), 1.0))
+        painter.fillRect(self.rect(), QColor("#111214"))
+        painter.setPen(QPen(QColor("#33363b"), 1.0))
         painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0)
 
         plot = QRectF(self.rect()).adjusted(62.0, 42.0, -18.0, -50.0)
@@ -216,11 +217,11 @@ class QtMagneticLinePlot(QWidget):
         self._draw_header_and_legend(painter, plot, enabled)
         self._draw_axes(painter, plot, start, end, lower, upper)
         if not enabled:
-            painter.setPen(QColor("#94a3b8"))
+            painter.setPen(QColor("#a5a8ae"))
             painter.drawText(plot, Qt.AlignCenter, "Plot toggles are off")
             return
         if not samples:
-            painter.setPen(QColor("#94a3b8"))
+            painter.setPen(QColor("#a5a8ae"))
             painter.drawText(plot, Qt.AlignCenter, "Waiting for live samples")
             return
 
@@ -241,7 +242,7 @@ class QtMagneticLinePlot(QWidget):
         title_font.setPointSize(point_size if point_size > 0 else 9)
         title_font.setBold(True)
         painter.setFont(title_font)
-        painter.setPen(QColor("#e5e7eb"))
+        painter.setPen(QColor("#e6e7e9"))
         painter.drawText(QRectF(14.0, 8.0, 210.0, 22.0), Qt.AlignLeft | Qt.AlignVCenter, self.title)
 
         x = max(plot.left() + 220.0, plot.right() - 340.0)
@@ -250,7 +251,7 @@ class QtMagneticLinePlot(QWidget):
             color = QColor(PLOT_COLORS[self.indices.index(index) % len(PLOT_COLORS)])
             painter.setPen(QPen(color, 1.8))
             painter.drawLine(QPointF(x, y + 8.0), QPointF(x + 18.0, y + 8.0))
-            painter.setPen(QColor("#cbd5e1"))
+            painter.setPen(QColor("#c4c7cc"))
             painter.drawText(QRectF(x + 24.0, y, 58.0, 18.0), Qt.AlignLeft | Qt.AlignVCenter, CHANNEL_NAMES[index])
             x += 82.0
 
@@ -261,10 +262,10 @@ class QtMagneticLinePlot(QWidget):
             x = plot.left() + plot.width() * step / 4
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-        painter.setPen(QPen(QColor("#64748b"), 1.0))
+        painter.setPen(QPen(QColor("#80858e"), 1.0))
         painter.drawRect(plot)
 
-        painter.setPen(QColor("#cbd5e1"))
+        painter.setPen(QColor("#c4c7cc"))
         for step in range(5):
             amount = step / 4
             x = plot.left() + plot.width() * amount
@@ -459,7 +460,8 @@ class NativeMagneticLinePlot(NativeRenderLifecycle, QOpenGLWidget):
 
 def _native_magnetic_charts_available() -> bool:
     return (
-        CycloViz is not None
+        QGuiApplication.platformName() not in ('offscreen', 'minimal')
+        and CycloViz is not None
         and hasattr(CycloViz, "load_opengl")
         and hasattr(CycloViz, "set_current_render_context")
         and hasattr(CycloViz, "MagneticFieldBarPlot")

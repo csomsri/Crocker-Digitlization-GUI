@@ -16,6 +16,8 @@ from PySide6.QtTest import QTest
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget, QWidget, QTableWidget
 from python.app.MainWindow import MainWindow
+from python.app.WorkspaceShell import WorkspaceShell
+from python.app.PageRegistry import PAGE_BUILDERS, DETAIL_BUILDERS
 from python.app.widgets.AppDialogs import AppDialog
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Automation.HybridPIDPage import HybridPIDPage
@@ -56,6 +58,197 @@ class WorkspaceTest(unittest.TestCase):
     def setUpClass(cls):
         cls.app = QApplication.instance() or QApplication([])
         cls.app.setStyleSheet(load_stylesheet(load_app_font()))
+
+    def test_sidebar_navigation_reuses_controller_and_preserves_inputs(self):
+        with patch.object(Host, '_refresh_settings_monitors'):
+            host = Host('unused-test-settings.ini')
+            host._settings = MagicMock()
+            host._settings.value.return_value = None
+            host.workspace_shell = WorkspaceShell(
+                host.stack, PAGE_BUILDERS, DETAIL_BUILDERS,
+                host.go_to_page, host.open_page_window, 'simulation',
+            )
+            host.setCentralWidget(host.workspace_shell)
+            host.stack.currentChanged.connect(
+                lambda: host.workspace_shell.set_current(host._current_page_name()))
+            host.show()
+            page = host.pages['PID Control']
+            page.setProperty('enteredTarget', 0.37)
+            page.pid_enabled = True
+            try:
+                host.open_page('PID Control')
+                self.assertIs(host.stack.currentWidget(), page)
+                self.assertEqual(len(host._page_windows), 0)
+                host.open_page_window('PID Control')
+                window = host._page_windows['PID Control']
+                self.assertIs(window.centralWidget(), page)
+                self.assertTrue(page.isVisible())
+                host.open_page_window('PID Control')
+                self.assertEqual(len(host._page_windows), 1)
+                host.go_to_page('PID Control')
+                self.assertIs(host.stack.currentWidget(), page)
+                self.assertIsNone(window.centralWidget())
+                self.assertFalse(window.isVisible())
+                self.assertTrue(page.pid_enabled)
+                self.assertEqual(page.property('enteredTarget'), 0.37)
+                self.assertTrue(host.workspace_shell.buttons['PID Control'].isChecked())
+                host.open_page_window('PID Control')
+                self.assertIs(host._page_windows['PID Control'], window)
+                self.assertIs(window.centralWidget(), page)
+                host.set_display_mode('Full Screen', save=False)
+                self.app.processEvents()
+                self.assertIsNone(window.centralWidget())
+                self.assertGreaterEqual(host.stack.indexOf(page), 0)
+                host.set_display_mode('Windowed', save=False)
+                self.app.processEvents()
+                self.assertIs(window.centralWidget(), page)
+                self.assertTrue(page.isVisible())
+                self.assertTrue(page.pid_enabled)
+            finally:
+                host._recording_closing = True
+                for window in host._page_windows.values():
+                    window.close()
+                host.close()
+                host.deleteLater()
+                self.app.processEvents()
+
+    def test_explicit_windows_support_categories_and_multiple_pages(self):
+        host = Host('unused-test-settings.ini')
+        host._settings = MagicMock()
+        host._settings.value.return_value = None
+        try:
+            host.open_page_window('Automation')
+            host.open_page_window('PID Control')
+            self.assertEqual(len(host._page_windows), 2)
+            for name in ('Automation', 'PID Control'):
+                self.assertIs(host._page_windows[name].centralWidget(), host.pages[name])
+                self.assertTrue(host.pages[name].isVisible())
+            host.go_to_page('Automation')
+            host.bring_page_windows_forward()
+            self.assertIs(host.stack.currentWidget(), host.pages['Automation'])
+            self.assertIsNone(host._page_windows['Automation'].centralWidget())
+        finally:
+            host._recording_closing = True
+            for window in host._page_windows.values():
+                window.close()
+            host.close()
+            host.deleteLater()
+            self.app.processEvents()
+
+    def test_detached_category_links_and_back_stay_in_their_window(self):
+        from python.app.Monitoring.MonitoringPage import MonitoringPage
+        from PySide6.QtWidgets import QPushButton
+        host = Host('unused-test-settings.ini')
+        host._settings = MagicMock()
+        host._settings.value.return_value = None
+        category = MonitoringPage(
+            lambda: host.navigate_from('Monitoring', 'Home'),
+            lambda title, purpose: host.navigate_from('Monitoring', title))
+        host.stack.removeWidget(host.pages['Monitoring'])
+        host.pages['Monitoring'] = category
+        host.stack.addWidget(category)
+        detail = RfPowerMonitoringPage(lambda: host.navigate_from('RF Power Monitoring', 'Monitoring'))
+        host.pages['RF Power Monitoring'] = detail
+        host.stack.addWidget(detail)
+        host.show()
+        host.go_to_page('Home')
+        try:
+            host.open_page_window('Monitoring')
+            window = host._page_windows['Monitoring']
+            button = next(b for b in category.category_cards if b.title == 'RF Power Monitoring')
+            button.click()
+            self.assertIs(host.stack.currentWidget(), host.pages['Home'])
+            self.assertIs(window.centralWidget(), detail)
+            self.assertIs(host._page_windows['RF Power Monitoring'], window)
+            self.assertEqual(window.page_name, 'RF Power Monitoring')
+            self.assertNotIn('Monitoring', host._page_windows)
+            detail.findChild(QPushButton, 'navBackButton').click()
+            self.assertIs(window.centralWidget(), category)
+            self.assertIs(host.stack.currentWidget(), host.pages['Home'])
+            self.assertIs(host._page_windows['Monitoring'], window)
+            button.click()
+            host.go_to_page('RF Power Monitoring')
+            self.assertIs(host.stack.currentWidget(), detail)
+            self.assertIsNone(window.centralWidget())
+            self.assertFalse(window.isVisible())
+            host.go_to_page('Home')
+            host.open_page_window('Monitoring')
+            replacement = host._page_windows['Monitoring']
+            button.click()
+            self.assertIs(replacement.centralWidget(), detail)
+            self.assertIs(host.stack.currentWidget(), host.pages['Home'])
+            self.assertEqual(sum(action.data() == 'RF Power Monitoring'
+                                 for action in host._page_window_menu.actions()), 1)
+        finally:
+            detail.timer.stop()
+            host._recording_closing = True
+            for window in host._page_windows.values():
+                window.close()
+            host.close()
+            host.deleteLater()
+            self.app.processEvents()
+
+    def test_directory_categories_and_page_actions_are_independent(self):
+        from PySide6.QtWidgets import QPushButton
+        navigate, detach = MagicMock(), MagicMock()
+        shell = WorkspaceShell(QStackedWidget(), PAGE_BUILDERS, DETAIL_BUILDERS,
+                               navigate, detach, 'simulation')
+        try:
+            shell.resize(1280, 820)
+            shell.show()
+            self.app.processEvents()
+
+            shell.category_buttons['Monitoring'].click()
+            self.assertFalse(shell.category_contents['Monitoring'].isHidden())
+            shell.buttons['PID Control'].click()
+            navigate.assert_called_once_with('PID Control')
+            detach.assert_not_called()
+            button = next(b for b in shell.findChildren(QPushButton)
+                          if b.accessibleName() == 'Open PID Control in a separate window')
+            button.click()
+            detach.assert_called_once_with('PID Control')
+            shell.set_current('RF Power Monitoring')
+            self.assertTrue(shell.buttons['RF Power Monitoring'].isChecked())
+            self.assertTrue(shell.category_buttons['Monitoring'].isChecked())
+            shell.resize(480, 800)
+            self.app.processEvents()
+            self.assertTrue(shell.sidebar.isHidden())
+            shell.toggle_sidebar.click()
+            self.assertFalse(shell.sidebar.isHidden())
+            shell.edge_toggle.click()
+            self.assertTrue(shell.sidebar.isHidden())
+            self.assertEqual(shell.edge_toggle.text(), '›')
+            shell.edge_toggle.click()
+            self.assertFalse(shell.sidebar.isHidden())
+            self.assertEqual(shell.edge_toggle.text(), '‹')
+        finally:
+            shell.close()
+            shell.deleteLater()
+            self.app.processEvents()
+
+    def test_category_cards_keep_readable_height_after_style_polish(self):
+        from python.app.Monitoring.MonitoringPage import MonitoringPage
+        from python.app.UIAnimation import UIAnimationController
+        stack = QStackedWidget()
+        category = MonitoringPage(lambda: None, lambda *args: None)
+        stack.addWidget(category)
+        motion = UIAnimationController(stack, stack)
+        motion.attach_to(stack)
+        stack.resize(1280, 820)
+        stack.show()
+        self.app.processEvents()
+        try:
+            self.assertEqual(len(category.category_cards), 6)
+            for card in category.category_cards:
+                self.assertGreaterEqual(card.height(), 128)
+                card.style().unpolish(card)
+                card.style().polish(card)
+            self.app.processEvents()
+            self.assertTrue(all(card.height() >= 128 for card in category.category_cards))
+        finally:
+            stack.close()
+            stack.deleteLater()
+            self.app.processEvents()
 
     def test_real_detail_content_visible_after_detach_and_reopen(self):
         host = Host('unused-test-settings.ini')

@@ -1,7 +1,7 @@
 QComboBox {
-    background-color: #152238;
-    color: #e2edf9;
-    border: 1px solid #405674;
+    background-color: #111315;
+    color: #e6e7e9;
+    border: 1px solid #41444a;
     border-radius: 8px;
     min-height: 28px;
     padding: 5px 42px 5px 12px;
@@ -9,30 +9,30 @@ QComboBox {
     font-size: 13px;
 }
 QComboBox:hover {
-    background-color: #1b2d47;
-    border-color: #6587b0;
+    background-color: #23262a;
+    border-color: #858a94;
 }
 QComboBox:focus, QComboBox:on {
-    background-color: #1b2d47;
-    border-color: #7aade5;
+    background-color: #23262a;
+    border-color: #a4a8b0;
     color: #ffffff;
 }
 QComboBox:disabled {
-    background-color: #111b2b;
-    border-color: #2c3b50;
-    color: #728197;
+    background-color: #1c1e22;
+    border-color: #303238;
+    color: #80858e;
 }
 QComboBox::drop-down {
     subcontrol-origin: border;
     subcontrol-position: top right;
     width: 32px;
     border: none;
-    border-left: 1px solid #405674;
+    border-left: 1px solid #41444a;
     border-top-right-radius: 8px;
     border-bottom-right-radius: 8px;
-    background-color: #1e324d;
+    background-color: #292c31;
 }
-QComboBox::drop-down:hover { background-color: #29466a; }
+QComboBox::drop-down:hover { background-color: #3c3f45; }
 QComboBox::down-arrow {
     image: url("__CHEVRON_PATH__");
     width: 16px;

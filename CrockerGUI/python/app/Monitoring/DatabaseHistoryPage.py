@@ -96,14 +96,14 @@ CHANNEL_LABELS = {
 CHANNEL_ORDER = list(CHANNEL_LABELS)
 PLOT_COLORS = [
     QColor("#60a5fa"),
-    QColor("#94a3b8"),
+    QColor("#a5a8ae"),
     QColor("#22c55e"),
     QColor("#f59e0b"),
     QColor("#a78bfa"),
-    QColor("#e5e7eb"),
+    QColor("#e6e7e9"),
 ]
 LIMITED_EXPORT_COLORS = [
-    QColor("#0f172a"),
+    QColor("#111214"),
     QColor("#2563eb"),
     QColor("#b45309"),
     QColor("#047857"),
@@ -222,7 +222,7 @@ class HistoryPlotWidget(QWidget):
 
     def _plot_color(self, index: int) -> QColor:
         if self._export_color_mode == "bw":
-            return QColor("#111827")
+            return QColor("#1a1c1f")
         if self._export_color_mode == "limited":
             return LIMITED_EXPORT_COLORS[index % len(LIMITED_EXPORT_COLORS)]
         return PLOT_COLORS[index % len(PLOT_COLORS)]
@@ -319,13 +319,13 @@ class HistoryPlotWidget(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), self._color("#0f172a", "#ffffff"))
+        painter.fillRect(self.rect(), self._color("#111214", "#ffffff"))
 
         plot = self._plot_rect()
         if plot.width() <= 8 or plot.height() <= 8:
             return
 
-        painter.setPen(self._color("#e5e7eb", "#111827"))
+        painter.setPen(self._color("#e6e7e9", "#1a1c1f"))
         painter.drawText(
             QRectF(18, 8, self.width() - 36, 18),
             Qt.AlignLeft | Qt.AlignVCenter,
@@ -333,21 +333,21 @@ class HistoryPlotWidget(QWidget):
         )
         self._draw_legend(painter, plot)
 
-        painter.setPen(QPen(self._color("#334155", "#d1d5db"), 1))
+        painter.setPen(QPen(self._color("#33363b", "#d1d5db"), 1))
         for step in range(5):
             y = plot.top() + plot.height() * step / 4
             x = plot.left() + plot.width() * step / 4
             painter.drawLine(QPointF(plot.left(), y), QPointF(plot.right(), y))
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
-        painter.setPen(QPen(self._color("#475569", "#4b5563"), 1))
+        painter.setPen(QPen(self._color("#41444a", "#4b5563"), 1))
         painter.drawRect(plot)
         footer = self._footer_rect(plot)
-        painter.setPen(QPen(self._color("#334155", "#d1d5db"), 1))
+        painter.setPen(QPen(self._color("#33363b", "#d1d5db"), 1))
         painter.drawLine(QPointF(plot.left(), footer.top()), QPointF(plot.right(), footer.top()))
 
         all_points = [point for values in self.series.values() for point in values]
         if not all_points:
-            painter.setPen(self._color("#94a3b8", "#374151"))
+            painter.setPen(self._color("#a5a8ae", "#374151"))
             if self.channels:
                 text = "No samples in the selected date range"
             else:
@@ -357,7 +357,7 @@ class HistoryPlotWidget(QWidget):
 
         start, end, low, high = self._bounds(all_points)
 
-        painter.setPen(self._color("#94a3b8", "#374151"))
+        painter.setPen(self._color("#a5a8ae", "#374151"))
         painter.drawText(
             QRectF(plot.left() - 58, plot.top() - 8, 48, 18),
             Qt.AlignRight | Qt.AlignVCenter,
@@ -416,7 +416,7 @@ class HistoryPlotWidget(QWidget):
             return
         x_ratio = (marker_time - start) / (end - start)
         x = plot.left() + plot.width() * max(0.0, min(1.0, x_ratio))
-        painter.setPen(QPen(self._color("#cbd5e1", "#111827"), 1, Qt.DashLine))
+        painter.setPen(QPen(self._color("#c4c7cc", "#1a1c1f"), 1, Qt.DashLine))
         painter.drawLine(QPointF(x, 0.0), QPointF(x, float(self.height())))
         for channel, timestamp, value in samples:
             point = self._plot_point(plot, (timestamp, value), start, end, low, high)
@@ -443,7 +443,7 @@ class HistoryPlotWidget(QWidget):
             color = self._plot_color(index)
             painter.setPen(QPen(color, 2))
             painter.drawLine(QPointF(x, y + 9), QPointF(x + 26, y + 9))
-            painter.setPen(self._color("#cbd5e1", "#111827"))
+            painter.setPen(self._color("#c4c7cc", "#1a1c1f"))
             painter.drawText(QRectF(x + 34, y, item_width - 34, 18), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += item_width
 
@@ -475,8 +475,8 @@ class HistoryPlotWidget(QWidget):
             box_width,
             box_height,
         )
-        painter.setPen(QPen(self._color("#60a5fa", "#111827"), 1))
-        painter.setBrush(self._color("#0f172a", "#ffffff"))
+        painter.setPen(QPen(self._color("#60a5fa", "#1a1c1f"), 1))
+        painter.setBrush(self._color("#111214", "#ffffff"))
         painter.drawRoundedRect(box, 7, 7)
         for index, line in enumerate(lines):
             channel = samples[index][0]
@@ -484,7 +484,7 @@ class HistoryPlotWidget(QWidget):
             y_line = box.top() + 10 + index * 19
             painter.setPen(QPen(self._plot_color(color_index), 2))
             painter.drawLine(QPointF(box.left() + 10, y_line + 8), QPointF(box.left() + 26, y_line + 8))
-            painter.setPen(self._color("#e5e7eb", "#111827"))
+            painter.setPen(self._color("#e6e7e9", "#1a1c1f"))
             painter.drawText(QRectF(box.left() + 34, y_line, box.width() - 44, 17), Qt.AlignLeft | Qt.AlignVCenter, line)
 
     def _draw_time_label(
@@ -503,10 +503,10 @@ class HistoryPlotWidget(QWidget):
             box_width,
             box_height,
         )
-        painter.setPen(QPen(self._color("#475569", "#111827"), 1))
-        painter.setBrush(self._color("#0f172a", "#ffffff"))
+        painter.setPen(QPen(self._color("#41444a", "#1a1c1f"), 1))
+        painter.setBrush(self._color("#111214", "#ffffff"))
         painter.drawRoundedRect(box, 7, 7)
-        painter.setPen(self._color("#bfdbfe", "#111827"))
+        painter.setPen(self._color("#c4c7cc", "#1a1c1f"))
         painter.drawText(box, Qt.AlignCenter, time_text)
 
     def _nearest_samples(
@@ -981,7 +981,7 @@ class DatabaseHistoryPage(DetailPage):
                     self.date_edit.setDate(data_end_date)
                 start_text = datetime.fromtimestamp(float(start)).strftime("%Y-%m-%d %H:%M:%S")
                 end_text = datetime.fromtimestamp(float(end)).strftime("%Y-%m-%d %H:%M:%S")
-                self.status_label.setText(f"{count:,} readings Â· {start_text} to {end_text}")
+                self.status_label.setText(f"{count:,} readings · {start_text} to {end_text}")
             else:
                 self.status_label.setText("No readings")
             self.plot()
@@ -1075,7 +1075,7 @@ class DatabaseHistoryPage(DetailPage):
             self._last_plot_time_range = (
                 (min(plotted_times), max(plotted_times)) if plotted_times else None
             )
-            self.status_label.setText(f"{plotted_samples:,} plotted samples Â· {day_text}")
+            self.status_label.setText(f"{plotted_samples:,} plotted samples · {day_text}")
 
         self._read_jobs.submit('plot', self.db_path, ((query, tuple(params)),),
                                loaded, self.status_label.setText)
@@ -1099,7 +1099,7 @@ class DatabaseHistoryPage(DetailPage):
             sample_count = sum(len(points) for points in series.values())
             if channel_count:
                 self.summary_meta_label.setText(
-                    f"{channel_count:,} channels Â· {sample_count:,} plotted samples"
+                    f"{channel_count:,} channels · {sample_count:,} plotted samples"
                 )
             else:
                 self.summary_meta_label.setText("No plotted channels")
@@ -1238,7 +1238,7 @@ class DatabaseHistoryPage(DetailPage):
             snapshot = plot_widget.grab()
             if snapshot.isNull():
                 image = QImage(max(1, plot_widget.width()), max(1, plot_widget.height()), QImage.Format.Format_RGB32)
-                image.fill(QColor("#ffffff" if color_mode in {"bw", "limited"} else "#0f172a"))
+                image.fill(QColor("#ffffff" if color_mode in {"bw", "limited"} else "#111214"))
                 return image
             return snapshot.toImage()
         finally:

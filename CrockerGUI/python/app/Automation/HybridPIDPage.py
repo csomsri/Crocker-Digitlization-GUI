@@ -60,8 +60,8 @@ class HybridCostPlot(QWidget):
         p = QPainter(self)
         p.setFont(QFont('Segoe UI', 10))
         p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor('#101a29'))
-        colors = {'Baseline':'#c5a0ff','Reference':'#c5a0ff','Exploration':'#ffcf82','GA':'#ffbf78','BO':'#65cfff','Confirm':'#52d6b1'}
+        p.fillRect(self.rect(), QColor('#1a1c1f'))
+        colors = {'Baseline':'#c5a0ff','Reference':'#c5a0ff','Exploration':'#ffcf82','GA':'#ffbf78','BO':'#65cfff','Confirm':'#e82138'}
         p.setPen(QColor('#dce7f5'))
         p.drawText(16,24,'Measured performance · Lower is better' if self.compact else 'Baseline/reference: purple · Exploration: yellow · GA: orange · BO: blue · Confirmation: green')
         p.drawText(16,44,'Solid: measured · Hollow: predicted' if self.compact else 'Prediction: hollow gray point ±1 model standard deviation. Failed trials have no comparable cost.')
@@ -77,16 +77,16 @@ class HybridCostPlot(QWidget):
             return QPointF(rect.left()+(i-1)*rect.width()/max(1,n-1),rect.bottom()-max(0,v)/high*rect.height())
         for i in range(5):
             y = rect.bottom()-rect.height()*i/4
-            p.setPen(QColor('#29394e'))
+            p.setPen(QColor('#33363b'))
             p.drawLine(QPointF(rect.left(),y),QPointF(rect.right(),y))
-            p.setPen(QColor('#cbd5e1'))
+            p.setPen(QColor('#c4c7cc'))
             p.drawText(QRectF(0,y-9,left-10,18),Qt.AlignRight,ticks[i])
         p.drawText(left,self.height()-15,f'Trial 1 → {n}     Lower cost is better')
         p.setClipRect(rect.adjusted(-5,-5,5,5))
         for r in rows:
             if r['prediction'] is not None:
                 mu,sd = r['prediction'],r['prediction_std']
-                p.setPen(QPen(QColor('#94a3b8'),1))
+                p.setPen(QPen(QColor('#a5a8ae'),1))
                 p.setBrush(Qt.NoBrush)
                 p.drawLine(point(r['trial'],mu-sd),point(r['trial'],mu+sd))
                 p.drawEllipse(point(r['trial'],mu),4,4)
@@ -130,9 +130,9 @@ class HybridPIDPage(PidControlPage):
         self.hybrid_settings.setWindowTitle('Hybrid settings and recovery')
         layout = setup_pid_dialog(self.hybrid_settings, 'Hybrid settings and recovery', window_controls=False)
         self.hybrid_settings.setStyleSheet(self.hybrid_settings.styleSheet()+'''
-            QScrollArea, QScrollArea > QWidget > QWidget, QTabWidget::pane { background: #101a29; border: none; }
-            QTabBar::tab { background: #1b2c42; color: #cbd5e1; padding: 9px 16px; }
-            QTabBar::tab:selected { background: #315477; color: white; }
+            QScrollArea, QScrollArea > QWidget > QWidget, QTabWidget::pane { background: #1a1c1f; border: none; }
+            QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #23262a; color: #c4c7cc; padding: 9px 16px; }
+            QTabBar::tab:selected { background: #36383d; color: white; }
         ''')
         tabs = QTabWidget()
         layout.addWidget(tabs)
@@ -216,9 +216,10 @@ class HybridPIDPage(PidControlPage):
 
     def _build_operator_workspace(self):
         """Keep the execution widgets, but put everyday actions before configuration."""
+        self.header.hide()
         self.setStyleSheet(self.styleSheet() + '''
             QLabel { color: #e8eaed; font-family: "Segoe UI"; font-size: 13px; }
-            QFrame#hybridDashboardCard { background: #18222f; border: 1px solid #344357; border-radius: 16px; }
+            QFrame#hybridDashboardCard { background: #1a1c1f; border: 1px solid #33363b; border-radius: 16px; }
             QLabel#hybridHeading { font-size: 24px; font-weight: 600; }
             QLabel#hybridCaption { color: #9da3ad; font-size: 12px; }
             QLabel#hybridReadout { font-size: 19px; font-weight: 600; padding: 8px; }
@@ -226,10 +227,10 @@ class HybridPIDPage(PidControlPage):
                 border: 1px solid #454950; border-radius: 9px; padding: 10px 18px; }
             QPushButton:hover { background: #3a3e44; }
             QPushButton:disabled { color: #767c86; background: #22252a; }
-            QPushButton#hybridStart { background: #52d6b1; color: #102b25; border: 1px solid #72e9c7;
+            QPushButton#hybridStart { background: #e82138; color: #ffffff; border: 1px solid #e82138;
                 font-size: 16px; font-weight: 700; padding: 12px 24px; }
-            QPushButton#hybridStart:hover { background: #79e7c9; }
-            QPushButton#hybridStart:disabled { background: #213f3c; color: #9ccec0; border-color: #345c54; }
+            QPushButton#hybridStart:hover { background: #ff3b50; }
+            QPushButton#hybridStart:disabled { background: #3b2026; color: #b8848c; border-color: #65343d; }
             QPushButton#hybridStop { background: #d63750; color: #ffffff; border: 1px solid #ff7689;
                 font-size: 16px; font-weight: 700; padding: 12px 24px; }
             QPushButton#hybridStop:hover { background: #ee4963; }
@@ -329,7 +330,7 @@ class HybridPIDPage(PidControlPage):
             caption.setObjectName('hybridCaption')
             value = QLabel('—')
             value.setObjectName('hybridReadout')
-            accent = {'Beam actual': '#52d6b1', 'Beam set': '#65cfff',
+            accent = {'Beam actual': '#e82138', 'Beam set': '#65cfff',
                       'TC target': '#c5a0ff', 'TC actual': '#ffbf78'}[name]
             value.setStyleSheet(f'color: {accent};')
             self.operator_readouts[name] = value
@@ -346,7 +347,7 @@ class HybridPIDPage(PidControlPage):
         self.time_plot.beam.setAccessibleName('Beam set versus beam actual')
         self.time_plot.coil.setAccessibleName('TC target versus TC actual')
         for plot in (self.time_plot, self.coil_plot):
-            plot.beam.colors = ('#65cfff', '#52d6b1')
+            plot.beam.colors = ('#65cfff', '#e82138')
             plot.coil.colors = ('#c5a0ff', '#ffbf78')
 
         # Preserve the complete original configuration in a secondary dialog.
@@ -429,9 +430,9 @@ class HybridPIDPage(PidControlPage):
         self.hybrid_workspace_tabs = QTabWidget()
         self.hybrid_workspace_tabs.setAccessibleName('Hybrid search progress and live response')
         self.hybrid_workspace_tabs.setStyleSheet('''
-            QTabWidget::pane { border: 1px solid #334155; background: #101a29; }
-            QTabBar::tab { background: #1b2c42; color: #cbd5e1; padding: 9px 16px; }
-            QTabBar::tab:selected { background: #315477; color: white; }
+            QTabWidget::pane { border: 1px solid #33363b; background: #1a1c1f; }
+            QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #23262a; color: #c4c7cc; padding: 9px 16px; }
+            QTabBar::tab:selected { background: #36383d; color: white; }
         ''')
         search_page = QWidget()
         search_layout = QVBoxLayout(search_page)
@@ -490,13 +491,13 @@ class HybridPIDPage(PidControlPage):
         box.addWidget(title)
         self.activity_summary = QLabel('● Ready')
         self.activity_summary.setWordWrap(True)
-        self.activity_summary.setStyleSheet('background: #20352f; color: #72e9c7; padding: 10px; border-radius: 8px;')
+        self.activity_summary.setStyleSheet('background: #23262a; color: #e82138; padding: 10px; border-radius: 8px;')
         box.addWidget(self.activity_summary)
         self.activity_tabs = QTabWidget()
         self.activity_tabs.setStyleSheet('''
             QTabWidget::pane { border: none; background: transparent; }
-            QTabBar::tab { background: #202b3a; color: #aebbd0; padding: 10px 12px; border-radius: 6px; }
-            QTabBar::tab:selected { background: #344357; color: #ffffff; }
+            QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #23262a; color: #b7bbc3; padding: 10px 12px; border-radius: 6px; }
+            QTabBar::tab:selected { background: #33363b; color: #ffffff; }
         ''')
         box.addWidget(self.activity_tabs, 1)
         status_page = QWidget()
@@ -545,9 +546,9 @@ class HybridPIDPage(PidControlPage):
     def _activity_cards(entries):
         cards = []
         for timestamp, title, detail, color in entries:
-            cards.append(f'<table width="100%" cellpadding="10" cellspacing="0" bgcolor="#202b3a">'
+            cards.append(f'<table width="100%" cellpadding="10" cellspacing="0" bgcolor="#23262a">'
                          f'<tr><td><span style="color:{color}">● <b>{escape(title)}</b></span><br>'
-                         f'<span style="color:#9daec5;font-size:11px">{escape(timestamp)}</span><br><br>'
+                         f'<span style="color:#a5a8ae;font-size:11px">{escape(timestamp)}</span><br><br>'
                          f'{escape(detail).replace(chr(10), "<br>")}</td></tr></table><br>')
         return ''.join(cards)
 
@@ -570,16 +571,16 @@ class HybridPIDPage(PidControlPage):
         mode = 'Dry Run' if self.dry_run_check.isChecked() else 'Live'
         snapshot = (phase, self.backend_connection, self.beam_valid, mode)
         previous = self._activity_snapshot
-        color = '#ffcf82' if pending else '#72e9c7' if self.pid_enabled or self.tuning_session_active else '#aebbd0'
+        color = '#ffcf82' if pending else '#e82138' if self.pid_enabled or self.tuning_session_active else '#b7bbc3'
         self.activity_summary.setText(f'● {phase}\n{mode} · {self.backend_connection}')
-        self.activity_summary.setStyleSheet(f'background: #202b3a; color: {color}; padding: 10px; border-radius: 8px;')
+        self.activity_summary.setStyleSheet(f'background: #23262a; color: {color}; padding: 10px; border-radius: 8px;')
         if previous is not None:
             if snapshot[0] != previous[0]:
                 self._log_activity(phase, self.last_safety_message if not pending else 'PID start requested. STOP cancels the countdown.', color)
             if snapshot[1] != previous[1]:
                 self._log_activity('Connection changed', self.backend_connection)
             if snapshot[2] != previous[2]:
-                self._log_activity('Beam feedback', 'Fresh calibrated beam is available.' if self.beam_valid else 'Waiting for fresh calibrated beam feedback.', '#72e9c7' if self.beam_valid else '#ffcf82')
+                self._log_activity('Beam feedback', 'Fresh calibrated beam is available.' if self.beam_valid else 'Waiting for fresh calibrated beam feedback.', '#e82138' if self.beam_valid else '#ffcf82')
             if snapshot[3] != previous[3]:
                 self._log_activity('Mode changed', mode)
         self._activity_snapshot = snapshot
@@ -737,12 +738,12 @@ class HybridPIDPage(PidControlPage):
             self.operator_stop.setText('STOP PID')
             mode = 'DRY RUN' if self.dry_run_check.isChecked() else 'LIVE'
             message = f'● PID RUNNING · {mode} · Beam set {display_number(self.setpoint_input.value())} nA'
-            color, background = '#72e9c7', '#183b35'
+            color, background = '#e82138', '#183b35'
         else:
             self.operator_start.setText('START PID')
             self.operator_stop.setText('STOP')
             message = '● PID STOPPED · ' + self.last_safety_message
-            color, background = '#c6d1e0', '#202b3a'
+            color, background = '#c6d1e0', '#23262a'
         self.operator_status.setText(message)
         self.operator_status.setStyleSheet(f'color: {color}; background: {background}; border-radius: 10px; padding: 12px 16px; font-size: 15px; font-weight: 600;')
         self._update_activity_status()
@@ -1044,7 +1045,7 @@ class HybridPIDPage(PidControlPage):
             super()._finish_gain_validation(*self._validation_result)
             self.state_label.setText('Validation passed · applying gains leaves PID stopped.' if self.apply_tuned_gains_button.isEnabled()
                                     else 'Validation failed · gains cannot be applied.')
-            self._log_activity('Validation complete', self.state_label.text(), '#72e9c7' if self.apply_tuned_gains_button.isEnabled() else '#ff879a')
+            self._log_activity('Validation complete', self.state_label.text(), '#e82138' if self.apply_tuned_gains_button.isEnabled() else '#ff879a')
             self._save_session()
         else:
             self._stop_tuning_session()
@@ -1090,7 +1091,7 @@ class HybridPIDPage(PidControlPage):
 
     def _finish_tuning_session(self):
         super()._finish_tuning_session()
-        self._log_activity('Search complete', 'Validate the best gains before applying them to PID.', '#72e9c7')
+        self._log_activity('Search complete', 'Validate the best gains before applying them to PID.', '#e82138')
         self.restore_button.setEnabled(False)
         self.state_label.setText('Search complete · Validate best gains before applying')
         self._save_session()

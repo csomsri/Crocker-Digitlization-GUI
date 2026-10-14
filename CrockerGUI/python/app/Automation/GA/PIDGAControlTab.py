@@ -553,7 +553,7 @@ class PIDGAControlTab(QWidget):
         self.ga_live_event_label.setWordWrap(True)
         self.ga_live_event_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.ga_live_event_label.setStyleSheet(
-            f"color: {T.muted}; background: #0E151A; border: 1px solid {T.border}; "
+            f"color: {T.muted}; background: #111214; border: 1px solid {T.border}; "
             "border-radius: 5px; padding: 4px; font-size: 10px;"
         )
         outer.addWidget(self.ga_live_event_label)
@@ -582,7 +582,7 @@ class PIDGAControlTab(QWidget):
         ) -> None:
             header = QWidget()
             header.setFixedHeight(21)
-            header.setStyleSheet("background: #080D11;")
+            header.setStyleSheet("background: #111214;")
             row = QHBoxLayout(header)
             row.setContentsMargins(7, 0, 7, 0)
             row.setSpacing(8)
@@ -798,14 +798,14 @@ class PIDGAControlTab(QWidget):
                 background: transparent;
             }}
             QScrollBar:vertical {{
-                background: #0A1014;
+                background: #111214;
                 width: 10px;
                 margin: 1px;
                 border: 1px solid {T.border_soft};
                 border-radius: 4px;
             }}
             QScrollBar::handle:vertical {{
-                background: #3A4851;
+                background: #41444a;
                 min-height: 34px;
                 border-radius: 4px;
             }}
@@ -940,7 +940,7 @@ class PIDGAControlTab(QWidget):
         self.pid_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.pid_status_label.setMinimumHeight(38)
         self.pid_status_label.setStyleSheet(
-            f"color: {T.text}; background: #0E151A; border: 1px solid {T.border}; "
+            f"color: {T.text}; background: #111214; border: 1px solid {T.border}; "
             "border-radius: 5px; padding: 6px; font-size: 11px; font-weight: 600;"
         )
         body_layout.addWidget(self.pid_status_label)
@@ -992,7 +992,7 @@ class PIDGAControlTab(QWidget):
         ) -> None:
             header = QWidget()
             header.setFixedHeight(22)
-            header.setStyleSheet("background: #080D11;")
+            header.setStyleSheet("background: #111214;")
             header_layout = QHBoxLayout(header)
             header_layout.setContentsMargins(8, 0, 8, 0)
             header_layout.setSpacing(10)
@@ -1048,7 +1048,7 @@ class PIDGAControlTab(QWidget):
 
         tc_header = QWidget()
         tc_header.setFixedHeight(22)
-        tc_header.setStyleSheet("background: #080D11;")
+        tc_header.setStyleSheet("background: #111214;")
         tc_header_layout = QHBoxLayout(tc_header)
         tc_header_layout.setContentsMargins(8, 0, 8, 0)
         tc_header_layout.setSpacing(10)
@@ -1132,7 +1132,7 @@ class PIDGAControlTab(QWidget):
             display.setAlignment(Qt.AlignmentFlag.AlignCenter)
             display.setMinimumHeight(22)
             display.setStyleSheet(
-                f"color: {color}; background: #0E151A; border: 1px solid #27323A; "
+                f"color: {color}; background: #111214; border: 1px solid #27323A; "
                 "border-radius: 5px; padding: 2px; font-size: 10px; font-weight: 600;"
             )
             return display
@@ -1849,9 +1849,9 @@ class PIDGAControlTab(QWidget):
         editor.setStyleSheet(
             f"""
             QDoubleSpinBox, QSpinBox {{
-                background: #0E151A;
+                background: #111214;
                 color: {T.text};
-                border: 1px solid #3A4851;
+                border: 1px solid #41444a;
                 border-radius: 4px;
                 padding: 1px 12px 1px 5px;
                 min-height: 20px;
@@ -1869,7 +1869,7 @@ class PIDGAControlTab(QWidget):
                 border-left: 1px solid {T.border_soft};
                 border-bottom: 1px solid {T.border_soft};
                 border-top-right-radius: 3px;
-                background: #11191F;
+                background: #1a1c1f;
             }}
             QDoubleSpinBox::down-button, QSpinBox::down-button {{
                 subcontrol-origin: border;
@@ -1878,11 +1878,11 @@ class PIDGAControlTab(QWidget):
                 height: 10px;
                 border-left: 1px solid {T.border_soft};
                 border-bottom-right-radius: 3px;
-                background: #11191F;
+                background: #1a1c1f;
             }}
             QDoubleSpinBox::up-button:hover, QSpinBox::up-button:hover,
             QDoubleSpinBox::down-button:hover, QSpinBox::down-button:hover {{
-                background: #172129;
+                background: #23262a;
                 border-left-color: {T.cyan};
             }}
             """
@@ -1896,9 +1896,9 @@ class PIDGAControlTab(QWidget):
         combo.setStyleSheet(
             f"""
             QComboBox {{
-                background: #0E151A;
+                background: #111214;
                 color: {T.text};
-                border: 1px solid #3A4851;
+                border: 1px solid #41444a;
                 border-radius: 4px;
                 padding: 1px 13px 1px 5px;
                 min-height: 20px;
@@ -1911,10 +1911,10 @@ class PIDGAControlTab(QWidget):
                 subcontrol-position: top right;
                 width: 11px;
                 border-left: 1px solid {T.border_soft};
-                background: #11191F;
+                background: #1a1c1f;
             }}
             QComboBox::drop-down:hover {{
-                background: #172129;
+                background: #23262a;
                 border-left-color: {T.cyan};
             }}
             """
@@ -1925,9 +1925,9 @@ class PIDGAControlTab(QWidget):
         """Compact command-button style used only by the PID workspace."""
         return f"""
             QPushButton {{
-                background: #11191F;
+                background: #1a1c1f;
                 color: {T.text};
-                border: 1px solid #3A4851;
+                border: 1px solid #41444a;
                 border-radius: 5px;
                 padding: 3px 6px;
                 min-height: 19px;
@@ -1936,11 +1936,11 @@ class PIDGAControlTab(QWidget):
                 font-weight: 500;
             }}
             QPushButton:hover {{
-                background: #172129;
+                background: #23262a;
                 border-color: {accent};
             }}
             QPushButton:pressed, QPushButton:checked {{
-                background: #20303B;
+                background: #23262a;
                 border-color: {accent};
             }}
             QPushButton:disabled {{
@@ -1969,7 +1969,7 @@ class PIDGAControlTab(QWidget):
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setMinimumHeight(34)
         label.setStyleSheet(
-            f"color: {color}; background: #0E151A; border: 1px solid #27323A; "
+            f"color: {color}; background: #111214; border: 1px solid #27323A; "
             "border-radius: 6px; padding: 5px; font-size: 13px; font-weight: 600;"
         )
         return label
@@ -2965,7 +2965,7 @@ class PIDGAControlTab(QWidget):
         accent = color or T.muted
         self.ga_live_event_label.setText(str(text))
         self.ga_live_event_label.setStyleSheet(
-            f"color: {accent}; background: #0E151A; border: 1px solid {T.border}; "
+            f"color: {accent}; background: #111214; border: 1px solid {T.border}; "
             "border-radius: 5px; padding: 4px; font-size: 10px; font-weight: 600;"
         )
 

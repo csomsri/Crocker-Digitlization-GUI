@@ -322,8 +322,8 @@ class TimeDomainPlot(NativeRenderLifecycle, QOpenGLWidget):
     def paintGL(self) -> None:
         if not self._ready or self._native is None:
             painter = QPainter(self)
-            painter.fillRect(self.rect(), QColor('#0f172a'))
-            painter.setPen(QColor('#cbd5e1'))
+            painter.fillRect(self.rect(), QColor('#111214'))
+            painter.setPen(QColor('#c4c7cc'))
             painter.drawText(self.rect().adjusted(20, 20, -20, -20),
                              Qt.AlignCenter | Qt.TextWordWrap,
                              'OpenGL plot unavailable. Rebuild CycloViz and restart the app.\n'
@@ -358,7 +358,7 @@ class QtTimeDomainPlot(QWidget):
         del event
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QColor("#0f172a"))
+        painter.fillRect(self.rect(), QColor("#111214"))
 
         plot = QRectF(self.rect()).adjusted(54.0, 28.0, -18.0, -38.0)
         if plot.width() <= 8 or plot.height() <= 8:
@@ -373,7 +373,7 @@ class QtTimeDomainPlot(QWidget):
             x = plot.left() + plot.width() * step / 3
             painter.drawLine(QPointF(x, plot.top()), QPointF(x, plot.bottom()))
 
-        painter.setPen(QPen(QColor("#475569"), 1.0))
+        painter.setPen(QPen(QColor("#41444a"), 1.0))
         painter.drawRect(plot)
 
         font = QFont(self.font())
@@ -404,7 +404,7 @@ class QtTimeDomainPlot(QWidget):
         lower -= padding
         upper += padding
 
-        axis_color = QColor("#cbd5e1")
+        axis_color = QColor("#c4c7cc")
         painter.setPen(axis_color)
         for step in range(4):
             t = start + (end - start) * step / 3
@@ -469,7 +469,7 @@ class QtTimeDomainPlot(QWidget):
         for label, color in items:
             painter.setPen(QPen(color, 1.5))
             painter.drawLine(QPointF(x, y + 8), QPointF(x + 18, y + 8))
-            painter.setPen(QColor("#cbd5e1"))
+            painter.setPen(QColor("#c4c7cc"))
             painter.drawText(QRectF(x + 28, y, 58, 18), Qt.AlignLeft | Qt.AlignVCenter, label)
             x += 94
 

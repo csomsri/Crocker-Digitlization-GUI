@@ -2,17 +2,22 @@
 
 from functools import lru_cache
 from pathlib import Path
-
+import os
 from PySide6.QtGui import QFontDatabase
-
+from .palette import graphite_stylesheet
 
 @lru_cache(maxsize=1)
 def load_app_font() -> str:
-    """Register the bundled font once, after QApplication has been created."""
-    font_path = Path(__file__).resolve().parents[3] / "assets" / "fonts" / "FuturisticArmour-1p84.ttf"
-    font_id = QFontDatabase.addApplicationFont(str(font_path))
-    families = QFontDatabase.applicationFontFamilies(font_id) if font_id != -1 else []
-    return families[0] if families else "Segoe UI"
+    """Use a readable system face throughout controls and painted page headings."""
+    # Offscreen Qt on Windows does not enumerate system fonts. Register the
+    # system files explicitly so screenshots and unattended tests stay legible.
+    if os.name == 'nt':
+        font_directory = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts'
+        for name in ('segoeui.ttf', 'segoeuib.ttf', 'seguisb.ttf'):
+            path = font_directory / name
+            if path.is_file():
+                QFontDatabase.addApplicationFont(str(path))
+    return "Segoe UI"
 
 
 def load_stylesheet(font_family: str) -> str:
@@ -22,7 +27,8 @@ def load_stylesheet(font_family: str) -> str:
     numbers = (directory / "number-input.qss").read_text(encoding="utf-8")
     numbers = numbers.replace("__UP_PATH__", (directory / "chevron-up.svg").as_posix())
     numbers = numbers.replace("__DOWN_PATH__", (directory / "chevron-down.svg").as_posix())
-    return source.replace("__APP_FONT__", font_family) + "\n" + numbers
+    professional = (directory / "workspace.qss").read_text(encoding="utf-8")
+    return graphite_stylesheet(source.replace("__APP_FONT__", font_family) + "\n" + numbers + "\n" + professional)
 
 
 @lru_cache(maxsize=1)

@@ -11,7 +11,7 @@ import zmq  # Preload before PySide's import hook.
 from PySide6.QtCore import QSettings, Qt
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from python.app.MainWindow import MainWindow
 from python.app.Configuration.SettingsPage import SettingsPage
 
@@ -25,10 +25,14 @@ class DisplayHarness(MainWindow):
         self._windowed_geometry = None
         self._display_transition = 0
         self._monitor_windows = {}
+        self._page_windows = {}
         self.pages = {}
         page = SettingsPage(lambda: None, self.set_display_mode, self.set_window_resolution)
         self.pages["Settings"] = page
-        self.setCentralWidget(page)
+        self.stack = QStackedWidget()
+        self.stack.addWidget(page)
+        self.pages['Home'] = page
+        self.setCentralWidget(self.stack)
         self.shortcut = QShortcut(QKeySequence("F11"), self)
         self.shortcut.activated.connect(self.toggle_fullscreen)
 
@@ -72,6 +76,10 @@ class DisplaySettingsTests(unittest.TestCase):
                     self.assertEqual(window._display_mode, "Windowed")
             finally:
                 window.close()
+                window._settings.sync()
+                window._settings = None
+                window.deleteLater()
+                self.app.processEvents()
 
 
 if __name__ == "__main__":

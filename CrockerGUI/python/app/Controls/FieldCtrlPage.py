@@ -183,7 +183,7 @@ class FieldCtrlPage(SequencePanelMixin, DetailPage):
         tab_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         layout = ResponsiveRow(tab_bar)
         layout.setContentsMargins(12, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(8)
 
         self.control_tab_group = QButtonGroup(self)
         self.control_tab_group.setExclusive(True)
@@ -983,7 +983,7 @@ class FieldCtrlPage(SequencePanelMixin, DetailPage):
             for index, previous, requested, change in large_changes[:8]
         )
         if len(large_changes) > 8:
-            details += f"\nâ€¦and {len(large_changes) - 8} more channels"
+            details += f"\n…and {len(large_changes) - 8} more channels"
         answer = QMessageBox.warning(
             self,
             "Confirm large field-control change",

@@ -61,19 +61,19 @@ class HardwareProfileDialog(QDialog):
         self.current_channel = None
         layout = setup_pid_dialog(self, 'Hardware PID Profile', window_controls=False, resize_grip=False)
         self.setStyleSheet(self.styleSheet() + '''
-            QLineEdit, QDoubleSpinBox, QComboBox { background: #111e30; color: #e7eef8;
+            QLineEdit, QDoubleSpinBox, QComboBox { background: #1a1c1f; color: #e7eef8;
                 border: 1px solid #3b526e; border-radius: 6px; padding: 0 10px;
                 min-height: 36px; font-family: 'Segoe UI'; font-size: 13px; }
             QLineEdit:focus, QDoubleSpinBox:focus, QComboBox:focus { border-color: #74a9df; }
             QCheckBox { color: #e7eef8; font-family: 'Segoe UI'; font-size: 12px; }
-            QFrame#profileCard { background: #142235; border: 1px solid #2b405a; border-radius: 8px; }
+            QFrame#profileCard { background: #23262a; border: 1px solid #2b405a; border-radius: 8px; }
             QLabel#profileSection { color: #8eafd1; font-size: 12px; font-weight: 600; }
             QTabWidget::pane { border: none; }
-            QTabBar::tab { background: #142235; color: #9eb3cd; padding: 10px 20px; }
-            QTabBar::tab:selected { color: #eef5ff; background: #243e60; }
+            QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #23262a; color: #9eb3cd; padding: 10px 20px; }
+            QTabBar::tab:selected { color: #eef5ff; background: #23262a; }
             QPushButton { min-height: 34px; padding: 0 16px; border-radius: 6px;
-                background: #23354c; color: #e7eef8; border: 1px solid #405674; font-size: 13px; }
-            QPushButton#profileSave { background: #28639a; border-color: #4385bd; }
+                background: #23262a; color: #e7eef8; border: 1px solid #405674; font-size: 13px; }
+            QPushButton#profileSave { background: #36383d; border-color: #4385bd; }
         ''')
         note = QLabel('Configure current limits and beam abort thresholds. '
                       'Draft values require review before hardware use.')
@@ -84,13 +84,13 @@ class HardwareProfileDialog(QDialog):
         tabs.setDocumentMode(True)
         tabs.tabBar().setExpanding(True)
         tabs.tabBar().setStyleSheet('''
-            QTabBar { background: #101a29; }
-            QTabBar::tab { background: #162337; color: #9eafc4; border: none;
+            QTabBar { background: #1a1c1f; }
+            QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #1c1e22; color: #9eafc4; border: none;
                 border-bottom: 2px solid #26394f; padding: 12px 18px;
                 font-family: 'Segoe UI'; font-size: 12px; font-weight: 600; }
-            QTabBar::tab:selected { background: #1c324c; color: #edf5ff;
+            QTabBar::tab:selected { background: #23262a; color: #edf5ff;
                 border-bottom: 2px solid #65adf5; }
-            QTabBar::tab:hover { background: #223b56; color: #ffffff; }
+            QTabBar::tab:hover { background: #23262a; color: #ffffff; }
         ''')
         layout.addWidget(tabs, 1)
         def tab(title):
@@ -99,7 +99,7 @@ class HardwareProfileDialog(QDialog):
             scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             contents = QWidget()
             contents.setObjectName('profileTabContents')
-            contents.setStyleSheet('QWidget#profileTabContents { background: #101a29; }')
+            contents.setStyleSheet('QWidget#profileTabContents { background: #1a1c1f; }')
             body = QVBoxLayout(contents)
             body.setContentsMargins(0, 12, 0, 0)
             body.setSpacing(12)
@@ -113,7 +113,7 @@ class HardwareProfileDialog(QDialog):
         def card(body, title):
             frame = QFrame()
             frame.setObjectName('profileCard')
-            frame.setStyleSheet('QFrame#profileCard { background: #142235; border: 1px solid #2b405a; border-radius: 8px; }')
+            frame.setStyleSheet('QFrame#profileCard { background: #23262a; border: 1px solid #2b405a; border-radius: 8px; }')
             grid = QGridLayout(frame)
             grid.setContentsMargins(16, 12, 16, 16)
             grid.setHorizontalSpacing(18)
@@ -177,7 +177,7 @@ class HardwareProfileDialog(QDialog):
         self.reviewed.setStyleSheet('''
             QCheckBox { color: #d9e7f7; spacing: 10px; font-size: 12px; padding: 8px 0; }
             QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #5c7592;
-                border-radius: 4px; background: #142235; }
+                border-radius: 4px; background: #23262a; }
             QCheckBox::indicator:checked { background: #3a91e8; border: 1px solid #8bc5ff; }
             QCheckBox::indicator:hover { border-color: #9acbff; }
         ''')
@@ -189,13 +189,13 @@ class HardwareProfileDialog(QDialog):
         buttons = QHBoxLayout()
         self.save_button = QPushButton('Save profile')
         self.save_button.setObjectName('profileSave')
-        self.save_button.setStyleSheet('background: #28639a; color: white; border: 1px solid #4385bd; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
+        self.save_button.setStyleSheet('background: #36383d; color: white; border: 1px solid #4385bd; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
         self.save_button.setFixedSize(140, 36)
         self.save_button.clicked.connect(self.save_profile)
         close = QPushButton('Close')
         close.setAutoDefault(False)
         self.save_button.setAutoDefault(False)
-        close.setStyleSheet('background: #1b2b40; color: #dae6f5; border: 1px solid #3d536e; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
+        close.setStyleSheet('background: #1a1c1f; color: #dae6f5; border: 1px solid #3d536e; border-radius: 6px; padding: 0; min-height: 34px; text-align: center;')
         close.setFixedSize(100, 36)
         close.clicked.connect(self.close)
         buttons.addStretch()

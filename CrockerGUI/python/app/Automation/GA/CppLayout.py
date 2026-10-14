@@ -16,33 +16,36 @@ from python.app.widgets.AppDialogs import AppDialog as QDialog
 from python.app.widgets.PidDialog import setup_pid_dialog
 
 
+from python.app.theme.palette import graphite_stylesheet
+
 STYLE = '''
 QWidget { color: #e5edf7; }
 QLabel, QPushButton, QCheckBox, QAbstractSpinBox, QComboBox, QTabBar { font-family: "Segoe UI"; font-size: 13px; }
-QFrame#cppGaPanel { background: #131f30; border: 1px solid #2b3b51; border-radius: 10px; }
+QFrame#cppGaPanel { background: #1a1c1f; border: 1px solid #33363b; border-radius: 10px; }
 QLabel { background: transparent; border: none; }
-QPushButton { background: #1a2a40; border: 1px solid #3a4d66; border-radius: 6px; padding: 7px 12px; min-height: 0px; }
-QPushButton:hover { background: #2c496a; }
-QPushButton:disabled { color: #738197; border-color: #34465d; }
-QDoubleSpinBox, QSpinBox, QComboBox { background: #192a40; color: #e7eef8; border: 1px solid #48668b; border-radius: 5px; padding: 5px; min-height: 0px; }
-QTabBar::tab { background: #142235; padding: 8px 16px; }
-QTabBar::tab:selected { background: #213954; color: #91d8ff; border-bottom: 2px solid #59b9f3; }
-QTabWidget::pane { border: 1px solid #2b3b51; border-radius: 6px; }
-QPushButton[role="primary"] { background: #2563eb; border-color: #477fed; color: white; font-weight: 600; }
-QPushButton[role="primary"]:hover { background: #3473f2; }
+QPushButton { background: #23262a; border: 1px solid #41444a; border-radius: 6px; padding: 7px 12px; min-height: 0px; }
+QPushButton:hover { background: #303338; }
+QPushButton:disabled { color: #738197; border-color: #33363b; }
+QDoubleSpinBox, QSpinBox, QComboBox { background: #111214; color: #e7eef8; border: 1px solid #41444a; border-radius: 5px; padding: 5px; min-height: 0px; }
+QTabBar::tab { border-radius: 9px; margin-right: 8px; margin-bottom: 8px; background: #23262a; padding: 8px 16px; }
+QTabBar::tab:selected { background: #36383d; color: #f3f3f4; border-bottom: 2px solid #e82138; }
+QTabWidget::pane { border: 1px solid #33363b; border-radius: 6px; }
+QPushButton[role="primary"] { background: #2563eb; border-color: #e82138; color: white; font-weight: 600; }
+QPushButton[role="primary"]:hover { background: #ff3b50; }
 QPushButton[role="danger"] { background: #30222e; color: #ffb2bc; border-color: #65404b; }
-QPushButton[role="primary"]:disabled, QPushButton[role="danger"]:disabled { background: #182638; border-color: #2b3b51; color: #718299; }
-QLabel[role="section"] { color: #8fa5c2; font-size: 11px; font-weight: 600; padding-top: 2px; }
+QPushButton[role="primary"]:disabled, QPushButton[role="danger"]:disabled { background: #1c1e22; border-color: #33363b; color: #718299; }
+QLabel[role="section"] { color: #a5a8ae; font-size: 11px; font-weight: 600; padding-top: 2px; }
 QLabel[role="metric"] { color: #e4efff; font-size: 18px; font-weight: 600; }
-QLabel[role="badge"] { background: #19354a; color: #9edaf8; border: 1px solid #31546d; border-radius: 6px; padding: 6px 12px; }
-QLabel[role="status"] { background: #101a29; color: #aebfd4; border: 1px solid #293b52; border-radius: 6px; padding: 6px 10px; }
+QLabel[role="badge"] { background: #23262a; color: #9edaf8; border: 1px solid #41444a; border-radius: 6px; padding: 6px 12px; }
+QLabel[role="status"] { background: #1a1c1f; color: #aebfd4; border: 1px solid #33363b; border-radius: 6px; padding: 6px 10px; }
 QCheckBox { spacing: 9px; }
-QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #647b96; border-radius: 3px; background: #101a29; }
-QCheckBox::indicator:checked { background: #2563eb; border-color: #80b4ff; }
+QCheckBox::indicator { width: 16px; height: 16px; border: 1px solid #647b96; border-radius: 3px; background: #1a1c1f; }
+QCheckBox::indicator:checked { background: #2563eb; border-color: #c4c7cc; }
 QAbstractSpinBox:focus, QComboBox:focus { border-color: #60a5fa; }
 QFrame#workspace { border: none; background: transparent; }
 
 '''
+STYLE = graphite_stylesheet(STYLE)
 
 
 def _use(widget):
@@ -78,7 +81,7 @@ def style_cpp_shell(page, go_back, workspace_layout):
     header = QWidget()
     row = QHBoxLayout(header)
     row.setContentsMargins(24, 16, 24, 16)
-    row.setSpacing(20)
+    row.setSpacing(28)
     row.addWidget(_button('‹  Automation', go_back))
     text = QVBoxLayout()
     text.setSpacing(3)

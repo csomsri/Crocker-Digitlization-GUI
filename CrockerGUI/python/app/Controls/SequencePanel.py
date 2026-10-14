@@ -17,17 +17,17 @@ class SequencePanelMixin:
         body = QWidget()
         body.setObjectName("sequencePanel")
         body.setStyleSheet("""
-            QWidget#sequencePanel { background: #111827; }
-            QWidget#sequencePanel QLabel { color: #cbd5e1; font-size: 14px; }
+            QWidget#sequencePanel { background: #1a1c1f; }
+            QWidget#sequencePanel QLabel { color: #c4c7cc; font-size: 14px; }
             QWidget#sequencePanel QLabel#fieldMonitorTitle { color: #f1f5f9; font-size: 18px; }
-            QLabel#sequenceStatus { background: #17243a; color: #e2e8f0;
-                border: 1px solid #475569; border-radius: 6px; padding: 8px; }
-            QTableCornerButton::section { background: #172033; border: 1px solid #334155; }
-            QHeaderView { background: #172033; }
+            QLabel#sequenceStatus { background: #23262a; color: #e2e8f0;
+                border: 1px solid #41444a; border-radius: 6px; padding: 8px; }
+            QTableCornerButton::section { background: #23262a; border: 1px solid #33363b; }
+            QHeaderView { background: #23262a; }
             QPushButton#sequenceRun { background: #155e55; color: #f0fdfa; border: 1px solid #2dd4bf; }
             QPushButton#sequenceStop { background: #7f1d1d; color: #fff1f2; border: 1px solid #fb7185; }
             QPushButton:disabled, QPushButton#sequenceRun:disabled, QPushButton#sequenceStop:disabled {
-                background: #1e293b; color: #7d8ca3; border: 1px solid #334155;
+                background: #23262a; color: #7d8ca3; border: 1px solid #33363b;
             }
         """)
         layout = QVBoxLayout(body)
@@ -139,7 +139,7 @@ class SequencePanelMixin:
     def _edit_sequence_targets(self, button: QPushButton) -> None:
         dialog = QDialog(self)
         dialog.setWindowTitle("Choose targets for this step")
-        dialog.setStyleSheet("QDialog { background: #111827; } QLabel, QCheckBox { color: #e2e8f0; }")
+        dialog.setStyleSheet("QDialog { background: #1a1c1f; } QLabel, QCheckBox { color: #e2e8f0; }")
         layout = QVBoxLayout(dialog)
         explanation = QLabel("Select channels to change together. Unchecked channels keep their previous targets.")
         explanation.setWordWrap(True)

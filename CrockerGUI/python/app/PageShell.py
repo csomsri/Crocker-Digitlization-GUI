@@ -40,11 +40,11 @@ from python.app.widgets.AppDialogs import AppDialog as QDialog
 PageSpec = tuple[str, str]
 
 
-ACCENT = QColor("#3b82f6")
-TEXT = QColor("#e5e7eb")
-MUTED_TEXT = QColor("#94a3b8")
-SURFACE = QColor("#111827")
-BORDER = QColor("#334155")
+ACCENT = QColor("#e82138")
+TEXT = QColor("#f3f3f4")
+MUTED_TEXT = QColor("#a5a8ae")
+SURFACE = QColor("#1a1c1f")
+BORDER = QColor("#33363b")
 
 
 def _fitted_font(
@@ -86,13 +86,13 @@ class CnlPanelButton(QPushButton):
         highlighted = self.underMouse()
         gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
         if highlighted:
-            gradient.setColorAt(0, QColor(30, 41, 59, 246))
-            gradient.setColorAt(1, QColor(15, 23, 42, 246))
+            gradient.setColorAt(0, QColor(38, 41, 46, 246))
+            gradient.setColorAt(1, QColor(23, 25, 28, 246))
         else:
-            gradient.setColorAt(0, QColor(17, 24, 39, 238))
-            gradient.setColorAt(1, QColor(15, 23, 42, 238))
+            gradient.setColorAt(0, QColor(26, 28, 31, 238))
+            gradient.setColorAt(1, QColor(23, 25, 28, 238))
         painter.fillPath(path, gradient)
-        painter.setPen(QPen(QColor("#64748b") if highlighted else BORDER, 1))
+        painter.setPen(QPen(QColor("#80858e") if highlighted else BORDER, 1))
         painter.drawPath(path)
 
         app = QApplication.instance()
@@ -100,7 +100,7 @@ class CnlPanelButton(QPushButton):
         family = app_family or "Segoe UI"
         font = _fitted_font(family, self.text(), rect, max_size=24, min_size=9)
         painter.setFont(font)
-        painter.setPen(QPen(TEXT if highlighted else QColor("#cbd5e1"), 1))
+        painter.setPen(QPen(TEXT if highlighted else QColor("#c4c7cc"), 1))
         painter.drawText(rect, Qt.AlignCenter, self.text())
 
 
@@ -110,12 +110,13 @@ class CnlTransitionButton(QPushButton):
         self.title = title
         self.description = description
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(150)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.setFixedHeight(128)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self.setFlat(True)
-        self.setFocusPolicy(Qt.NoFocus)
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setAccessibleName(title)
         self.setObjectName("transitionCardButton")
-        self.setStyleSheet("background: transparent; border: 0; color: transparent;")
+        self.setStyleSheet("background: transparent; border: 0; color: transparent; min-height: 128px; max-height: 128px; padding: 0;")
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -127,26 +128,26 @@ class CnlTransitionButton(QPushButton):
         path.addRoundedRect(rect, 8, 8)
         highlighted = self.underMouse()
         gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        gradient.setColorAt(0, QColor(30, 41, 59, 248 if highlighted else 232))
-        gradient.setColorAt(1, QColor(15, 23, 42, 248 if highlighted else 236))
+        gradient.setColorAt(0, QColor(38, 41, 46, 248 if highlighted else 232))
+        gradient.setColorAt(1, QColor(23, 25, 28, 248 if highlighted else 236))
         painter.fillPath(path, gradient)
         painter.setPen(QPen(QColor("#93c5fd") if highlighted else BORDER, 1.2))
         painter.drawPath(path)
 
         accent_rect = QRectF(rect.left(), rect.top() + 18, 4, rect.height() - 36)
-        painter.fillRect(accent_rect, ACCENT if highlighted else QColor("#475569"))
+        painter.fillRect(accent_rect, ACCENT if highlighted else QColor("#41444a"))
 
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
-        title_rect = rect.adjusted(28, 22, -28, -70)
-        painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=22, min_size=12))
+        title_rect = QRectF(rect.left()+22, rect.top()+14, rect.width()-44, 34)
+        painter.setFont(_fitted_font(family, self.title, title_rect, max_size=18, min_size=12, weight=QFont.Medium))
         painter.setPen(QPen(TEXT if highlighted else QColor("#e2e8f0"), 1))
-        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
+        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title)
 
-        desc_rect = rect.adjusted(28, 78, -28, -22)
+        desc_rect = QRectF(rect.left()+22, rect.top()+55, rect.width()-44, 52)
         painter.setFont(_fitted_font(family, self.description, desc_rect, max_size=13, min_size=9, weight=QFont.Normal))
-        painter.setPen(QPen(QColor("#cbd5e1") if highlighted else MUTED_TEXT, 1))
+        painter.setPen(QPen(QColor("#c4c7cc") if highlighted else MUTED_TEXT, 1))
         painter.drawText(desc_rect, Qt.AlignLeft | Qt.AlignVCenter | Qt.TextWordWrap, self.description)
 
 
@@ -169,7 +170,7 @@ class CnlBackButton(QPushButton):
         rect = QRectF(self.rect()).adjusted(1.5, 1.5, -1.5, -1.5)
         hovered = self.underMouse()
         pressed = self.isDown()
-        fill = QColor(30, 41, 59, 232 if hovered else 180)
+        fill = QColor(38, 41, 46, 232 if hovered else 180)
         if pressed:
             fill = QColor(37, 99, 235, 150)
         border = QColor("#93c5fd") if hovered else QColor(71, 85, 105, 190)
@@ -177,7 +178,7 @@ class CnlBackButton(QPushButton):
         painter.setPen(QPen(border, 1.1))
         painter.drawRoundedRect(rect, 7, 7)
 
-        arrow = QColor("#bfdbfe") if hovered else QColor("#94a3b8")
+        arrow = QColor("#c4c7cc") if hovered else QColor("#a5a8ae")
         painter.setPen(QPen(arrow, 2.0))
         center_y = rect.center().y()
         painter.drawLine(QPointF(24, center_y), QPointF(33, center_y - 8))
@@ -189,7 +190,7 @@ class CnlBackButton(QPushButton):
         family = app_family or "Segoe UI"
         text_rect = rect.adjusted(56, 0, -14, 0)
         painter.setFont(_fitted_font(family, self.text().upper(), text_rect, max_size=12, min_size=8))
-        painter.setPen(QPen(TEXT if hovered else QColor("#cbd5e1"), 1))
+        painter.setPen(QPen(TEXT if hovered else QColor("#c4c7cc"), 1))
         painter.drawText(text_rect, Qt.AlignLeft | Qt.AlignVCenter, self.text().upper())
 
 
@@ -207,8 +208,8 @@ class CnlViewportPlaceholder(QWidget):
         path = QPainterPath()
         path.addRoundedRect(rect, 10, 10)
         gradient = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        gradient.setColorAt(0, QColor(17, 24, 39, 244))
-        gradient.setColorAt(1, QColor(15, 23, 42, 244))
+        gradient.setColorAt(0, QColor(26, 28, 31, 244))
+        gradient.setColorAt(1, QColor(23, 25, 28, 244))
         painter.fillPath(path, gradient)
         painter.setPen(QPen(BORDER, 1))
         painter.drawPath(path)
@@ -256,8 +257,8 @@ class CnlCircleDisplay(QWidget):
             size,
         )
         radial = QLinearGradient(rect.topLeft(), rect.bottomRight())
-        radial.setColorAt(0, QColor(17, 24, 39, 244))
-        radial.setColorAt(1, QColor(15, 23, 42, 244))
+        radial.setColorAt(0, QColor(26, 28, 31, 244))
+        radial.setColorAt(1, QColor(23, 25, 28, 244))
         painter.setBrush(radial)
         painter.setPen(QPen(BORDER, 1))
         painter.drawEllipse(rect)
@@ -266,7 +267,7 @@ class CnlCircleDisplay(QWidget):
         painter.drawEllipse(rect.adjusted(58, 58, -58, -58))
 
         center = rect.center()
-        painter.setPen(QPen(QColor("#334155"), 1))
+        painter.setPen(QPen(QColor("#33363b"), 1))
         painter.drawLine(QPointF(center.x(), rect.top() + 28), QPointF(center.x(), rect.bottom() - 28))
         painter.drawLine(QPointF(rect.left() + 28, center.y()), QPointF(rect.right() - 28, center.y()))
         painter.setPen(QPen(ACCENT, 2))
@@ -318,7 +319,7 @@ class CnlMonitorSelectionButton(QPushButton):
         circle = QRectF(4, (self.height() - circle_size) / 2, circle_size, circle_size)
         box = QRectF(circle.right() + 24, 8, max(1.0, self.width() - circle.right() - 30), 96)
 
-        fill = QColor(17, 24, 39, 238)
+        fill = QColor(26, 28, 31, 238)
         if selected:
             fill = QColor(37, 99, 235, 190)
         painter.setBrush(fill)
@@ -326,10 +327,10 @@ class CnlMonitorSelectionButton(QPushButton):
         painter.drawEllipse(circle)
 
         box_gradient = QLinearGradient(box.topLeft(), box.bottomRight())
-        box_gradient.setColorAt(0, QColor(30, 41, 59, 236 if selected else 220))
-        box_gradient.setColorAt(1, QColor(15, 23, 42, 238))
+        box_gradient.setColorAt(0, QColor(38, 41, 46, 236 if selected else 220))
+        box_gradient.setColorAt(1, QColor(23, 25, 28, 238))
         painter.setBrush(box_gradient)
-        painter.setPen(QPen(QColor("#64748b") if selected else BORDER, 1))
+        painter.setPen(QPen(QColor("#80858e") if selected else BORDER, 1))
         painter.drawRoundedRect(box, 8, 8)
 
         app = QApplication.instance()
@@ -337,7 +338,7 @@ class CnlMonitorSelectionButton(QPushButton):
         family = app_family or "Segoe UI"
         title_rect = QRectF(box.left() + 20, box.top() + 12, box.width() - 38, 32)
         painter.setFont(_fitted_font(family, self.title.upper(), title_rect, max_size=18, min_size=10))
-        painter.setPen(QPen(TEXT if selected else QColor("#cbd5e1"), 1))
+        painter.setPen(QPen(TEXT if selected else QColor("#c4c7cc"), 1))
         painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title.upper())
 
         desc_rect = QRectF(box.left() + 20, box.top() + 52, box.width() - 38, 34)
@@ -401,18 +402,11 @@ class CnlTitleBar(QWidget):
         app = QApplication.instance()
         app_family = app.property("appFontFamily") if app is not None else None
         family = app_family or "Segoe UI"
-        title_rect = rect.adjusted(98, -2, -98, -16)
+        title_rect = rect.adjusted(12, 0, -12, -4)
         painter.setFont(_fitted_font(family, self.title, title_rect, max_size=23, min_size=11))
 
-        baseline = rect.bottom() - 12
-        center = rect.center().x()
-        painter.setPen(QPen(BORDER, 1))
-        painter.drawLine(QPointF(rect.left() + 96, baseline), QPointF(center - 180, baseline))
-        painter.drawLine(QPointF(center + 180, baseline), QPointF(rect.right() - 96, baseline))
-        painter.setPen(QPen(ACCENT, 2))
-        painter.drawLine(QPointF(center - 72, baseline), QPointF(center + 72, baseline))
         painter.setPen(QPen(TEXT, 1))
-        painter.drawText(title_rect, Qt.AlignCenter, self.title)
+        painter.drawText(title_rect, Qt.AlignLeft | Qt.AlignVCenter, self.title)
 
 
 class PageShell(QWidget):
@@ -457,11 +451,7 @@ class PageShell(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing, False)
 
-        gradient = QLinearGradient(0, self.height(), self.width(), 0)
-        gradient.setColorAt(0, QColor("#0b1120"))
-        gradient.setColorAt(0.55, QColor("#0f172a"))
-        gradient.setColorAt(1, QColor("#111827"))
-        painter.fillRect(self.rect(), gradient)
+        painter.fillRect(self.rect(), QColor("#111214"))
 
 
 class CategoryPage(PageShell):
@@ -483,6 +473,7 @@ class CategoryPage(PageShell):
         nav.setContentsMargins(12, 10, 12, 10)
         nav.setSpacing(14)
         self.layout.addLayout(nav)
+        self.layout.addSpacing(16)
 
         panel = QFrame()
         panel.setObjectName("workspace")
@@ -490,6 +481,9 @@ class CategoryPage(PageShell):
         grid.setContentsMargins(12, 12, 12, 12)
         grid.setHorizontalSpacing(22)
         grid.setVerticalSpacing(22)
+        grid.setAlignment(Qt.AlignTop)
+        self.category_grid = grid
+        self.category_cards = []
         for column in range(columns):
             grid.setColumnStretch(column, 1)
 
@@ -501,9 +495,17 @@ class CategoryPage(PageShell):
                 )
             )
             grid.addWidget(button, index // columns, index % columns)
-            grid.setRowStretch(index // columns, 1)
+            self.category_cards.append(button)
 
-        self.layout.addWidget(panel, 1)
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        self.layout.addWidget(panel)
+        self.layout.addStretch(1)
+
+    def resizeEvent(self, event):
+        columns = 2 if event.size().width() >= 780 else 1
+        for index, card in enumerate(self.category_cards):
+            self.category_grid.addWidget(card, index // columns, index % columns)
+        super().resizeEvent(event)
 
 
 class DetailPage(PageShell):
@@ -524,6 +526,7 @@ class DetailPage(PageShell):
         nav.setContentsMargins(12, 8, 12, 8)
         nav.setSpacing(14)
         self.layout.addLayout(nav)
+        self.layout.addSpacing(16)
 
     def add_workspace(self) -> tuple[QFrame, QVBoxLayout]:
         panel = QFrame()
@@ -800,11 +803,14 @@ class ConfigDetailPage(DetailPage):
 
         form = QFormLayout()
         form.setSpacing(12)
+        form.setFormAlignment(Qt.AlignTop)
         for field in fields:
             form.addRow(field, QLineEdit())
         panel_layout.addLayout(form)
 
         self.table = QTableWidget(4, 3)
+        self.table.setMaximumHeight(240)
+        self.table.setMinimumHeight(180)
         self.table.setHorizontalHeaderLabels(["Name", "Value", "Notes"])
         for row in range(4):
             self.table.setItem(row, 0, QTableWidgetItem(f"Item {row + 1}"))
@@ -829,9 +835,12 @@ class SnapshotDetailPage(DetailPage):
             back_label,
             go_back,
         )
-        _, panel_layout = self.add_workspace()
+        panel, panel_layout = self.add_workspace()
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
+        panel_layout.setAlignment(Qt.AlignTop)
 
         form = QFormLayout()
+        form.setFormAlignment(Qt.AlignTop)
         self.file_name = QLineEdit("snapshot_001.json")
         self.notes = QLineEdit()
         form.addRow("File name", self.file_name)
@@ -840,6 +849,7 @@ class SnapshotDetailPage(DetailPage):
 
         self.progress = QProgressBar()
         self.progress.setValue(0)
+        self.progress.setMaximumHeight(20)
         panel_layout.addWidget(self.progress)
 
         actions = ResponsiveRow()
@@ -849,6 +859,8 @@ class SnapshotDetailPage(DetailPage):
             actions.addWidget(button)
         actions.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
         panel_layout.addLayout(actions)
+
+        self.layout.addStretch(1)
 
 
 class PlaceholderDialog(QDialog):

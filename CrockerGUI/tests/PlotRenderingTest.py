@@ -71,14 +71,25 @@ for name, widget, surfaces in widgets:
 
 rect, ticks, _, _ = beam.beam._geometry()
 event = SimpleNamespace(position=lambda: rect.center(), angleDelta=lambda: QPointF(0,120),
-                        accept=lambda:None, ignore=lambda:None)
+                        modifiers=lambda: Qt.NoModifier, accept=lambda:None, ignore=lambda:None)
+beam.beam.wheelEvent(event)
+assert beam.beam._x_range is None, 'Page scrolling must not zoom the chart'
+initial_zoom = cloud.canvas.zoom
+cloud.canvas.wheelEvent(event)
+assert cloud.canvas.zoom == initial_zoom
+event.modifiers = lambda: Qt.ControlModifier
+cloud.canvas.wheelEvent(event)
+assert cloud.canvas.zoom > initial_zoom
 beam.beam.wheelEvent(event)
 assert beam.beam._x_range[1]-beam.beam._x_range[0] < ticks[-1]-ticks[0]
 beam.beam.mouseDoubleClickEvent(None)
 assert beam.beam._x_range is None
 beam.resize(600,600)
 for _ in range(12): app.processEvents()
-assert beam.beam.geometry().bottom() < beam.coil.geometry().top()
+# Charts are inside separate panel widgets; compare positions in the shared
+# response workspace rather than their unrelated parent coordinate systems.
+assert (beam.beam.mapTo(beam, beam.beam.rect().bottomLeft()).y()
+        < beam.coil.mapTo(beam, beam.coil.rect().topLeft()).y())
 for _, widget, _ in widgets:
     widget.close()
 page.stop_backend()

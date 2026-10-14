@@ -11,7 +11,7 @@ class CoilResponsePlot(TimeDomainPlot):
         super().paintGL()
         if self._ready and len(self.samples) > 1 and self.trial_markers:
             painter = QPainter(self)
-            painter.setPen(QPen(QColor('#cbd5e1'), 1, Qt.DashLine))
+            painter.setPen(QPen(QColor('#c4c7cc'), 1, Qt.DashLine))
             start, end = self.samples[0][0], self.samples[-1][0]
             ratio = self.devicePixelRatioF()
             left, right = 54/ratio, self.width()-20/ratio
@@ -23,7 +23,7 @@ class CoilResponsePlot(TimeDomainPlot):
             painter.end()
         if self._ready and not self._samples:
             painter = QPainter(self)
-            painter.setPen(QColor('#cbd5e1'))
+            painter.setPen(QColor('#c4c7cc'))
             painter.drawText(self.rect(), Qt.AlignCenter,
                              'Waiting for response samples - start a trial to display coil currents')
             painter.end()

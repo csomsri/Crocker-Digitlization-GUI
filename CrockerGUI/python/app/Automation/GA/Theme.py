@@ -2,9 +2,9 @@
 from types import SimpleNamespace
 from PySide6.QtWidgets import QFrame, QTabBar
 
-T = SimpleNamespace(panel='#15191e', border='#39414b', border_soft='#292f38',
-                    text='#e8edf2', muted='#a5afbb', dim='#778391', cyan='#52cce8',
-                    cyan_bright='#7ce5ff', green='#66d99a', orange='#ffa65b',
+T = SimpleNamespace(panel='#1a1c1f', border='#33363b', border_soft='#292c31',
+                    text='#f3f3f4', muted='#a5a8ae', dim='#80858e', cyan='#c4c7cc',
+                    cyan_bright='#f3f3f4', green='#66d99a', orange='#ffa65b',
                     amber='#f4cc65', red='#ff6b75')
 
 
@@ -18,7 +18,7 @@ class Card(QFrame):
 class TeslaTabBar(QTabBar):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet(f'QTabBar::tab {{padding:12px; color:{T.muted}; background:{T.panel};}} QTabBar::tab:selected {{color:{T.cyan}; border-bottom:2px solid {T.cyan};}}')
+        self.setStyleSheet(f'QTabBar::tab {{border-radius:9px; margin-right:8px; margin-bottom:8px; padding:12px; color:{T.muted}; background:{T.panel};}} QTabBar::tab:selected {{color:{T.text}; border-bottom:2px solid #e82138;}}')
 
 
 def info_label_css(color=T.muted):

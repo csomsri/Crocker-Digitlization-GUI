@@ -36,18 +36,18 @@ class RunMetrics(QFrame):
         self.setObjectName('responseRecordingPanel')
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
         self.setStyleSheet('''
-            QFrame#responseRecordingPanel { background: #131f30; border: 1px solid #34465d; border-radius: 8px; }
+            QFrame#responseRecordingPanel { background: #1a1c1f; border: 1px solid #33363b; border-radius: 8px; }
             QLabel#recordingTitle { color: #e7eef8; font-weight: 600; font-size: 14px; }
             QLabel#recordingNote { color: #91a6bf; font-size: 12px; }
-            QFrame#recordingStatus { background: #101a29; border: none; border-radius: 4px; }
-            QComboBox#recordingMethod, QSpinBox#recordingDuration { background: #192a40; color: #e7eef8;
+            QFrame#recordingStatus { background: #1a1c1f; border: none; border-radius: 4px; }
+            QComboBox#recordingMethod, QSpinBox#recordingDuration { background: #111214; color: #e7eef8;
                 border: 1px solid #3b526e; border-radius: 5px; padding: 0 10px; font-family: "Segoe UI"; font-size: 13px; }
             QPushButton#recordingAction { padding: 0 14px; font-family: "Segoe UI"; font-size: 13px; }
-            QLabel { color: #cbd5e1; font-family: "Segoe UI"; font-size: 13px; }
-            QDialog { background: #101a29; }
-            QTableWidget { background: #142235; alternate-background-color: #1b2c42;
-                color: #e7eef8; selection-background-color: #315477; font-family: "Segoe UI"; font-size: 13px; }
-            QHeaderView::section { background: #24364c; color: #b9cce1; padding: 8px; border: none; }
+            QLabel { color: #c4c7cc; font-family: "Segoe UI"; font-size: 13px; }
+            QDialog { background: #1a1c1f; }
+            QTableWidget { background: #23262a; alternate-background-color: #23262a;
+                color: #e7eef8; selection-background-color: #36383d; font-family: "Segoe UI"; font-size: 13px; }
+            QHeaderView::section { background: #23262a; color: #b9cce1; padding: 8px; border: none; }
         ''')
         self.directory = directory
         self.active = False

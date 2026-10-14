@@ -57,6 +57,7 @@ from source.Python.Services.SignalMapService import SignalMapService
 
 
 from python.app.PageRegistry import PAGE_BUILDERS, DETAIL_BUILDERS, WINDOW_RESOLUTIONS
+from python.app.WorkspaceShell import WorkspaceShell
 
 
 class MainWindow(QMainWindow):
@@ -125,7 +126,7 @@ class MainWindow(QMainWindow):
 
         mode_title = simulation_mode or backend_mode
         self.setWindowTitle(
-            f"Crocker Digitalization GUI - {mode_title.upper()}"
+            f"Crocker Nuclear Laboratory Control - {mode_title.upper()}"
         )
         self.setMinimumSize(320, 240)
         screen = QApplication.primaryScreen()
@@ -151,12 +152,16 @@ class MainWindow(QMainWindow):
         self.pages: dict[str, QWidget] = {}
         self.detail_parent: dict[str, str] = {}
 
-        home = HomePage(list(PAGE_BUILDERS), self.show_category, self.close)
+        home = HomePage(list(PAGE_BUILDERS),
+                        lambda category: self.navigate_from('Home', category), self.close)
         self.stack.addWidget(home)
         self.pages["Home"] = home
 
         for category, page_builder in PAGE_BUILDERS.items():
-            category_page = page_builder(self.show_home, self.open_placeholder)
+            category_page = page_builder(
+                lambda checked=False, source=category: self.navigate_from(source, 'Home'),
+                lambda title, purpose, source=category: self.navigate_from(source, title),
+            )
             self.stack.addWidget(category_page)
             self.pages[category] = category_page
 
@@ -188,8 +193,8 @@ class MainWindow(QMainWindow):
                         self._confirm_large_manual_changes and self.simulation_mode is None
                     )
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     **page_kwargs,
                 )
                 self.stack.addWidget(detail_page)
@@ -199,8 +204,8 @@ class MainWindow(QMainWindow):
 
             if title == "Settings":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     set_display_mode=self.set_display_mode,
                     set_window_resolution=self.set_window_resolution,
                     current_display_mode=self._display_mode,
@@ -221,8 +226,8 @@ class MainWindow(QMainWindow):
 
             if title == "Database History":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     db_path=self.db_path,
                     back_label="Back to Settings",
                 )
@@ -233,8 +238,8 @@ class MainWindow(QMainWindow):
 
             if title == "Display Controller":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     monitoring_pages=self._monitoring_page_names(),
                     monitor_entries=self._monitor_entries,
                     show_on_monitor=self.show_monitoring_page,
@@ -247,8 +252,8 @@ class MainWindow(QMainWindow):
 
             if title == "Beam Range":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     get_beam_state=self.current_beam_state,
                     get_beam_ranges=self.beam_calibration.ranges_dict,
                     set_manual_range=self.set_manual_beam_range,
@@ -261,8 +266,8 @@ class MainWindow(QMainWindow):
 
             if title == "Alarm":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     get_alarms=self.current_alarms,
                     acknowledge=self.acknowledge_alarms,
                     reload_config=self.reload_alarm_config,
@@ -276,8 +281,8 @@ class MainWindow(QMainWindow):
 
             if title == "Scaling":
                 detail_page = page_builder(
-                    lambda checked=False, category=parent_category:
-                        self.show_category(category),
+                    lambda checked=False, category=parent_category, source=title:
+                        self.navigate_from(source, category),
                     apply_live_scaling=self.apply_live_scaling,
                 )
                 self.stack.addWidget(detail_page)
@@ -286,14 +291,21 @@ class MainWindow(QMainWindow):
                 continue
 
             detail_page = page_builder(
-                lambda checked=False, category=parent_category:
-                    self.show_category(category)
+                lambda checked=False, category=parent_category, source=title:
+                    self.navigate_from(source, category)
             )
             self.stack.addWidget(detail_page)
             self.pages[title] = detail_page
             self.detail_parent[title] = parent_category
 
-        self.setCentralWidget(self.stack)
+        self.workspace_shell = WorkspaceShell(
+            self.stack, PAGE_BUILDERS, DETAIL_BUILDERS,
+            self.go_to_page, self.open_page_window, mode_title, home.exit_button,
+        )
+        self.setCentralWidget(self.workspace_shell)
+        self.stack.currentChanged.connect(
+            lambda: self.workspace_shell.set_current(self._current_page_name())
+        )
         self.apply_styles()
         self.motion = UIAnimationController(self.stack, self)
         self.motion.attach_to(self)
@@ -624,10 +636,14 @@ class MainWindow(QMainWindow):
             if mode == "Windowed":
                 set_decorated(self)
                 self._apply_windowed_resolution()
-                self.stack.setCurrentWidget(self.pages["Home"])
+                if not hasattr(self, 'workspace_shell'):
+                    self.stack.setCurrentWidget(self.pages["Home"])
                 for name in list(self._page_windows):
                     if getattr(self._page_windows[name], '_workspace_visible', True):
-                        self.open_page(name)
+                        if hasattr(self, 'workspace_shell'):
+                            self.open_page_window(name)
+                        else:
+                            self.open_page(name)
             else:
                 active_page = next((name for name, window in self._page_windows.items()
                                     if window.isActiveWindow()), None)
@@ -871,6 +887,9 @@ class MainWindow(QMainWindow):
         return None
 
     def show_home(self) -> None:
+        if hasattr(self, 'workspace_shell'):
+            self.go_to_page('Home')
+            return
         self.stack.setCurrentWidget(self.pages["Home"])
         self.show()
         self.raise_()
@@ -878,6 +897,10 @@ class MainWindow(QMainWindow):
         self._refresh_settings_monitors()
 
     def open_page(self, name: str) -> None:
+        if hasattr(self, 'workspace_shell'):
+            self.go_to_page(name)
+            return
+        # Preserve the legacy navigation contract for standalone hosts.
         if name == "Home":
             self.show_home()
             return
@@ -905,9 +928,94 @@ class MainWindow(QMainWindow):
             window.activateWindow()
         self._refresh_settings_monitors()
 
+    def go_to_page(self, name: str) -> None:
+        """Move the existing page back into the main workspace without restarting it."""
+        page = self.pages[name]
+        window = self._page_windows.get(name)
+        if window is not None and window.centralWidget() is page:
+            self._settings.setValue(f"workspace/{name}/geometry", window.saveGeometry())
+            window.takeCentralWidget()
+            window._workspace_visible = False
+            window.hide()
+        if self.stack.indexOf(page) < 0:
+            self.stack.addWidget(page)
+        self.stack.setCurrentWidget(page)
+        page.show()
+        if hasattr(self, 'workspace_shell'):
+            self.workspace_shell.set_current(name)
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        self._refresh_settings_monitors()
+
+    def navigate_from(self, source_name: str, target_name: str) -> None:
+        """Page-owned navigation stays in the window containing that page."""
+        source = self.pages[source_name]
+        host = source.window()
+        if not isinstance(host, PageWindow) or host.centralWidget() is not source:
+            self.go_to_page(target_name)
+            return
+        if host.page_name == target_name:
+            return
+        other = self._page_windows.get(target_name)
+        if other is not None and other is not host and other.centralWidget() is self.pages[target_name]:
+            self.open_page_window(target_name)
+            return
+        if other is not None and other is not host:
+            # The target was previously docked from another, now-empty host.
+            # Retire that host and its menu item before reusing the target here.
+            for action in list(self._page_window_menu.actions()):
+                if action.data() == target_name:
+                    self._page_window_menu.removeAction(action)
+                    action.deleteLater()
+            self._page_windows.pop(target_name, None)
+            other.deleteLater()
+        previous_name = host.page_name
+        previous = host.takeCentralWidget()
+        self.stack.addWidget(previous)
+        previous.hide()
+        target = self.pages[target_name]
+        self.stack.removeWidget(target)
+        self._page_windows.pop(previous_name, None)
+        self._page_windows[target_name] = host
+        host.set_page(target_name, target)
+        for action in self._page_window_menu.actions():
+            if action.data() == previous_name:
+                action.setData(target_name)
+                action.setText(target_name)
+        host.show()
+        host.raise_()
+        host.activateWindow()
+        self._refresh_settings_monitors()
+
+    def open_page_window(self, name: str) -> None:
+        """Reuse one page host per page so control executors are never duplicated."""
+        page = self.pages[name]
+        window = self._page_windows.get(name)
+        if window is None or window.centralWidget() is not page:
+            was_current = self.stack.currentWidget() is page
+            self.stack.removeWidget(page)
+            if was_current and name != 'Home':
+                self.go_to_page('Home')
+            if window is None:
+                window = PageWindow(self, name, page)
+                self._page_windows[name] = window
+                action = self._page_window_menu.addAction(name)
+                action.setData(name)
+                action.triggered.connect(lambda checked=False, a=action: self.open_page_window(a.data()))
+            else:
+                window.attach_page(page)
+        window._workspace_visible = True
+        window.ensure_on_screen()
+        window.showNormal() if window.isMinimized() else window.show()
+        window.raise_()
+        window.activateWindow()
+        self._refresh_settings_monitors()
+
     def bring_page_windows_forward(self) -> None:
         for name in list(self._page_windows):
-            self.open_page(name)
+            if self._page_windows[name].centralWidget() is not None:
+                self.open_page_window(name)
 
     def _refresh_workspace_menu(self) -> None:
         for action in self._page_window_menu.actions():
@@ -919,8 +1027,6 @@ class MainWindow(QMainWindow):
                 action.setText(name + (' • Running' if running else ''))
 
     def tile_page_windows(self) -> None:
-        if self._display_mode != "Windowed":
-            return
         windows = [w for w in self._page_windows.values() if w.isVisible()]
         screen = self.screen()
         if not windows or screen is None:

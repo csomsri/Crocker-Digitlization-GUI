@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QLayout,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QVBoxLayout,
     QWidget,
@@ -62,14 +61,6 @@ class SettingsPage(DetailPage):
         workspace_layout.setContentsMargins(10, 8, 10, 10)
         workspace_layout.setSpacing(0)
 
-        scroll_area = QScrollArea()
-        scroll_area.setObjectName("settingsScrollArea")
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
-        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
         scroll_content = QWidget()
         scroll_content.setObjectName("settingsScrollContent")
         panel_layout = QVBoxLayout(scroll_content)
@@ -77,8 +68,9 @@ class SettingsPage(DetailPage):
         panel_layout.setSpacing(12)
         panel_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         panel_layout.setSizeConstraint(QLayout.SizeConstraint.SetMinAndMaxSize)
-        scroll_area.setWidget(scroll_content)
-        workspace_layout.addWidget(scroll_area, 1)
+        # PageShell already scrolls the page. A second nested viewport clipped
+        # settings and left a large empty area at short window heights.
+        workspace_layout.addWidget(scroll_content)
         self._set_display_mode = set_display_mode
         self._set_window_resolution = set_window_resolution
         self._apply_monitor_assignments = apply_monitor_assignments

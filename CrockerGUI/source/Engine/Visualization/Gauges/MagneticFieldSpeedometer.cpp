@@ -100,7 +100,7 @@ void MagneticFieldSpeedometer::Render(int width, int height, float pixelRatio)
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(26.0f / 255.0f, 28.0f / 255.0f, 31.0f / 255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
     const float w = static_cast<float>(safeWidth) / pixelRatio;

@@ -20,7 +20,7 @@ ChartStyle MagneticChartStyle()
     style.lineColor = style.lineColors.front();
     style.barColor = style.lineColors.front();
     style.axisColor = { 126.0f / 255.0f, 144.0f / 255.0f, 168.0f / 255.0f };
-    style.gridColor = { 51.0f / 255.0f, 65.0f / 255.0f, 85.0f / 255.0f };
+    style.gridColor = { 51.0f / 255.0f, 54.0f / 255.0f, 59.0f / 255.0f };
     style.textColor = { 229.0f / 255.0f, 231.0f / 255.0f, 235.0f / 255.0f };
     style.showPoints = false;
     style.showLineShadow = false;
@@ -55,7 +55,7 @@ void PrepareViewport(int width, int height)
     glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glClearColor(17.0f / 255.0f, 27.0f / 255.0f, 46.0f / 255.0f, 1.0f);
+    glClearColor(26.0f / 255.0f, 28.0f / 255.0f, 31.0f / 255.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
@@ -113,7 +113,7 @@ public:
         glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glClearColor(3.0f / 255.0f, 8.0f / 255.0f, 8.0f / 255.0f, 1.0f);
+        glClearColor(26.0f / 255.0f, 28.0f / 255.0f, 31.0f / 255.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         chart.SetPixelRatio(pixelRatio);
         chart.Render({ 0.0f, 0.0f, static_cast<float>(safeWidth) / pixelRatio, static_cast<float>(safeHeight) / pixelRatio });

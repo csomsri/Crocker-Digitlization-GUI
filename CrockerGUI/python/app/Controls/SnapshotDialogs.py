@@ -40,7 +40,7 @@ def value_tree():
     tree.setHeaderLabels(["Captured value", "Reading"])
     tree.setAlternatingRowColors(True)
     tree.setMinimumHeight(180)
-    tree.setStyleSheet("QTreeWidget { background: #142235; alternate-background-color: #1b2c42; color: #e7eef8; border: 1px solid #34465d; } QTreeWidget::item { padding: 4px; }")
+    tree.setStyleSheet("QTreeWidget { background: #23262a; alternate-background-color: #23262a; color: #e7eef8; border: 1px solid #33363b; } QTreeWidget::item { padding: 4px; }")
     return tree
 
 

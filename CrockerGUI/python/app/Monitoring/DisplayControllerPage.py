@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import (
     QFrame,
-    QHBoxLayout,
+    QHBoxLayout, QGridLayout,
     QLabel,
     QPushButton,
     QSizePolicy,
@@ -22,8 +22,10 @@ class DisplayViewButton(QPushButton):
         self.description = description
         self.setCheckable(True)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setMinimumSize(260, 150)
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.setMinimumWidth(240)
+        self.setFixedHeight(150)
+        self.setStyleSheet('min-height: 150px; max-height: 150px; padding: 0;')
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt API name
         del event
@@ -32,8 +34,8 @@ class DisplayViewButton(QPushButton):
         rect = self.rect().adjusted(2, 2, -2, -2)
         selected = self.isChecked()
         hovered = self.underMouse()
-        painter.setBrush(QColor("#183b78") if selected else QColor("#172236"))
-        painter.setPen(QPen(QColor("#60a5fa") if selected or hovered else QColor("#40516b"), 2 if selected else 1))
+        painter.setBrush(QColor("#373a40") if selected else QColor("#1a1c1f"))
+        painter.setPen(QPen(QColor("#e82138") if selected else QColor("#a5a8ae") if hovered else QColor("#41444a"), 2 if selected else 1))
         painter.drawRoundedRect(rect, 9, 9)
 
         scale = max(0.85, min(1.25, self.height() / 190))
@@ -41,11 +43,11 @@ class DisplayViewButton(QPushButton):
         badge = rect.adjusted(20, 18, 0, 0)
         badge.setWidth(badge_size)
         badge.setHeight(badge_size)
-        painter.setBrush(QColor("#2563eb") if selected else QColor("#24344e"))
+        painter.setBrush(QColor("#e82138") if selected else QColor("#23262a"))
         painter.setPen(QPen(QColor("#93c5fd") if selected else QColor("#52657f"), 1))
         painter.drawRoundedRect(badge, 6, 6)
         painter.setFont(QFont("Segoe UI", max(9, int(11 * scale)), QFont.Weight.Bold))
-        painter.setPen(QColor("#eff6ff"))
+        painter.setPen(QColor("#f3f3f4"))
         painter.drawText(badge, Qt.AlignmentFlag.AlignCenter, f"{self.number:02d}")
 
         title_rect = rect.adjusted(badge.right() - rect.left() + 15, 15, -18, -rect.height() + 50)
@@ -54,10 +56,10 @@ class DisplayViewButton(QPushButton):
         painter.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, self.title.upper())
 
         divider_y = badge.bottom() + 16
-        painter.setPen(QPen(QColor("#4b6382") if selected else QColor("#334155"), 1))
+        painter.setPen(QPen(QColor("#4b6382") if selected else QColor("#33363b"), 1))
         painter.drawLine(rect.left() + 20, divider_y, rect.right() - 20, divider_y)
         painter.setFont(QFont("Segoe UI", max(8, int(10 * scale))))
-        painter.setPen(QColor("#93a9c5"))
+        painter.setPen(QColor("#a5a8ae"))
         painter.drawText(
             rect.adjusted(20, divider_y - rect.top() + 14, -20, -18),
             Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
@@ -119,6 +121,7 @@ class DisplayControllerPage(DetailPage):
         page_layout = QVBoxLayout(page_panel)
         page_layout.setContentsMargins(22, 18, 22, 22)
         page_layout.setSpacing(14)
+        page_layout.setAlignment(Qt.AlignTop)
         page_heading = QLabel("SELECT MONITORING VIEW")
         page_heading.setObjectName("controllerSectionHeading")
         page_layout.addWidget(page_heading)
@@ -128,11 +131,9 @@ class DisplayControllerPage(DetailPage):
         page_description.setObjectName("settingsDescription")
         page_layout.addWidget(page_description)
 
-        top_row = QHBoxLayout()
-        top_row.setSpacing(14)
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(14)
-        bottom_row.addStretch(1)
+        self.view_grid = QGridLayout()
+        self.view_grid.setSpacing(14)
+        self.view_grid.setAlignment(Qt.AlignTop)
         self.page_buttons: dict[str, QPushButton] = {}
         for index, page_name in enumerate(monitoring_pages):
             preview = MONITOR_PREVIEWS.get(page_name, ["Live monitoring view"])[0]
@@ -142,21 +143,24 @@ class DisplayControllerPage(DetailPage):
                 lambda checked=False, name=page_name: self._select_page(name)
             )
             self.page_buttons[page_name] = button
-            if index < 3:
-                top_row.addWidget(button, 1)
-            else:
-                bottom_row.addWidget(button, 2)
-        bottom_row.addStretch(1)
-        page_layout.addLayout(top_row, 1)
-        page_layout.addLayout(bottom_row, 1)
-        layout.addWidget(page_panel, 1)
+            self.view_grid.addWidget(button, index // 2, index % 2)
+        page_layout.addLayout(self.view_grid)
+        layout.addWidget(page_panel)
 
         self.show_button = QPushButton("SHOW ON MONITOR")
         self.show_button.setObjectName("applySettingsButton")
         self.show_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.show_button.clicked.connect(self._apply)
         layout.addWidget(self.show_button)
+        layout.addStretch(1)
         self.refresh()
+
+    def resizeEvent(self, event):
+        if hasattr(self, 'view_grid'):
+            columns = 3 if event.size().width() >= 1100 else 2 if event.size().width() >= 650 else 1
+            for index, button in enumerate(self.page_buttons.values()):
+                self.view_grid.addWidget(button, index // columns, index % columns)
+        super().resizeEvent(event)
 
     def _status_block(self, row: QHBoxLayout, title: str) -> QLabel:
         block = QFrame()

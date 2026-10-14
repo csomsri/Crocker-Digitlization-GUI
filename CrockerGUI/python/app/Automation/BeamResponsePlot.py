@@ -18,7 +18,7 @@ class BeamResponsePlot(QWidget):
                                  ('TC command', 'TC actual'))
         beam_panel = QFrame()
         beam_panel.setObjectName('beamTrackingPanel')
-        beam_panel.setStyleSheet('QFrame#beamTrackingPanel { background: #101d2d; border: 1px solid #2c4058; border-radius: 8px; }')
+        beam_panel.setStyleSheet('QFrame#beamTrackingPanel { background: #1a1c1f; border: 1px solid #33363b; border-radius: 8px; }')
         beam_layout = QVBoxLayout(beam_panel)
         beam_layout.setContentsMargins(10, 10, 10, 10)
         self.error = CppTrendPlot(AxisTrendPlot('SIGNED ERROR', 'Time (s)'),
@@ -29,7 +29,7 @@ class BeamResponsePlot(QWidget):
         layout.addWidget(beam_panel)
         coil_panel = QFrame()
         coil_panel.setObjectName('coilTrackingPanel')
-        coil_panel.setStyleSheet('QFrame#coilTrackingPanel { background: #101d2d; border: 1px solid #2c4058; border-radius: 8px; }')
+        coil_panel.setStyleSheet('QFrame#coilTrackingPanel { background: #1a1c1f; border: 1px solid #33363b; border-radius: 8px; }')
         coil_layout = QVBoxLayout(coil_panel)
         coil_layout.setContentsMargins(10, 10, 10, 10)
         coil_layout.addWidget(self.coil)

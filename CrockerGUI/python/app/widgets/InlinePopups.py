@@ -18,9 +18,9 @@ class InlinePopup(QFrame):
         self.setObjectName('inlinePopup')
         self.setStyleSheet(
             (Path(__file__).resolve().parents[1] / 'theme' / 'dialogs.qss').read_text(encoding='utf-8')
-            + 'QFrame#inlinePopup { background: #142235; border: 1px solid #52769c; border-radius: 8px; }'
-            + 'QCalendarWidget QWidget { background: #142235; color: #e7eef8; }'
-            + 'QCalendarWidget QAbstractItemView { selection-background-color: #28639a; selection-color: white; }')
+            + 'QFrame#inlinePopup { background: #23262a; border: 1px solid #52769c; border-radius: 8px; }'
+            + 'QCalendarWidget QWidget { background: #23262a; color: #e7eef8; }'
+            + 'QCalendarWidget QAbstractItemView { selection-background-color: #36383d; selection-color: white; }')
         self.setAttribute(Qt.WA_StyledBackground)
 
     def present(self, position=None):
@@ -142,7 +142,7 @@ class PopupService(QObject):
         label.setObjectName('inlineToolTip')
         label.setAttribute(Qt.WA_TransparentForMouseEvents)
         label.setWordWrap(True)
-        label.setStyleSheet('QLabel { background: #20334b; color: #edf5ff; border: 1px solid #567a9f; border-radius: 6px; padding: 8px 10px; font: 12px "Segoe UI"; }')
+        label.setStyleSheet('QLabel { background: #23262a; color: #edf5ff; border: 1px solid #567a9f; border-radius: 6px; padding: 8px 10px; font: 12px "Segoe UI"; }')
         label.setMaximumWidth(min(480, host.width()))
         label.adjustSize()
         point = host.mapFromGlobal(position) + QPoint(12, 18)

@@ -82,7 +82,7 @@ class CppTrendPlot(AxisTrendPlot):
         font = QFont('Segoe UI')
         font.setPixelSize(12)
         p.setFont(font)
-        p.fillRect(self.rect(),QColor('#101a29'))
+        p.fillRect(self.rect(),QColor('#1a1c1f'))
         rect,xticks,yticks,has_data = self._geometry()
         x,a,b = self.data
         offset = self.offset_provider() if self.offset_provider else 0
@@ -97,7 +97,7 @@ class CppTrendPlot(AxisTrendPlot):
             ylabel += f' · Latest: {_number(last) if last is not None else "—"}'
         if offset:
             ylabel += f'  (axis values + {_number(offset)})'
-        p.setPen(QColor('#dce7f5'))
+        p.setPen(QColor('#e6e7e9'))
         p.drawText(QRectF(18,8,self.width()-36,22),Qt.AlignLeft | Qt.AlignVCenter,ylabel)
         # Always-visible legends also show the latest finite value for each line.
         legend_x = 18
@@ -109,7 +109,7 @@ class CppTrendPlot(AxisTrendPlot):
             p.drawLine(QPointF(legend_x,legend_y),QPointF(legend_x+28,legend_y))
             last = next((v for t,v in reversed(list(zip(x,series))) if math.isfinite(t) and math.isfinite(v)),None)
             text = f'{label}: {_number(last+offset) if last is not None else "—"}'
-            p.setPen(QColor('#cbd8e9'))
+            p.setPen(QColor('#c4c7cc'))
             width = p.fontMetrics().horizontalAdvance(text)+16
             p.drawText(QRectF(legend_x+36,legend_y-12,width,24),Qt.AlignVCenter,text)
             legend_x += width+60
@@ -117,23 +117,23 @@ class CppTrendPlot(AxisTrendPlot):
         ymin,ymax = yticks[0],yticks[-1]
         def point(t,v):
             return QPointF(rect.left()+(t-xmin)/(xmax-xmin)*rect.width(),rect.bottom()-(v-ymin)/(ymax-ymin)*rect.height())
-        p.fillRect(rect,QColor('#111f30'))
+        p.fillRect(rect,QColor('#191b1e'))
         for v in yticks:
             y=point(xmin,v).y()
-            p.setPen(QPen(QColor('#293b50'),1))
+            p.setPen(QPen(QColor('#33363b'),1))
             p.drawLine(QPointF(rect.left(),y),QPointF(rect.right(),y))
-            p.setPen(QColor('#9db0c7'))
+            p.setPen(QColor('#a5a8ae'))
             p.drawText(QRectF(4,y-10,rect.left()-14,20),Qt.AlignRight | Qt.AlignVCenter,_number(v))
         for t in xticks:
             px=point(t,ymin).x()
-            p.setPen(QPen(QColor('#203247'),1))
+            p.setPen(QPen(QColor('#2b2e33'),1))
             p.drawLine(QPointF(px,rect.top()),QPointF(px,rect.bottom()))
-            p.setPen(QColor('#9db0c7'))
+            p.setPen(QColor('#a5a8ae'))
             p.drawText(QRectF(px-40,rect.bottom()+6,80,20),Qt.AlignCenter,_number(t))
         p.drawText(QRectF(rect.left(),self.height()-24,rect.width(),20),Qt.AlignCenter,
                    'Evaluation number' if self.fitness else 'Elapsed time (s)')
         if not has_data:
-            p.setPen(QColor('#9db0c7'))
+            p.setPen(QColor('#a5a8ae'))
             p.drawText(rect,Qt.AlignCenter,'No evaluations yet' if self.fitness else 'Waiting for response data')
             return
         p.save()
@@ -162,7 +162,7 @@ class CppTrendPlot(AxisTrendPlot):
             i=self._hover
             if math.isfinite(x[i]):
                 px=point(x[i],ymin).x()
-                p.setPen(QPen(QColor('#9db0c7'),1,Qt.DotLine))
+                p.setPen(QPen(QColor('#a5a8ae'),1,Qt.DotLine))
                 p.drawLine(QPointF(px,rect.top()),QPointF(px,rect.bottom()))
                 for series,color in zip((a,b),self.colors):
                     if i<len(series) and math.isfinite(series[i]):
@@ -194,6 +194,9 @@ class CppTrendPlot(AxisTrendPlot):
         self.update()
 
     def wheelEvent(self, event):
+        if not (event.modifiers() & Qt.ControlModifier):
+            event.ignore()
+            return
         rect, ticks, _, _ = self._geometry()
         if not rect.contains(event.position()):
             event.ignore()

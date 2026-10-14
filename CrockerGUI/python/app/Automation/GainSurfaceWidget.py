@@ -25,7 +25,7 @@ class GainCloud(PlotSurface):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         p.setFont(QFont('Segoe UI', 9))
-        p.fillRect(self.rect(), QColor('#0f172a'))
+        p.fillRect(self.rect(), QColor('#111214'))
         grid = self.grid
         points = np.asarray(grid.get('points', []), dtype=float).reshape(-1, 3)
         if len(points):
@@ -107,6 +107,9 @@ class GainCloud(PlotSurface):
         self.unsetCursor()
 
     def wheelEvent(self, event):
+        if not (event.modifiers() & Qt.ControlModifier):
+            event.ignore()
+            return
         self.zoom = max(.25, min(4., self.zoom*(1.1 if event.angleDelta().y()>0 else 1/1.1)))
         self.update()
         event.accept()
@@ -121,7 +124,7 @@ class GainSurfaceWidget(QWidget):
         layout = QVBoxLayout(self)
         self.status = QLabel()
         self.status.setWordWrap(True)
-        self.status.setStyleSheet('color: #cbd5e1;')
+        self.status.setStyleSheet('color: #c4c7cc;')
         layout.addWidget(self.status)
         self.canvas = GainCloud(self)
         layout.addWidget(self.canvas, 1)
@@ -132,7 +135,7 @@ class GainSurfaceWidget(QWidget):
 
     def set_grid(self, grid):
         self.canvas.grid = grid or {}
-        self.status.setText('All three gains vary. Drag to rotate; scroll to zoom. Color shows predicted cost.'
+        self.status.setText('All three gains vary. Drag to rotate; Ctrl + scroll to zoom. Color shows predicted cost.'
                             if grid and grid.get('ready') else
                             (grid or {}).get('message', 'Waiting for enough trials to fit the gain-space model.'))
         self.canvas.update()

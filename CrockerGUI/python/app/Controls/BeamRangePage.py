@@ -42,7 +42,8 @@ class BeamRangePage(DetailPage):
         self._range_rows: list[dict[str, Any]] = []
         self._updating_combo = False
 
-        _, workspace = self.add_workspace()
+        panel, workspace = self.add_workspace()
+        panel.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
 
         actions = ResponsiveRow()
         self.range_select = QComboBox()
@@ -79,7 +80,7 @@ class BeamRangePage(DetailPage):
             card = self._metric_card(title, "--")
             metric_grid.addWidget(card, index // 3, index % 3)
         workspace.addLayout(metric_grid)
-        workspace.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        self.layout.addStretch(1)
 
         self._refresh_ranges()
         self._refresh()
