@@ -10,6 +10,8 @@ from source.Python.Simulator.ZMQSimulator import build_bitmask
 def main():
     plant = FirstOrderBeamPlant()
     initial = plant.channels[9]
+    assert initial == 0 and plant.beam_na == 0
+    assert plant.frame().beam_current == 0
     targets = list(plant.channels)
     targets[9] = 200.0
     enabled = [False] * 14
@@ -17,18 +19,25 @@ def main():
     reply = [value * plant.raw_scale for value in targets] + [build_bitmask([True] * 14, enabled)]
     plant.apply_reply(reply, 2.0)
     assert math.isclose(plant.channels[9], 200 + (initial - 200) * math.exp(-1))
-    assert math.isclose(plant.beam_na, plant.channels[9] * 0.004)
+    assert math.isclose(plant.beam_na, plant.channels[9] * 0.016)
     before = plant.beam_na
     targets[0] = 999.0
     plant.apply_reply([value * plant.raw_scale for value in targets] + [reply[-1]], 0)
     assert plant.beam_na == before
-    for _ in range(200):
+    for _ in range(300):
         plant.apply_reply(reply, 0.1)
-    assert abs(plant.beam_na - 0.8) < 0.00001
-    assert abs(plant.frame().beam_current - 0.215) < 0.00001
+    assert abs(plant.beam_na - 3.2) < 0.00001
+    assert abs(plant.frame().beam_current - 0.64) < 0.00001
     plant.disturbance_na = -0.1
     plant.apply_reply(reply, 0)
-    assert abs(plant.beam_na - 0.7) < 0.00001
+    assert abs(plant.beam_na - 3.1) < 0.00001
+    from source.Python.Services.BeamCalibrationService import BeamCalibrationService
+    import time
+    calibration = BeamCalibrationService(Path(__file__).resolve().parents[1] / 'config' / 'first_order_beam_cal.json')
+    for beam_na in (0, 3, 4):
+        plant.beam_na = beam_na
+        state = calibration.update(dict(timestamp=time.time(), beam_current=plant.frame().beam_current))
+        assert math.isclose(state.current_ua * 1000, beam_na, abs_tol=1e-9)
     print("First-order TC10 response, independent channels, calibration and disturbance passed")
 
 

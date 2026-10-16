@@ -1,0 +1,25 @@
+{
+  "select_mode": "manual",
+  "manual_index": 0,
+  "beam_field": "beam_current",
+  "smooth_tau_s": 0.25,
+  "deadband_display": 0,
+  "gauge_uses_range_fs": true,
+  "ranges": [
+    {
+      "label": "5 nA",
+      "full_scale_uA": 0.005,
+      "mode": "linear",
+      "points": [
+        [
+          0,
+          0
+        ],
+        [
+          1,
+          0.005
+        ]
+      ]
+    }
+  ]
+}

@@ -6,6 +6,7 @@ from dataclasses import asdict, is_dataclass
 from uuid import uuid4
 
 from source.Python.Data.async_writer import AsyncSQLiteWriter, Statement, insert
+from source.Python.Data.readable_time import add_readable_times
 
 
 def plain(value):
@@ -51,6 +52,13 @@ def initialize(connection):
             event TEXT NOT NULL, details TEXT);
         CREATE INDEX IF NOT EXISTS idx_pid_events_session_time ON pid_events(session_id,timestamp);
     ''')
+
+
+    add_readable_times(connection, {
+        'pid_sessions': ('started_at', 'ended_at'),
+        'pid_samples': ('timestamp', 'telemetry_timestamp', 'beam_timestamp'),
+        'pid_trials': ('timestamp',), 'pid_events': ('timestamp',),
+    })
 
 
 class PIDDatabase:

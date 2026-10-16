@@ -95,3 +95,23 @@ hybrid costs/recovery, history reads and asynchronous application shutdown.
 The C++ lock test verifies controller iterations and GUI timer events continue
 while Database B cannot commit. These are responsiveness checks, not hard
 real-time guarantees or hardware commissioning.
+
+## Readable dates
+
+PID and telemetry tables now include text columns ending in `_local`, formatted
+as `10/14/2026 7:50:05 PM`. These use the computer's configured local timezone
+(California time on this workstation). Numeric Unix timestamps remain authoritative
+and unchanged. Existing rows are backfilled on schema initialization; SQLite
+triggers maintain readable values for future inserts and timestamp updates.
+
+Open `pid_samples_readable` or `pid_events_readable` under Views in a SQLite
+viewer to see each readable date directly beside its numeric timestamp. Equivalent
+`*_readable` views exist for telemetry tables and session start/end times. Base
+tables also contain the added columns, appended to preserve existing schemas.
+
+Verification on October 14, 2026: the default PID database's latest sample was
+`10/10/2026 4:38:17 PM`; the retained acquisition proof database under
+`logs/acquisition-proof/20261014-195001-0ef7a5fb/` ended at
+`10/14/2026 7:50:05 PM`. These are separate recordings, not a timestamp conversion
+error. Backups before the date-column migration are under
+`logs/timestamp-migration/20261014-202105/`.

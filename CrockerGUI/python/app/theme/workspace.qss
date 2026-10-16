@@ -72,7 +72,25 @@ QPushButton#fieldControlTab:checked {
 
 QLabel#homeWorkspaceTitle { font-size: 26px; font-weight: 600; color: #f3f3f4; }
 QLabel#homeCategoryIndex { font-size: 12px; font-weight: 600; color: #a5a8ae; }
-QPushButton#homeCategoryAction { padding: 10px 18px; border-radius: 8px; background: #292c31; }
-QPushButton#homeCategoryAction:hover { background: #363a41; border-color: #858a94; }
+QPushButton#homeCategoryAction { min-height: 42px; max-height: 42px; padding: 0 16px; border-radius: 7px; background: #23262a; border: 1px solid #484c53; color: #f3f3f4; font-size: 13px; font-weight: 500; text-align: left; }
+QPushButton#homeCategoryAction:hover { background: #302126; border-color: #e82138; }
+QPushButton#homeCategoryAction:focus { border: 2px solid #e82138; }
+QPushButton#homeCategoryAction:pressed { background: #44232c; border-color: #e82138; }
 QPushButton#workspaceExitButton { background: #301c22; border: 1px solid #8e3542; color: #f3d9de; padding: 9px 14px; border-radius: 7px; }
 QPushButton#workspaceExitButton:hover { background: #642331; border-color: #e82138; color: #ffffff; }
+
+QFrame#homeStatusCard { background: #191b1e; border: 1px solid #33363b; border-radius: 9px; }
+QLabel#homeStatusValue { font-size: 15px; font-weight: 500; color: #f3f3f4; }
+QLabel#homeSectionTitle { font-size: 16px; font-weight: 600; padding: 4px 20px; }
+QPushButton#homeQuickAction { min-height: 48px; padding: 0 16px; background: #25272c; border: 1px solid #4a4e55; border-radius: 8px; text-align: left; }
+QPushButton#homeQuickAction:hover, QPushButton#homeQuickAction:focus { background: #302126; border-color: #e82138; }
+QPushButton#workspaceExitButton { min-width: 60px; min-height: 36px; max-height: 36px; padding: 0 14px; background: #23262a; color: #d7d9dd; border: 1px solid #484c53; font-size: 12px; font-weight: 500; }
+QPushButton#workspaceExitButton:hover, QPushButton#workspaceExitButton:focus { background: #4b222c; color: #ffffff; border-color: #e82138; }
+QPushButton#workspaceExitButton:pressed { background: #702636; }
+
+QPushButton#homeNavigationButton { min-height: 96px; padding: 0; background: #1a1c1f; border: 1px solid #3b3e44; border-radius: 10px; text-align: left; }
+QPushButton#homeNavigationButton:hover { background: #23262a; border-color: #858a94; }
+QPushButton#homeNavigationButton:focus { border: 1px solid #e82138; }
+QPushButton#homeNavigationButton:pressed { background: #302126; border-color: #e82138; }
+QPushButton#homeNavigationButton QWidget { background: transparent; }
+QLabel#homeNavigationArrow { color: #c4c7cc; font-size: 23px; }

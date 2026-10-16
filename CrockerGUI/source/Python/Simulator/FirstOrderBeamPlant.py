@@ -18,16 +18,19 @@ class FirstOrderBeamPlant(Smoke2Plant):
 
     channel_index = 9
 
-    def __init__(self, raw_scale=1e-8, time_constant_s=2.0, gain_na_per_a=0.004):
+    def __init__(self, raw_scale=1e-8, time_constant_s=2.0, gain_na_per_a=0.016):
         super().__init__(raw_scale)
         if time_constant_s <= 0 or gain_na_per_a <= 0:
             raise ValueError("Time constant and gain must be positive")
         self.time_constant_s = time_constant_s
         self.gain_na_per_a = gain_na_per_a
         self.disturbance_na = 0.0
-        self.beam_na = self.channels[self.channel_index] * gain_na_per_a
-        calibration = Path(__file__).resolve().parents[3] / "config" / "beam_cal.json"
-        self._points = json.loads(calibration.read_text())["ranges"][0]["points"]
+        self.channels[self.channel_index] = 0.0
+        self.running_values[self.channel_index] = 0.0
+        self.targets[self.channel_index] = 0.0
+        self.beam_na = 0.0
+        calibration = Path(__file__).resolve().parents[3] / "config" / "first_order_beam_cal.json"
+        self._points = json.loads(calibration.read_text(encoding='utf-8'))["ranges"][0]["points"]
 
     def apply_reply(self, reply, dt):
         # TC10 is the single first-order state; no second actuator lag is added.

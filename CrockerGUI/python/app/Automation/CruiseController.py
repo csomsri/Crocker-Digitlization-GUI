@@ -2,6 +2,7 @@
 import time
 import math
 import json
+from PySide6.QtCore import QTimer
 from dataclasses import dataclass
 from source.Python.Automation.cruise_supervisor import CruiseSupervisor
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate
@@ -110,6 +111,26 @@ class CruiseControllerMixin:
             self.dry_run_check.setChecked(False)
             self.output_on_check.setChecked(True)
             self.control_enabled_check.setChecked(True)
+            channel = self.selected_index
+            pending = getattr(self, '_cruise_start_pending', None)
+            if pending is None:
+                pending = (object(), time.monotonic() + 2)
+                self._cruise_start_pending = pending
+                self._lock_controller_inputs(True)
+                command = self.backend.PendingCommand()[channel]
+                self.backend.SetChannelCommand(channel, float(command['target']), True, True)
+                if not self.backend.ApplyCommand():
+                    raise RuntimeError('Output-enable command was rejected')
+            readback = self.backend.LatestSnapshot()['channels'][channel]
+            if not (readback.get('on') and readback.get('enabled')):
+                if time.monotonic() >= pending[1]:
+                    raise RuntimeError('Timed out waiting for output-enable acknowledgement')
+                self.last_safety_message = 'Starting: waiting for selected output to enable'
+                self._refresh_status()
+                QTimer.singleShot(50, lambda: self._start_cruise()
+                                 if getattr(self, '_cruise_start_pending', None) is pending else None)
+                return
+            self._cruise_start_pending = None
             self.enable_button.setChecked(True)
             if not self.pid_enabled:
                 raise RuntimeError(self.last_safety_message)
@@ -119,10 +140,12 @@ class CruiseControllerMixin:
             self.apply_tuned_gains_button.setEnabled(False)
             self._cruise_message = 'Monitoring tracking; Tune now is available'
         except Exception as exc:
+            self._stop_cruise()
             self.last_safety_message = f'Start blocked: {exc}'
         self._refresh_status()
 
     def _stop_cruise(self):
+        self._cruise_start_pending = None
         if active_controller(self.backend, self) is not None:
             self.last_safety_message = 'Another controller owns this backend; Stop from its owning page.'
             self._refresh_status()

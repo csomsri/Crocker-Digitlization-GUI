@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
+from source.Python.Data.readable_time import add_readable_times
 
 
 DEFAULT_DB_PATH = Path("data") / "crocker_pipeline.sqlite3"
@@ -101,6 +102,12 @@ def initialize_schema(connection: sqlite3.Connection) -> None:
         );
         """
     )
+    add_readable_times(connection, {
+        'runs': ('started_at', 'ended_at'), 'readings': ('timestamp', 'logged_at'),
+        'processed_metrics': ('timestamp', 'window_start', 'window_end'),
+        'alarm_events': ('timestamp',), 'operator_notes': ('timestamp',),
+        'processing_jobs': ('created_at', 'started_at', 'finished_at'),
+    })
     connection.commit()
 
 

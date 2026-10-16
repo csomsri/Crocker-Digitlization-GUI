@@ -21,9 +21,10 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(m.command_movement, 5)
         self.assertEqual(m.saturation_time, 1)
         self.assertEqual(m.steady_state_error, 0)
-        self.assertAlmostEqual(trial_cost(m), 11.05)
-        self.assertAlmostEqual(trial_cost(m, 'Fast response'), 13.05)
-        self.assertAlmostEqual(trial_cost(m, 'Low control movement'), 11.4)
+        # October objective: time-normalized tracking plus command variation.
+        self.assertAlmostEqual(trial_cost(m), 2.0416666666666665)
+        self.assertEqual(trial_cost(m, 'Fast response'), trial_cost(m))
+        self.assertEqual(trial_cost(m, 'Low control movement'), trial_cost(m))
 
     def test_missing_actuator_data_cannot_be_scored(self):
         m = evaluate_trial([(0, 10, 0, 0), (1, 10, 0, 0)], 10)
@@ -83,11 +84,12 @@ class PythonBOTest(unittest.TestCase):
             def StartPidTrial(self,*args): raise AssertionError('Python trials must not run the C++ PID')
         p.backend=TransportOnly()
         try:
-            self.assertEqual(p.page_stack.count(),2)
+            self.assertEqual(p.page_stack.count(),3)
+            self.assertIn(p.results_page, [p.page_stack.widget(i) for i in range(p.page_stack.count())])
             p._show_tuner()
             self.assertIn('Python',p.tuner_engine_label.text())
             p.tuner_trials.setValue(7)
-            p.tuner_duration.setValue(.5)
+            p.tuner_duration.setValue(1.5)
             p.tuner_target.setValue(10)
             p._start_auto_tuning()
             p.tuning_optimizer.optimizer.mc_samples=32
@@ -118,19 +120,19 @@ class PythonBOTest(unittest.TestCase):
             self.assertEqual(dialog.findChild(QTableWidget,'pidResponseMetrics').columnCount(),14)
             dialog.close()
             other.stop_backend()
-            # A persistent response is stopped while running, not just scored
-            # after completion. Preserve the observation for BO's penalty.
+            # October fitness keeps oscillation as scored data through the full trial.
             p.tuning_samples=[(i*.05, 10-(2+math.sin(i*.05*math.tau*2)),
                                2+math.sin(i*.05*math.tau*2), 0, 0, False) for i in range(100)]
             p.tuning_session_active=True
+            p.tuner_duration.setValue(30)
             p.tuning_trial_candidate=p.tuning_results[0].candidate
             p._trial_status=lambda:dict(state='Running',elapsed_seconds=4.95,
                 measured_field=8,error=2,control_output=0,control_rate=0,iterations=99)
             stopped=[]
             p._complete_tuning_trial=lambda safe:stopped.append(safe)
             p._poll_tuning_workflow()
-            self.assertEqual(stopped,[True])
-            self.assertTrue(p._oscillation_stopped)
+            self.assertEqual(stopped,[])
+            self.assertFalse(p._oscillation_stopped)
         finally:
             p.stop_backend()
 

@@ -1,7 +1,7 @@
 from collections.abc import Callable
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 
-from PySide6.QtWidgets import QFrame, QGridLayout, QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QStyle
+from PySide6.QtWidgets import QLabel, QPushButton, QVBoxLayout, QHBoxLayout, QWidget
 from python.app.PageShell import PageShell
 
 
@@ -12,7 +12,6 @@ HOME_LABELS = {
     "Configuration": "Connections, calibration, saved settings and history.",
 }
 
-
 class HomePage(PageShell):
     def __init__(
         self,
@@ -20,58 +19,80 @@ class HomePage(PageShell):
         show_category: Callable[[str], None],
         exit_app: Callable[[], None],
         ) -> None:
-        super().__init__("Control workspace", "")
+        super().__init__("Home", "")
         self.header.hide()
         heading = QHBoxLayout()
         heading.setContentsMargins(24, 24, 24, 12)
         text = QVBoxLayout()
-        title = QLabel("Control workspace")
+        title = QLabel("Home")
         title.setObjectName("homeWorkspaceTitle")
         text.addWidget(title)
-        subtitle = QLabel("Select an area to monitor equipment, operate controls or configure the system.")
+        subtitle = QLabel("Choose an area of the control workspace.")
         subtitle.setWordWrap(True)
         subtitle.setObjectName("homeCategoryDescription")
         text.addWidget(subtitle)
         heading.addLayout(text, 1)
-        self.exit_button = QPushButton("Exit application")
+        self.exit_button = QPushButton("Exit")
+        self.exit_button.setAccessibleName("Exit application")
+        self.exit_button.setToolTip("Close the application and finish saving recordings")
+        self.exit_button.setCursor(Qt.PointingHandCursor)
         self.exit_button.setObjectName("workspaceExitButton")
-        self.exit_button.setIcon(self.style().standardIcon(QStyle.SP_DialogCloseButton))
         self.exit_button.clicked.connect(lambda checked=False: exit_app())
         heading.addWidget(self.exit_button, 0, Qt.AlignTop)
         self.layout.addLayout(heading)
-        self.cards = QGridLayout()
-        self.cards.setContentsMargins(20, 12, 20, 20)
-        self.cards.setSpacing(16)
+        self.cards = QVBoxLayout()
+        self.cards.setContentsMargins(24, 12, 24, 24)
+        self.cards.setSpacing(12)
         self.category_cards = []
-        for index, category in enumerate(categories):
-            card = QFrame()
-            card.setObjectName("homeCategoryCard")
-            content = QVBoxLayout(card)
-            content.setContentsMargins(24, 24, 24, 24)
-            content.setSpacing(12)
-            icon = QLabel(f"{index + 1:02d}")
-            icon.setObjectName("homeCategoryIndex")
-            content.addWidget(icon)
+        self._button_labels = []
+        for category in categories:
+            button = QPushButton()
+            button.setObjectName("homeNavigationButton")
+            button.setAccessibleName("Open " + category)
+            button.setToolTip("Open the " + category.lower() + " workspace")
+            button.setCursor(Qt.PointingHandCursor)
+            content = QHBoxLayout(button)
+            content.setContentsMargins(22, 18, 22, 18)
+            content.setSpacing(20)
+            text = QWidget()
+            text.setAttribute(Qt.WA_TransparentForMouseEvents)
+            labels = QVBoxLayout(text)
+            labels.setContentsMargins(0, 0, 0, 0)
+            labels.setSpacing(5)
             title = QLabel(category)
             title.setObjectName("homeCategoryTitle")
-            content.addWidget(title)
+            labels.addWidget(title)
             description = QLabel(HOME_LABELS.get(category, ""))
             description.setObjectName("homeCategoryDescription")
             description.setWordWrap(True)
-            content.addWidget(description)
-            content.addSpacing(16)
-            button = QPushButton("Open " + category.lower() + "  →")
+            labels.addWidget(description)
+            content.addWidget(text, 1)
+            arrow = QLabel("→")
+            arrow.setObjectName("homeNavigationArrow")
+            arrow.setAttribute(Qt.WA_TransparentForMouseEvents)
+            arrow.setFixedWidth(28)
+            arrow.setAlignment(Qt.AlignCenter)
+            content.addWidget(arrow)
             button.clicked.connect(lambda checked=False, name=category: show_category(name))
-            button.setObjectName("homeCategoryAction")
-            button.setCursor(Qt.PointingHandCursor)
-            content.addWidget(button, 0, Qt.AlignLeft)
-            self.cards.addWidget(card, index // 2, index % 2)
-            self.category_cards.append(card)
+            self.cards.addWidget(button)
+            self.category_cards.append(button)
+            self._button_labels.append((title, description))
         self.layout.addLayout(self.cards)
         self.layout.addStretch()
 
+    def _align_button_heights(self):
+        width = max(80, self.scroll_area.viewport().width() - 48 - 44 - 20 - 28)
+        height = max([104] + [36 + title.sizeHint().height() + 5 +
+                     max(description.sizeHint().height(), description.heightForWidth(width))
+                     for title, description in self._button_labels])
+        for button in self.category_cards:
+            # Explicit style bounds survive application theme repolishing.
+            button.setStyleSheet(f'QPushButton#homeNavigationButton {{ min-height: {height}px; max-height: {height}px; }}')
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        QTimer.singleShot(0, self._align_button_heights)
+
     def resizeEvent(self, event):
-        columns = 1 if event.size().width() < 620 else 2
-        for index, card in enumerate(self.category_cards):
-            self.cards.addWidget(card, index // columns, index % columns)
         super().resizeEvent(event)
+        QTimer.singleShot(0, self._align_button_heights)

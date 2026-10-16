@@ -689,7 +689,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         page_layout.addWidget(content, 1)
         outer = QVBoxLayout(content)
         outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(6)
+        outer.setSpacing(16)
 
         heading = ResponsiveRow()
         title_box = QVBoxLayout()
@@ -702,7 +702,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         subtitle.setWordWrap(True)
         subtitle.setStyleSheet("font-family: Segoe UI; font-size: 13px; color: #a5a8ae;")
         title_box.addWidget(title)
-        title_box.addWidget(subtitle)
+        subtitle.hide()
         heading.addLayout(title_box, 1)
         heading.addStretch(1)
         self.smoke2_preset_button = QPushButton("Load smoke2 BO preset")
@@ -715,6 +715,10 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.close_tuner_button.setCursor(Qt.PointingHandCursor)
         self.close_tuner_button.clicked.connect(self._show_pid_control)
         heading.addWidget(self.close_tuner_button)
+        self.tuner_info_button = QPushButton("Info")
+        self.tuner_info_button.setToolTip("Tuning workflow, scoring and graph controls")
+        self.tuner_info_button.clicked.connect(lambda: self.cruise_navigation.show_help())
+        heading.addWidget(self.tuner_info_button)
         outer.addLayout(heading)
 
         configuration = QFrame()
@@ -772,11 +776,11 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             field_layout.addWidget(label)
             field_layout.addWidget(widget)
             primary_row.addWidget(field, 1)
-            widget.setFixedHeight(36)
+            widget.setMinimumHeight(40)
 
         self.tuner_gain_bounds: dict[str, tuple[QDoubleSpinBox, QDoubleSpinBox]] = {}
         self.tuner_bound_summaries: dict[str, QLabel] = {}
-        defaults = {"Kp": (0.0, 5.0), "Ki": (0.0, 2.0), "Kd": (0.0, 1.0)}
+        defaults = {gain: (0.0, 1.0) for gain in ("Kp", "Ki", "Kd")}
         bounds_panel = QFrame()
         bounds_panel.setObjectName("pidBoundsPanel")
         bounds_layout = QVBoxLayout(bounds_panel)
@@ -824,7 +828,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                 label.setObjectName("pidBoundLabel")
                 field.addWidget(label)
                 field.addWidget(control)
-                control.setFixedHeight(36)
+                control.setMinimumHeight(40)
                 range_row.addLayout(field, 1)
             gain_layout.addLayout(range_row)
             bounds_cards.addWidget(gain_card, 1)
@@ -860,7 +864,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
                               'do not impose rejection limits.')
         response_note.setWordWrap(True)
         response_note.setStyleSheet('color: #c4c7cc;')
-        candidate_layout.addWidget(response_note)
+        response_note.hide()
+        self.tuner_info_button.setToolTip(response_note.text())
         self.tuner_status = QLabel("Not started. Configure and review the safe bounds.")
         self.tuner_status.setObjectName("pidTunerStatus")
         self.tuner_status.setWordWrap(True)
@@ -950,7 +955,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         setup_note.setWordWrap(True)
         setup_note.setStyleSheet('color: #c4c7cc; padding: 4px;')
         setup_note.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        grid.insertWidget(0, setup_note)
+        setup_note.hide()
 
         actions = ResponsiveRow()
         self.prepare_tuning_button = QPushButton("Prepare session")
@@ -984,9 +989,19 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         )
         self.apply_tuned_gains_button.setEnabled(False)
         self.apply_tuned_gains_button.clicked.connect(self._apply_tuned_gains)
-        actions.addWidget(self.prepare_tuning_button)
+        manual_trials = QWidget()
+        manual_actions = ResponsiveRow(manual_trials)
+        manual_actions.setContentsMargins(0, 0, 0, 0)
+        manual_actions.setSpacing(10)
+        manual_actions.addWidget(self.prepare_tuning_button)
         actions.addWidget(self.auto_tuning_button)
-        actions.addWidget(self.run_tuning_trial_button)
+        manual_actions.addWidget(self.run_tuning_trial_button)
+        manual_actions.addStretch(1)
+        manual_trials.hide()
+        self.manual_trials_button = QPushButton("Manual trials")
+        self.manual_trials_button.setCheckable(True)
+        self.manual_trials_button.toggled.connect(manual_trials.setVisible)
+        actions.addWidget(self.manual_trials_button)
         actions.addWidget(self.stop_tuning_button)
         review_actions = ResponsiveRow()
         review_label = QLabel('Review and apply')
@@ -1004,7 +1019,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         # Put actions before the expanding plots so they are reachable without
         # scrolling through the visualization on a shorter window.
         outer.insertLayout(1, actions)
-        outer.insertLayout(2, review_actions)
+        outer.insertWidget(2, manual_trials)
+        outer.addLayout(review_actions)
         for button in (self.prepare_tuning_button, self.auto_tuning_button, self.run_tuning_trial_button,
                        self.stop_tuning_button, self.review_history_button, self.metrics_button,
                        self.approve_gains_button, self.apply_tuned_gains_button):
@@ -1024,17 +1040,6 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             self.tuner_channel.setCurrentIndex(self.selected_index)
             self.tuner_target.setValue(self.setpoint_input.value())
             self._tuner_initialized = True
-        current_gains = {
-            "Kp": self.kp_input.value(),
-            "Ki": self.ki_input.value(),
-            "Kd": self.kd_input.value(),
-        }
-        for gain, value in current_gains.items():
-            minimum, maximum = self.tuner_gain_bounds[gain]
-            if value < minimum.value():
-                minimum.setValue(value)
-            if value > maximum.value():
-                maximum.setValue(value)
         self.page_stack.setCurrentWidget(self.tuner_page)
 
     def _show_pid_control(self) -> None:
@@ -1054,7 +1059,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.min_output_input.setValue(0.0)
         self.max_output_input.setValue(400.0)
         self.max_step_input.setValue(10.0)
-        for gain, limits in {"Kp": (0.0, 2.0), "Ki": (0.0, 2.0), "Kd": (0.0, 0.1)}.items():
+        for gain, limits in {gain: (0.0, 1.0) for gain in ("Kp", "Ki", "Kd")}.items():
             lower, upper = self.tuner_gain_bounds[gain]
             lower.setValue(limits[0])
             upper.setValue(limits[1])
@@ -1065,7 +1070,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         )
 
     def _reset_tuner_bounds(self) -> None:
-        defaults = {"Kp": (0.0, 5.0), "Ki": (0.0, 2.0), "Kd": (0.0, 1.0)}
+        defaults = {gain: (0.0, 1.0) for gain in ("Kp", "Ki", "Kd")}
         for gain, (minimum, maximum) in self.tuner_gain_bounds.items():
             minimum.setValue(defaults[gain][0])
             maximum.setValue(defaults[gain][1])
@@ -1144,6 +1149,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         }
         if any(lower >= upper for lower, upper in bounds.values()):
             self.tuner_status.setText("Each gain minimum must be lower than its maximum.")
+            return
+        average_window = float(self._controller_config().get('feedback_average_seconds', 0))
+        minimum_duration = max(0.5, 3 * average_window)
+        if self.tuner_duration.value() < minimum_duration:
+            self.tuner_status.setText(
+                f'Trial duration is too short for the {average_window:g} s feedback average. '
+                f'Use at least {minimum_duration:g} s, or shorten the feedback average in Control settings.')
             return
         self._stop_pid("Starting tuning session")
         if self.tuning_surrogate_proposal is not None:
@@ -1335,6 +1347,49 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
     def _stop_trial(self, disable: bool = True) -> None:
         self.backend.StopPidTrial(disable)
 
+    def _tuning_output_ready(self):
+        """An explicit Run authorizes output; wait for its telemetry acknowledgement."""
+        channel = self.tuner_channel.currentIndex()
+        candidate = self.tuning_candidate
+        pending = getattr(self, '_tuning_enable_pending', None)
+        try:
+            health = self.backend.Health()
+            snapshot = self.backend.LatestSnapshot()
+            readback = snapshot['channels'][channel]
+            if (str(health['connection']).lower() != 'connected'
+                    or not 0 <= time.time() - float(snapshot['timestamp']) <= 1
+                    or readback.get('interlocked') or readback.get('status') in UNSAFE_STATUSES):
+                raise RuntimeError('Fresh connected telemetry without faults or interlocks is required')
+            if self.beam_feedback:
+                self._refresh_beam(publish=True)
+                if not self.beam_valid:
+                    raise RuntimeError('A fresh calibrated beam measurement is required')
+            command = self.backend.PendingCommand()[channel]
+            if (readback.get('on') and readback.get('enabled')
+                    and command.get('on') and command.get('enabled')):
+                self._tuning_enable_pending = None
+                return True
+            if pending is None:
+                command = self.backend.PendingCommand()[channel]
+                target = float(command['target'])
+                if not min(self.min_output_input.value(), self.max_output_input.value()) <= target <= max(self.min_output_input.value(), self.max_output_input.value()):
+                    raise RuntimeError('Current target lies outside the configured output bounds')
+                self._tuning_enable_pending = (candidate, channel, time.monotonic() + 2)
+                self.backend.SetChannelCommand(channel, target, True, True)
+                if not self.backend.ApplyCommand():
+                    raise RuntimeError('Output-enable command was rejected')
+            elif time.monotonic() >= pending[2]:
+                raise RuntimeError('Timed out waiting for output-enable acknowledgement')
+            self.run_tuning_trial_button.setEnabled(False)
+            self.tuner_status.setText('Waiting for selected output to enable before starting the trial')
+            QTimer.singleShot(50, lambda: self._run_tuning_trial()
+                             if self.tuning_session_active and self.tuning_candidate is candidate else None)
+            return False
+        except Exception as exc:
+            self._stop_tuning_session()
+            self.tuner_status.setText(f'Trial start blocked: {exc}')
+            return False
+
     def _run_tuning_trial(self) -> None:
         if not self.tuning_session_active or self.tuning_trial_candidate is not None:
             return
@@ -1346,6 +1401,8 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
             if self.tuning_auto_run:
                 self._stop_tuning_session()
             self.tuner_status.setText("Hardware BO requires TC1-TC12 and explicit PID arming.")
+            return
+        if not self._tuning_output_ready():
             return
         allocation = [0.0 for _ in CHANNEL_NAMES]
         allocation[channel] = 1.0
@@ -1521,10 +1578,10 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self._lock_controller_inputs(True)
         self.tuning_candidate = best.candidate
         self._run_tuning_trial()
-        if self.tuning_trial_candidate is None:
+        if self.tuning_trial_candidate is None and getattr(self, '_tuning_enable_pending', None) is None:
             self._validating_gains = False
             self._stop_tuning_session()
-        else:
+        elif self.tuning_trial_candidate is not None:
             self.tuner_status.setText(f'Validation running for {self._validation_seconds():g} seconds. Response quality is scored using the October fitness objective.')
 
     def _finish_gain_validation(self, candidate, metrics, safe):
@@ -1885,6 +1942,13 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self._refresh_status()
 
     def _stop_tuning_session(self) -> None:
+        pending = getattr(self, '_tuning_enable_pending', None)
+        self._tuning_enable_pending = None
+        if pending is not None and self.backend is not None:
+            command = self.backend.PendingCommand()[pending[1]]
+            self.backend.SetChannelCommand(pending[1], float(command['target']), False, False)
+            if not self.backend.ApplyCommand():
+                raise RuntimeError('Pending BO output-disable command was rejected')
         self._validating_gains = False
         if self.coil_plot.samples:
             self.coil_status.setText('Tuning stopped | Last recorded trial response (not live)')
@@ -2239,7 +2303,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         self.enable_button.blockSignals(False)
         self._reset_pid_state()
         self.last_safety_message = reason
-        routine = {'Operator stop', 'Stopped by operator', 'Controller changed', 'Channel changed',
+        routine = {'Operator Stop', 'Operator stop', 'Stopped by operator', 'Controller changed', 'Channel changed',
                    'Disarmed', 'Zero command', 'Page closed', 'Preparing hybrid baseline',
                    'Starting hybrid session', 'Starting tuning session', 'Validating BO gains'}
         if was_running and reason not in routine and 'stop failed:' not in reason:
@@ -2419,7 +2483,7 @@ class PidControlPage(CruiseControllerMixin, DetailPage):
         if hasattr(self, 'cruise_workspace'):
             self.cruise_workspace.diagnostics.close()
             self.cruise_workspace.settings.close()
-            if self.cruise.active or self._cruise_stop_failed:
+            if self.cruise.active or self._cruise_stop_failed or getattr(self, '_cruise_start_pending', None) is not None:
                 self._stop_cruise()
         self.settings_dialog.close()
         self.gain_model_dialog.close()

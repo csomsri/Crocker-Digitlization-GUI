@@ -25,11 +25,28 @@ class ValidationTest(unittest.TestCase):
         p.tuning_samples = [(0, 10-error, error, 0, 10, False), (duration, 10-error, error, 0, 10, False)]
         p._oscillation_stopped = oscillating
         p._finish_gain_validation(self.c, evaluate_trial(p.tuning_samples, 10), True)
-    def test_reject_short_unsettled_and_oscillating(self):
-        for duration,error,osc in [(10,0,False),(60,5,False),(60,0,True)]:
-            self.finish(duration,error,osc)
-            self.assertFalse(self.p.apply_tuned_gains_button.isEnabled())
-            self.assertIsNone(self.p.apply_tuned_gains_button.property('approvedCandidate'))
+    def test_reject_short_validation(self):
+        self.finish(10)
+        self.assertFalse(self.p.apply_tuned_gains_button.isEnabled())
+        self.assertIsNone(self.p.apply_tuned_gains_button.property('approvedCandidate'))
+
+    def test_bo_rejects_trial_shorter_than_feedback_windows_before_start(self):
+        self.p.backend_available = True
+        self.p.backend = object()
+        self.p.nla_window_input.setValue(.3)
+        self.p.tuner_duration.setValue(.5)
+        try:
+            self.p._prepare_tuning_session()
+            self.assertFalse(self.p.tuning_session_active)
+            self.assertIn('Trial duration is too short', self.p.tuner_status.text())
+        finally:
+            self.p.backend = None
+
+    def test_full_duration_uses_october_score_without_diagnostic_rejection(self):
+        for error, oscillating in [(5, False), (0, True)]:
+            self.finish(60, error, oscillating)
+            self.assertTrue(self.p.apply_tuned_gains_button.isEnabled())
+
     def test_validated_gain_precision_and_frozen_target(self):
         self.p.tuner_target.setValue(10)
         self.finish(60)

@@ -69,6 +69,7 @@ def main() -> int:
         page.tuner_safety_profile.setCurrentIndex(0)
 
         page.tuner_target.setValue(0.3)
+        page.nla_window_input.setValue(0.05)
         page.tuner_duration.setValue(0.5)
         page.prepare_tuning_button.click()
         # Cold PyTorch import on Windows can take over 20 s. Keep this a

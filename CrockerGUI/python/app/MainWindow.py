@@ -79,7 +79,7 @@ class MainWindow(QMainWindow):
         self._data_pipeline: DataPipelineManager | None = None
         self._crocker_root = Path(__file__).resolve().parents[2]
         pipeline_db_path = self.db_path if self.db_path.is_absolute() else self._crocker_root / self.db_path
-        self.beam_calibration = BeamCalibrationService(self._crocker_root / "config" / "beam_cal.json")
+        self.beam_calibration = BeamCalibrationService(self._crocker_root / "config" / ("first_order_beam_cal.json" if simulation_mode == "first-order" else "beam_cal.json"))
         self.alarm_service = AlarmService(self._crocker_root / "config" / "alarm_config.json", pipeline_db_path)
         self.database_a = TelemetryDatabase(pipeline_db_path, simulation_mode or backend_mode)
         self.database_b = PIDDatabase(pipeline_db_path.with_name('crocker_pid.sqlite3'))
@@ -822,14 +822,15 @@ class MainWindow(QMainWindow):
         if type(page) is PidControlPage and self.simulation_mode == "first-order":
             page.channel_select.setCurrentIndex(9)
             page.setpoint_input.setValue(0.8)
-            page.kp_input.setValue(40.0)
-            page.ki_input.setValue(20.0)
+            page.kp_input.setValue(15.0)
+            page.ki_input.setValue(0.0)
             page.kd_input.setValue(0.0)
+            page.nla_deadband_input.setValue(0.05)
             page.max_output_input.setValue(250.0)
             page.tuner_trials.setValue(10)
             page.tuner_duration.setValue(20.0)
             page.dry_run_check.setChecked(False)
-            for name, limits in {"Kp": (0.0, 100.0), "Ki": (0.0, 80.0), "Kd": (0.0, 10.0)}.items():
+            for name, limits in {gain: (0.0, 1.0) for gain in ("Kp", "Ki", "Kd")}.items():
                 lower, upper = page.tuner_gain_bounds[name]
                 lower.setValue(limits[0])
                 upper.setValue(limits[1])

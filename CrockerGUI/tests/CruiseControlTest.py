@@ -76,6 +76,7 @@ class CruiseIntegrationTest(unittest.TestCase):
     def test_start_stop_and_watchdog_never_recover_fault(self):
         p = self.page
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         self.assertTrue(p.pid_enabled)
         self.assertTrue(p.cruise.active)
         self.assertFalse(p.dry_run_check.isChecked())
@@ -89,8 +90,10 @@ class CruiseIntegrationTest(unittest.TestCase):
         p = self.page
         p.tuner_trials.setValue(3)
         p.tuner_duration.setValue(.6)
+        p.nla_window_input.setValue(.05)
         p.validation_duration.setValue(1)
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         previous = p._cruise_snapshot()
         p._begin_cruise_tuning()
         self.assertTrue(p.tuning_session_active)
@@ -114,6 +117,7 @@ class CruiseIntegrationTest(unittest.TestCase):
     def test_stop_during_proposal_and_failed_stop_can_retry(self):
         p = self.page
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         p._begin_cruise_tuning()
         p._stop_cruise()
         self.assertFalse(p._cruise_auto_validate)
@@ -138,6 +142,7 @@ class CruiseIntegrationTest(unittest.TestCase):
         p.show()
         self.app.processEvents()
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         p.cruise_workspace.show_settings()
         self.app.processEvents()
         from PySide6.QtWidgets import QPushButton
@@ -162,6 +167,7 @@ class CruiseIntegrationTest(unittest.TestCase):
             self.assertFalse(p.pid_enabled)
             self.assertFalse(p.tuning_session_active)
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         nav.tabs.setCurrentIndex(nav.targets.index(p._advanced_control_page))
         self.assertTrue(p.pid_enabled)
         from PySide6.QtWidgets import QPushButton
@@ -173,11 +179,13 @@ class CruiseIntegrationTest(unittest.TestCase):
     def test_validation_fault_does_not_resume_and_changed_context_blocks_apply(self):
         p = self.page
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         with patch.object(p, '_resume_cruise') as resume:
             p._finish_cruise_validation(valid=False, safe=False)
             resume.assert_not_called()
         self.assertFalse(p.cruise.active)
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         self.assertTrue(p.cruise.active, p.last_safety_message)
         p._cruise_context = p._cruise_fingerprint()
         p._cruise_pending = True
@@ -192,6 +200,7 @@ class CruiseIntegrationTest(unittest.TestCase):
     def test_search_time_plateau_and_ramp_gate(self):
         p = self.page
         p._start_cruise()
+        self.wait_until(lambda: p.pid_enabled)
         self.assertTrue(p._cruise_ramp_settled())
         p.actual_values[p.selected_index] = 100
         self.assertFalse(p._cruise_ramp_settled())
