@@ -7,6 +7,89 @@ NLAPID and ControlService execute every trial; Python coordinates experiments.
 
 ## Workflow
 
+### Select the hybrid approach
+
+Open **AI tuning → BO / GA settings → BO learning**. The approach selector offers:
+
+| Approach | Search and inheritance |
+| --- | --- |
+| Current hybrid (default) | Original complete-history GA → challenger → paired confirmation → BO policy described below. |
+| Windowed BO + Lamarckian GA | GA remains in charge; successful measured local BO refinements replace the individual's inherited gains. |
+| Windowed BO + Baldwinian GA | GA keeps the original inherited gains but selects using the measured fitness achieved by local BO learning. |
+| Windowed BO + mixed learning GA | Choose Lamarckian or Baldwinian inheritance independently per individual using the configured probability. |
+
+Switch approaches between sessions. Session inputs are locked during execution;
+programmatic changes are caught by the existing configuration fingerprint. Returning
+to Current hybrid uses the original optimizer, without rolling-window filtering.
+Window-specific controls are disabled in that mode; handover/plateau controls are
+disabled in the three windowed modes.
+
+All new parameters are editable in **BO learning**:
+
+| Setting | Default | Meaning / units |
+| --- | --- | --- |
+| W | 32 | Latest completed valid physical trials; must be at least the distinct-point minimum. |
+| Local radius | 0.15 | Fraction of each full gain-bound span on either side of the current learned gains, clipped to bounds. |
+| Refinement probability | 0.5 | Probability of offering BO learning to an eligible measured GA individual. |
+| Lamarckian probability | 0.5 | Probability of Lamarckian inheritance in mixed mode. |
+| Refinement trials | 1 | Maximum additional physical BO trials per selected individual. |
+| Uncertainty multiplier | 1 | Posterior standard deviations added to predicted cost for the proposal gate. |
+| Monte Carlo samples | 256 | Acquisition sampling count. |
+| Acquisition restarts | 10 | Acquisition optimization restart count. |
+| Acquisition raw samples | 256 | Acquisition initialization sample count. |
+
+Population, mutation probability/scale, random seed, baseline repeats, readiness,
+improvement margin, reference/exploration intervals, and drift threshold remain in
+the other tabs of this same settings window. Target, channel, gain bounds, trial
+duration, total budget, and PID configuration remain in the existing tuning/PID
+settings. Fractions and probabilities are unitless; W and budgets count trials.
+Beam and actuator units remain nA and A, and trial timing is in seconds.
+
+Windowed modes train and render the GP using only the most recent W valid
+observations. Baseline, reference, exploration, parents, and refinements all count;
+repeats stay as separate observations. Failed/incomplete responses remain in the
+full audit archive, do not train the GP, and stop the search. Readiness (distinct
+vectors AND gain-span coverage) is recomputed within the current window and can
+be lost when older points leave it. This is a forgetting GP, without an explicit
+time input or temporal kernel. The full archive still grows; W bounds GP fitting
+size rather than total audit memory.
+
+Every GA parent is physically measured before learning. When ready, BO refits on
+the current window and proposes within the local radius. A proposal is run only
+if predicted cost plus the uncertainty margin improves on the current measured
+cost beyond the configured relative/baseline-noise margin. In windowed modes,
+measured cost improvement beyond that same margin accepts a refinement; the
+legacy paired beam-MAE handover gate applies only to Current hybrid. Each accepted
+step may become the center of the next refinement, up to the configured trial
+limit. A non-improving step ends learning and retains the best measured response
+for selection. Rejected predictions spend no physical trial. Every physical
+refinement consumes the shared budget, and budget exhaustion completes selection
+using measurements already obtained.
+
+Baldwinian selection fitness is recorded separately from physical measurement
+fitness. BO always associates a response with the gains that actually ran; it
+never assigns a learned response to the untested original genotype. All surviving
+individuals, including elites, are measured again in each new GA generation.
+The final-validation candidate is chosen from the latest measured response per
+gain vector in the current window, never from Baldwinian selection scores.
+Existing independent validation is still required before applying gains.
+
+Reference drift checks still stop the session in all modes: rolling-window
+forgetting does not override the existing drift guard. Baseline restoration in
+the current code resets software TC targets without waiting for physical current
+or beam settling. These behaviors also apply to the new modes.
+
+Session JSON stores the selected approach, every parameter, full measured history,
+active-window count, and genotype/phenotype/selection decisions. These learning
+fields are also available in the history table and its CSV export. Search policy
+is implemented separately in `rolling_hybrid_optimizer.py`; the original
+`hybrid_pid_optimizer.py` remains the legacy implementation.
+
+Run `py -3.13 tests/RollingHybridTest.py` from `CrockerGUI`. Policy tests use
+synthetic measured responses; real BoTorch and GUI tests require the installed
+project dependencies and native extension. They do not establish performance
+superiority on the physical plant.
+
 ### State definitions
 
 The optimizer uses `HybridState` and stores its current state in `self.state`.

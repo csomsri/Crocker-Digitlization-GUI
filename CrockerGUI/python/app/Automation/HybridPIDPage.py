@@ -36,7 +36,8 @@ from python.app.Automation.ControlOwnership import active_controller
 from python.app.Automation.PIDRecording import recording
 from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.DisplayNumbers import display_number
-from source.Python.Optimization.hybrid_pid_optimizer import HybridPIDOptimizer, HybridConfig
+from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox
+from source.Python.Optimization.rolling_hybrid_optimizer import create_hybrid_optimizer
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
 from source.Python.Optimization.trial_metrics import evaluate_trial, trial_cost
 from source.Python.Automation.ga_recovery import GARecoveryManager
@@ -138,10 +139,19 @@ class HybridPIDPage(PidControlPage):
         layout.addWidget(tabs)
         self.hybrid_fields = {}
         fields = [
+            ('BO learning', [('window_size','BO window W (valid trials)',32,4,500,0),
+                    ('local_radius','Local radius / full gain span',.15,.001,1,3),
+                    ('refinement_probability','Fraction of individuals offered refinement',.5,0,1,3),
+                    ('lamarckian_probability','Lamarckian fraction in mixed mode',.5,0,1,3),
+                    ('refinement_trials','Maximum refinement trials per individual',1,1,20,0),
+                    ('uncertainty_multiplier','Prediction uncertainty multiplier (SD)',1,0,10,3),
+                    ('mc_samples','BO Monte Carlo samples',256,1,4096,0),
+                    ('num_restarts','BO acquisition restarts',10,1,100,0),
+                    ('raw_samples','BO acquisition raw samples',256,1,4096,0)]),
             ('GA', [('population','Population',6,4,30,0),('baseline_repeats','Baseline repeats',3,2,10,0),
                     ('mutation_probability','Mutation probability',.25,0,1,3),('mutation_scale','Mutation scale / gain span',.1,0,1,3),('seed','Random seed',1729,0,999999,0)]),
-            ('Handover', [('minimum_distinct','Distinct points before BO',12,4,100,0),('coverage','Minimum span / gain bound',.35,.05,1,3),
-                    ('improvement_fraction','Minimum improvement: cost AND beam MAE',.05,.001,1,3),('confirmation_pairs','Paired confirmations',3,3,10,0),('plateau_trials','BO trials without improvement',5,1,30,0)]),
+            ('BO readiness / handover', [('minimum_distinct','Distinct points before BO',12,4,100,0),('coverage','Minimum span / gain bound',.35,.05,1,3),
+                    ('improvement_fraction','Minimum cost improvement (legacy also gates beam MAE)',.05,.001,1,3),('confirmation_pairs','Paired confirmations',3,3,10,0),('plateau_trials','BO trials without improvement',5,1,30,0)]),
             ('Data quality', [('reference_interval','Trials between reference batches',8,1,100,0),
                     ('exploration_interval','Search trials between exploration points',5,1,100,0),
                     ('drift_fraction','Reference drift fraction',.2,.001,1,3)]),
@@ -153,6 +163,14 @@ class HybridPIDPage(PidControlPage):
         for title,entries in fields:
             content = QWidget()
             form = QFormLayout(content)
+            if title == 'BO learning':
+                self.hybrid_approach = ScreenSafeComboBox()
+                for label, key in [('Current hybrid (GA → BO handover)', 'legacy'),
+                                   ('Windowed BO + Lamarckian GA', 'lamarckian'),
+                                   ('Windowed BO + Baldwinian GA', 'baldwinian'),
+                                   ('Windowed BO + mixed learning GA', 'mixed')]:
+                    self.hybrid_approach.addItem(label, key)
+                form.addRow('Hybrid approach', self.hybrid_approach)
             for key,label,value,low,high,decimals in entries:
                 control = QDoubleSpinBox() if decimals else QSpinBox()
                 control.setRange(low,high)
@@ -167,12 +185,17 @@ class HybridPIDPage(PidControlPage):
             scroll.setWidgetResizable(True)
             scroll.setWidget(content)
             tabs.addTab(scroll,title)
-        note = QLabel('One shared cost profile and fixed trial window for GA and BO. All candidates restore the same baseline.\n'
-                      'BO predicts cost. Handover requires measured cost AND beam MAE improvement beyond their separate noise margins.\n'
+        note = QLabel('Current hybrid preserves the existing GA → BO handover. Windowed modes keep GA in charge.\n'
+                      'W counts recent valid measured trials, including repeats. All history is retained.\n'
+                      'Lamarckian: inherit refined gains. Baldwinian: inherit original gains, select using learned fitness.\n'
+                      'Every refinement uses the physical trial budget. Radius/probability settings are unitless fractions.\n'
+                      'Reference drift checks still stop the session. Target reset does not wait for physical settling.\n'
                       'Final validation uses the configured trial duration and is separate from the search budget.\n'
                       'Stock smoke/smoke2/cyclotron simulations do not couple TC current to beam output.')
         note.setWordWrap(True)
         layout.addWidget(note)
+        self.hybrid_approach.currentIndexChanged.connect(self._update_learning_controls)
+        self._update_learning_controls()
         close = QPushButton('Close settings')
         close.clicked.connect(self.hybrid_settings.close)
         layout.addWidget(close)
@@ -372,7 +395,9 @@ class HybridPIDPage(PidControlPage):
         ai_title = QLabel('AI tuning')
         ai_title.setObjectName('hybridHeading')
         heading.addWidget(ai_title, 1)
-        for text, callback in (('Tuning settings', self.ai_settings.show), ('Back to control', self._show_pid_control)):
+        for text, callback in (('Tuning settings', self.ai_settings.show),
+                               ('BO / GA settings', self.hybrid_settings.show),
+                               ('Back to control', self._show_pid_control)):
             button = QPushButton(text)
             button.clicked.connect(callback)
             heading.addWidget(button)
@@ -764,9 +789,13 @@ class HybridPIDPage(PidControlPage):
             generation, population, index, total = self.hybrid.ga.progress()
             self.search_summaries['GA'].setText(f'Generation {generation} · Candidate {index} of {total}\nExplores the allowed gain range using measured results.')
             prediction = self.hybrid.prediction
+            rolling = hasattr(self.hybrid.config, 'window_size')
+            detail = (f'Window: {len(self.hybrid.optimizer.safe_observations)}/{self.hybrid.config.window_size} valid trials · '
+                      f'{self.hybrid.config.learning_mode} learning. GA remains in charge.' if rolling
+                      else 'Measured confirmation is required before taking over.')
             self.search_summaries['BO'].setText(
-                f'Predicted performance score: {display_number(prediction[0])}\nPrediction uncertainty: ± {display_number(prediction[1])}\nMeasured confirmation is required before taking over.'
-                if prediction else 'Learning from measured trials.\nA proposal appears once enough diverse results are available.')
+                f'Predicted performance score: {display_number(prediction[0])}\nPrediction uncertainty: ± {display_number(prediction[1])}\n{detail}'
+                if prediction else f'Learning from measured trials.\n{detail}')
             for name, plot in self.search_plots.items():
                 sources = ('GA', 'Exploration') if name == 'GA' else ('BO', 'Confirm')
                 plot.records = [r for r in self.hybrid.records if r['source'].startswith(sources)]
@@ -789,7 +818,24 @@ class HybridPIDPage(PidControlPage):
             self.tuner_status.setText(f'TC enable failed: {exc}')
 
     def _field_values(self):
-        return {k:w.value() for k,w in self.hybrid_fields.items()}
+        return dict({k:w.value() for k,w in self.hybrid_fields.items()},
+                    approach=self.hybrid_approach.currentData())
+
+    def _update_learning_controls(self):
+        mode = self.hybrid_approach.currentData()
+        locked = getattr(self, '_hybrid_controls_locked', False)
+        rolling_keys = {'window_size','local_radius','refinement_probability',
+                        'refinement_trials','uncertainty_multiplier','mc_samples',
+                        'num_restarts','raw_samples'}
+        for key, widget in self.hybrid_fields.items():
+            relevant = (mode != 'legacy' if key in rolling_keys else
+                        mode == 'mixed' if key == 'lamarckian_probability' else
+                        mode == 'legacy' if key in {'confirmation_pairs','plateau_trials'} else True)
+            widget.setEnabled(relevant and not locked)
+        self.hybrid_approach.setEnabled(not locked)
+        if hasattr(self, 'state_label') and not locked:
+            self.state_label.setText('Baseline → GA → BO challenger → Confirmation → BO → Validation'
+                if mode == 'legacy' else f'Baseline → GA with {mode} BO learning → Validation')
 
     def _fingerprint(self):
         beam = self.get_beam_state() if self.get_beam_state else {}
@@ -801,9 +847,16 @@ class HybridPIDPage(PidControlPage):
                 beam.get('range_index'),beam.get('calibration_revision'),beam.get('select_mode'))
 
     def _lock_controller_inputs(self, locked):
+        self._hybrid_controls_locked = locked
         super()._lock_controller_inputs(locked)
         for widget in getattr(self,'hybrid_fields',{}).values():
             widget.setEnabled(not locked)
+        if hasattr(self, 'hybrid_approach'):
+            self._update_learning_controls()
+            if locked:
+                self.hybrid_approach.setEnabled(False)
+                for widget in self.hybrid_fields.values():
+                    widget.setEnabled(False)
         if hasattr(self,'tuner_profile'):
             self.tuner_profile.setEnabled(not locked)
 
@@ -829,7 +882,6 @@ class HybridPIDPage(PidControlPage):
             if not self.beam_valid:
                 raise ValueError('Fresh calibrated beam feedback is required')
             self._settings = self._field_values()
-            config = HybridConfig(**{k:self._settings[k] for k in HybridConfig.__dataclass_fields__ if k != 'budget'}, budget=self.tuner_trials.value())
             bounds = [(a.value(),b.value()) for a,b in self.tuner_gain_bounds.values()]
             if self.tuner_duration.value() <= self._settings['warmup']:
                 raise ValueError('Trial duration must exceed warmup')
@@ -847,7 +899,9 @@ class HybridPIDPage(PidControlPage):
             self._session_path = None
             self.apply_tuned_gains_button.setEnabled(False)
             self.apply_tuned_gains_button.setProperty('approvedCandidate',None)
-            self.hybrid = HybridPIDOptimizer(bounds,PidGainCandidate(self.kp_input.value(),self.ki_input.value(),self.kd_input.value()),config)
+            self.hybrid = create_hybrid_optimizer(bounds,
+                PidGainCandidate(self.kp_input.value(),self.ki_input.value(),self.kd_input.value()),
+                **self._settings, budget=self.tuner_trials.value())
             self.reference = GARecoveryManager.capture(targets_a=[c['target'] for c in commands],
                 actual_values_a=[c['actual'] for c in snapshot['channels']],beam_nA=self.beam_value,
                 channel_indices=[self._channel],timestamp_s=time.monotonic())
@@ -1163,7 +1217,7 @@ class HybridPIDPage(PidControlPage):
         layout = setup_pid_dialog(dialog,'Hybrid measured history',window_controls=False)
         tabs = QTabWidget()
         tabs.addTab(HybridCostPlot(records),'Measured costs / predictions')
-        keys = ['trial','source','state','kp','ki','kd','cost','beam_mae_nA','steady_error_nA','safe','valid_response','settled','prediction','prediction_std','beam_error_gate','reference_check','confirmation_order','reason']
+        keys = ['trial','source','state','kp','ki','kd','cost','beam_mae_nA','steady_error_nA','safe','valid_response','settled','prediction','prediction_std','beam_error_gate','reference_check','confirmation_order','window_observations','learning_mode','learning_parent','learning_improved','selection','reason']
         table = QTableWidget(len(records),len(keys))
         table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         table.setHorizontalHeaderLabels(keys)
