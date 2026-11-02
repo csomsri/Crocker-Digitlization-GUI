@@ -5,7 +5,7 @@ if(POLICY CMP0141)
 endif()
 set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
 
-project(CrockerGUI LANGUAGES C CXX)
+project(CrockerGUI LANGUAGES C CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -16,6 +16,21 @@ option(CROCKER_BUILD_PYTHON "Build the Python extension" ON)
 option(CROCKER_BUILD_OPENGL_TEST "Build the standalone OpenGL 4.6 smoke test" OFF)
 
 find_package(OpenGL REQUIRED)
+
+find_package(CUDAToolkit)
+
+if(CUDAToolkit_FOUND)
+    message(STATUS "CUDA Toolkit found. Enabling GPU acceleration.")
+    # Enable the CUDA compiler for this project
+    enable_language(CUDA)
+    target_compile_definitions(CrockerGUI PRIVATE CROCKER_USE_CUDA)
+    target_sources(CrockerGUI PRIVATE 
+        source/Engine/Visualization/Cuda/BarChart.cu
+    )
+    target_link_libraries(CrockerGUI PRIVATE CUDA::cudart)
+else()
+    message(STATUS "CUDA Toolkit NOT found. Building CPU-only fallback.")
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/libzmq/CMakeLists.txt")
     set(BUILD_SHARED OFF CACHE BOOL "Build ZeroMQ shared library" FORCE)

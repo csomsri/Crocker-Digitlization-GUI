@@ -4,6 +4,11 @@
 #include "ChartGeometry.hpp"
 using crocker::engine::Primitive;
 
+#ifdef CROCKER_USE_CUDA
+#include "Engine/Visualization/Cuda/BarChartCuda.cuh"
+#include <cuda_runtime.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <iomanip>
@@ -51,23 +56,40 @@ void BarChart::Render(const ChartRect& area) {
     const float zeroY = plot.bottom + chart_geometry::Normalize(0.0f, minimum, maximum) * (plot.top - plot.bottom);
     const float slotWidth = (plot.right - plot.left) / static_cast<float>(table.rows.size());
     const float gap = std::min(slotWidth * 0.16f, 6.0f);
-    std::vector<std::vector<float>> bars(table.rows.size());
+    
+    std::size_t numBars = table.rows.size();
+    std::vector<std::vector<float>> bars(numBars);
 
-    for (std::size_t i = 0; i < table.rows.size(); ++i) {
-        const float x0 = plot.left + static_cast<float>(i) * slotWidth + gap;
-        const float x1 = plot.left + static_cast<float>(i + 1) * slotWidth - gap;
-        const float valueY = plot.bottom + chart_geometry::Normalize(table.rows[i][valueColumn], minimum, maximum) * (plot.top - plot.bottom);
-        const float y0 = std::min(zeroY, valueY);
-        const float y1 = std::max(zeroY, valueY);
-        const float nx0 = chart_geometry::ToNdcX(x0, viewport);
-        const float nx1 = chart_geometry::ToNdcX(x1, viewport);
-        const float ny0 = chart_geometry::ToNdcY(y0, viewport);
-        const float ny1 = chart_geometry::ToNdcY(y1, viewport);
+    std::vector<float> h_values(numBars);
+    for (std::size_t i = 0; i < numBars; ++i) {
+        h_values[i] = table.rows[i][valueColumn];
+    }
+
+    float *d_values, *d_vertices;
+    cudaMalloc(&d_values, numBars * sizeof(float));
+    cudaMalloc(&d_vertices, numBars * 12 * sizeof(float));
+
+    cudaMemcpy(d_values, h_values.data(), numBars * sizeof(float), cudaMemcpyHostToDevice);
+
+    crocker::cuda::ViewportParams vp = {viewport[0], viewport[1], viewport[2], viewport[3]};
+    crocker::cuda::GenerateBarVertices(
+        d_values, d_vertices, numBars,
+        plot.left, plot.bottom, plot.top,
+        minimum, maximum, zeroY,
+        slotWidth, gap, vp
+    );
+
+    std::vector<float> h_vertices(numBars * 12);
+    cudaMemcpy(h_vertices.data(), d_vertices, numBars * 12 * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaFree(d_values);
+    cudaFree(d_vertices);
+
+    for (std::size_t i = 0; i < numBars; ++i) {
         auto& triangles = bars[i];
-        triangles.insert(triangles.end(), {
-            nx0, ny0, nx1, ny0, nx1, ny1,
-            nx0, ny0, nx1, ny1, nx0, ny1
-        });
+        triangles.insert(triangles.end(), 
+                         h_vertices.begin() + (i * 12), 
+                         h_vertices.begin() + ((i + 1) * 12));
     }
 
     if (style.showGrid) {
