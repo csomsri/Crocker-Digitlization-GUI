@@ -330,7 +330,7 @@ class MainWindow(QMainWindow):
 
     def _assignable_page_names(self) -> list[str]:
         detail_names = (
-            name for name in DETAIL_BUILDERS if name != "Settings"
+            name for name in DETAIL_BUILDERS if name not in {"Settings", "Trim-coil BO"}
         )
         return ["Home", *PAGE_BUILDERS.keys(), *detail_names]
 
@@ -785,6 +785,8 @@ class MainWindow(QMainWindow):
         for page in self.pages.values():
             if isinstance(page, (PidControlPage, GAPIDPage)):
                 page.stop_backend()
+            if isinstance(page, DETAIL_BUILDERS['Trim-coil BO'][1]):
+                page.stop_backend()
         if self._data_pipeline is not None:
             self._data_pipeline.stop()
         else:
@@ -799,6 +801,10 @@ class MainWindow(QMainWindow):
         self._finish_recording_close()
 
     def _finish_recording_close(self):
+        if any(isinstance(page, DETAIL_BUILDERS['Trim-coil BO'][1]) and page.run_active
+               for page in self.pages.values()):
+            QTimer.singleShot(100, self._finish_recording_close)
+            return
         writers = (self.database_a.writer, self.database_b.writer)
         if not all(w.done.is_set() for w in writers):
             QTimer.singleShot(100, self._finish_recording_close)

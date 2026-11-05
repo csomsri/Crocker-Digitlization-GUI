@@ -1,6 +1,9 @@
 # Crocker-Digitlization-GUI
 Hello this is the GUI for Crocker Nuclear Lab
 
+Known beam-producing cyclotron settings belong in [reference values](reference_values/README.md).
+See the [direct MISO trim-coil Bayesian optimization plan](CrockerGUI/MISO_TRIM_COIL_BO_PLAN.md).
+
 ## How To Run
 You need to have:
 - Windows Operating System (Linux / Ubuntuu Should Work too but not Guranteed)

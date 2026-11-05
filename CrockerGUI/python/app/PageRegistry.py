@@ -5,6 +5,7 @@ from python.app.Automation.GAPIDPage import GAPIDPage, PythonGAPIDPage
 from python.app.Automation.PidControlPage import PidControlPage
 from python.app.Automation.PythonPIDPage import PythonPIDPage
 from python.app.Automation.HybridPIDPage import HybridPIDPage
+from python.app.Automation.TrimCoilBOPage import TrimCoilBOPage
 from python.app.Controls.AlarmPage import AlarmPage
 from python.app.Controls.BeamRangePage import BeamRangePage
 from python.app.Controls.FieldCtrlPage import FieldCtrlPage
@@ -66,5 +67,6 @@ DETAIL_BUILDERS = {
     "GA + C++ PID": ("Automation", GAPIDPage),
     "GA + Python PID": ("Automation", PythonGAPIDPage),
     "Hybrid GA + BO PID": ("Automation", HybridPIDPage),
+    "Trim-coil BO": ("Automation", TrimCoilBOPage),
 }
 

@@ -36,6 +36,8 @@ from python.app.Automation.ControlOwnership import active_controller
 from python.app.Automation.PIDRecording import recording
 from python.app.widgets.PidDialog import setup_pid_dialog
 from python.app.widgets.DisplayNumbers import display_number
+from python.app.Automation.HybridCostPlot import HybridCostPlot, trial_method
+from python.app.Automation.BeamResponsePlot import BeamResponsePlot
 from python.app.widgets.ScreenSafeComboBox import ScreenSafeComboBox
 from source.Python.Optimization.rolling_hybrid_optimizer import create_hybrid_optimizer
 from source.Python.Optimization.pid_gain_adapter import PidGainCandidate, PidTrialResult
@@ -47,54 +49,6 @@ from source.Python.Automation.ga_backend_adapter import GABackendAdapter
 class OperatorDecimalSpinBox(QDoubleSpinBox):
     def textFromValue(self, value):
         return display_number(value, significant=12, grouping=False, max_decimals=12)
-
-
-class HybridCostPlot(QWidget):
-    """Measured costs are colored by origin; model predictions have separate error bars."""
-    def __init__(self, records, parent=None, *, compact=False):
-        super().__init__(parent)
-        self.records = records
-        self.compact = compact
-        self.setMinimumSize(500, 230)
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setFont(QFont('Segoe UI', 10))
-        p.setRenderHint(QPainter.Antialiasing)
-        p.fillRect(self.rect(), QColor('#1a1c1f'))
-        colors = {'Baseline':'#c5a0ff','Reference':'#c5a0ff','Exploration':'#ffcf82','GA':'#ffbf78','BO':'#65cfff','Confirm':'#e82138'}
-        p.setPen(QColor('#dce7f5'))
-        p.drawText(16,24,'Measured performance · Lower is better' if self.compact else 'Baseline/reference: purple · Exploration: yellow · GA: orange · BO: blue · Confirmation: green')
-        p.drawText(16,44,'Solid: measured · Hollow: predicted' if self.compact else 'Prediction: hollow gray point ±1 model standard deviation. Failed trials have no comparable cost.')
-        rows = [r for r in self.records if r['cost'] is not None]
-        values = [r['cost'] for r in rows]
-        values += [max(0,r['prediction']+r['prediction_std']) for r in rows if r['prediction'] is not None]
-        high = max(values,default=1)*1.1 or 1
-        ticks = [display_number(high*i/4) for i in range(5)]
-        left = max(70, max(p.fontMetrics().horizontalAdvance(t) for t in ticks)+16)
-        rect = QRectF(left,64,max(1,self.width()-left-20),self.height()-105)
-        n = max((r['trial'] for r in self.records), default=1)
-        def point(i,v):
-            return QPointF(rect.left()+(i-1)*rect.width()/max(1,n-1),rect.bottom()-max(0,v)/high*rect.height())
-        for i in range(5):
-            y = rect.bottom()-rect.height()*i/4
-            p.setPen(QColor('#33363b'))
-            p.drawLine(QPointF(rect.left(),y),QPointF(rect.right(),y))
-            p.setPen(QColor('#c4c7cc'))
-            p.drawText(QRectF(0,y-9,left-10,18),Qt.AlignRight,ticks[i])
-        p.drawText(left,self.height()-15,f'Trial 1 → {n}     Lower cost is better')
-        p.setClipRect(rect.adjusted(-5,-5,5,5))
-        for r in rows:
-            if r['prediction'] is not None:
-                mu,sd = r['prediction'],r['prediction_std']
-                p.setPen(QPen(QColor('#a5a8ae'),1))
-                p.setBrush(Qt.NoBrush)
-                p.drawLine(point(r['trial'],mu-sd),point(r['trial'],mu+sd))
-                p.drawEllipse(point(r['trial'],mu),4,4)
-            color = next((v for k,v in colors.items() if r['source'].startswith(k)), '#ffffff')
-            p.setPen(QColor(color))
-            p.setBrush(QColor(color))
-            p.drawEllipse(point(r['trial'],r['cost']),3,3)
 
 
 class HybridPIDPage(PidControlPage):
@@ -117,6 +71,8 @@ class HybridPIDPage(PidControlPage):
         self._validation_result = None
         self._session_fingerprint = None
         self._session_path = None
+        self.trial_responses = {}
+        self._response_start_index = 0
         super().__init__(*args, **kwargs)
         self.log_path = self.log_path.with_name('hybrid_beam_pid_commands.csv')
         self.header.title = 'HYBRID GA + BO PID'
@@ -424,10 +380,9 @@ class HybridPIDPage(PidControlPage):
         ai.addWidget(self.state_label)
         columns = ResponsiveRow()
         self.search_summaries = {}
-        self.search_plots = {}
         for name, description, color in (
-            ('GA', 'Explore different gain combinations', '#ffbf78'),
-            ('BO', 'Predict and refine the best response', '#65cfff')):
+            ('GA', 'Explore different gain combinations', '#75baff'),
+            ('BO', 'Predict and refine the best response', '#bc96ff')):
             card = QFrame()
             card.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             card.setObjectName('hybridDashboardCard')
@@ -440,10 +395,6 @@ class HybridPIDPage(PidControlPage):
             summary.setWordWrap(True)
             self.search_summaries[name] = summary
             box.addWidget(summary)
-            plot = HybridCostPlot([], compact=True)
-            plot.setMinimumWidth(200)
-            self.search_plots[name] = plot
-            box.addWidget(plot, 1)
             if name == 'GA':
                 button = QPushButton('Exploration settings')
                 button.clicked.connect(self.hybrid_settings.show)
@@ -461,9 +412,27 @@ class HybridPIDPage(PidControlPage):
         ''')
         search_page = QWidget()
         search_layout = QVBoxLayout(search_page)
-        search_layout.addLayout(columns, 1)
-        self.hybrid_workspace_tabs.addTab(search_page, 'Search progress · GA / BO')
-        self.hybrid_workspace_tabs.addTab(self.tuner_viewport, 'Live trial response')
+        self.cost_comparison = HybridCostPlot([])
+        self.cost_comparison.trialSelected.connect(self._select_trial_response)
+        search_layout.addWidget(self.cost_comparison, 2)
+        self.current_trial_label = QLabel('Current trial: waiting · method will show GA, BO, or the measurement purpose')
+        self.current_trial_label.setWordWrap(True)
+        self.current_trial_label.setStyleSheet('font-size: 15px; font-weight: 600; padding: 6px;')
+        search_layout.addWidget(self.current_trial_label)
+        search_layout.addWidget(self.tuner_viewport, 3)
+        self.hybrid_workspace_tabs.addTab(search_page, 'Cost + live PID response')
+        review = QWidget()
+        review_layout = QVBoxLayout(review)
+        self.selected_trial_label = QLabel('Click a cost marker to inspect its recorded PID response.')
+        self.selected_trial_label.setWordWrap(True)
+        review_layout.addWidget(self.selected_trial_label)
+        self.selected_response_plot = BeamResponsePlot()
+        review_layout.addWidget(self.selected_response_plot, 1)
+        self.hybrid_workspace_tabs.addTab(review, 'Selected trial response')
+        details = QWidget()
+        details_layout = QVBoxLayout(details)
+        details_layout.addLayout(columns)
+        self.hybrid_workspace_tabs.addTab(details, 'Search details')
         self.tuner_viewport.show()
         ai.addWidget(self.hybrid_workspace_tabs, 1)
         hint = QLabel('Set the channel, beam target and budget. Review Tuning settings, then start. '
@@ -786,6 +755,20 @@ class HybridPIDPage(PidControlPage):
             self.operator_readouts[name].setText(f'{display_number(value)} {unit}' if math.isfinite(value) else 'Unavailable')
             self.operator_readouts[name].setToolTip(f'Values smaller than 0.000001 {unit} are shown as ≈ 0. Display rounding does not change telemetry or PID calculations.')
         if self.hybrid:
+            self.cost_comparison.records = self.hybrid.records
+            self.cost_comparison.update()
+            candidate = self.tuning_trial_candidate or self.hybrid.pending
+            source = self.hybrid.pending_source
+            if candidate is not None:
+                purpose = 'Final validation' if self._validating_gains else source or 'Preparing'
+                method = trial_method(purpose)
+                self.current_trial_label.setText(
+                    f'Trial {len(self.hybrid.results)+1}/{self.hybrid.config.budget} · {purpose}'
+                    f' · Kp {candidate.kp:.5g} · Ki {candidate.ki:.5g} · Kd {candidate.kd:.5g}')
+                self.current_trial_label.setStyleSheet('font-size: 15px; font-weight: 600; padding: 6px; color: '
+                    + ('#75baff' if method == 'GA' else '#bc96ff' if method == 'BO' else '#e4be79') + ';')
+            else:
+                self.current_trial_label.setText('Restoring starting reference' if self.recovering else 'Between trials · select a cost marker to review a completed response')
             generation, population, index, total = self.hybrid.ga.progress()
             self.search_summaries['GA'].setText(f'Generation {generation} · Candidate {index} of {total}\nExplores the allowed gain range using measured results.')
             prediction = self.hybrid.prediction
@@ -796,10 +779,21 @@ class HybridPIDPage(PidControlPage):
             self.search_summaries['BO'].setText(
                 f'Predicted performance score: {display_number(prediction[0])}\nPrediction uncertainty: ± {display_number(prediction[1])}\n{detail}'
                 if prediction else f'Learning from measured trials.\n{detail}')
-            for name, plot in self.search_plots.items():
-                sources = ('GA', 'Exploration') if name == 'GA' else ('BO', 'Confirm')
-                plot.records = [r for r in self.hybrid.records if r['source'].startswith(sources)]
-                plot.update()
+
+    def _select_trial_response(self, trial):
+        record = next((r for r in self.cost_comparison.records if r['trial'] == trial), None)
+        if record is None:
+            return
+        archive = self.trial_responses.get(trial)
+        cost = record.get('cost')
+        score = display_number(cost) if cost is not None else 'No comparable cost (failed trial)'
+        self.selected_trial_label.setText(
+            f'Trial {trial} · {record["source"]} · Cost {score} · '
+            f'Kp {record.get("kp", "—")} · Ki {record.get("ki", "—")} · Kd {record.get("kd", "—")}\n'
+            + ('Recorded beam, signed error, coil command and readback.' if archive and archive['samples']
+               else 'No response samples available for this trial.'))
+        self.selected_response_plot.set_samples(archive['samples'] if archive else [], archive['target'] if archive else 0.)
+        self.hybrid_workspace_tabs.setCurrentIndex(1)
 
     def _show_tuner(self):
         super()._show_tuner()
@@ -921,6 +915,11 @@ class HybridPIDPage(PidControlPage):
             controller=dict(self._tuning_controller_config),reference=asdict(self.reference))
         self.tuning_optimizer = self.hybrid
         self.tuning_results = []
+        self.trial_responses.clear()
+        self.cost_comparison.records = []
+        self.cost_comparison.selected_trial = None
+        self.selected_response_plot.set_samples([], self.tuner_target.value())
+        self.selected_trial_label.setText('Click a cost marker to inspect its recorded PID response.')
         self.tuning_samples = []
         self.tuning_candidate = self.tuning_trial_candidate = None
         self.coil_session_samples = []
@@ -976,6 +975,7 @@ class HybridPIDPage(PidControlPage):
         self._check_hybrid_telemetry()
         config['minimum_command'][self._channel] = self._limits[0]
         config['maximum_command'][self._channel] = self._limits[1]
+        self._response_start_index = len(self.coil_session_samples)
         super()._start_trial(config)
 
     def _start_service_nla(self):
@@ -1051,6 +1051,11 @@ class HybridPIDPage(PidControlPage):
             trial_id=getattr(self, '_active_trial_id', None),
             started_at=getattr(self, '_trial_started_at', None), ended_at=time.time())
         self.hybrid.record_results([result])
+        self.trial_responses[len(self.hybrid.results)] = {
+            'samples': list(self.coil_session_samples[self._response_start_index:]),
+            'target': self.tuner_target.value()}
+        self.cost_comparison.records = self.hybrid.records
+        self.cost_comparison.update()
         self.tuning_results.append(result)
         recording(self, 'results')
         self.tuning_trial_candidate = None

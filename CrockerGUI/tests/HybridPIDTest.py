@@ -264,6 +264,43 @@ class PolicyTest(unittest.TestCase):
 
 
 class PageTest(unittest.TestCase):
+    def test_cost_comparison_and_selected_pid_response(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtTest import QTest
+        from python.app.Automation.HybridCostPlot import trial_method
+        p = self.p
+        records = [dict(trial=i, source=source, cost=cost, kp=.5, ki=.1, kd=.01,
+                        beam_mae_nA=.02) for i,source,cost in [
+            (1,'Baseline',10.), (2,'GA',9.), (3,'BO challenger',8.),
+            (4,'Confirm incumbent',9.1), (5,'Confirm BO',8.1),
+            (6,'GA parent',8.5), (7,'BO refinement',7.5), (8,'BO',None)]]
+        p.cost_comparison.records = records
+        p.trial_responses[3] = {'target': 1., 'samples': [
+            (0., .9, .1, 0., 50., 0., 49.9),
+            (1., 1., 0., 0., 50.1, 0., 50.05)]}
+        p.resize(1500, 1250)
+        p.show()
+        p._show_tuner()
+        p.hybrid_workspace_tabs.setCurrentIndex(0)
+        self.app.processEvents()
+        p.cost_comparison.repaint()
+        self.assertEqual([r['trial'] for r in p.cost_comparison.series['GA']], [2,6])
+        self.assertEqual([r['trial'] for r in p.cost_comparison.series['BO']], [3,7])
+        self.assertIsNone(trial_method('Confirm BO'))
+        point = next(pt for pt,r in p.cost_comparison.hits if r['trial']==3)
+        QTest.mouseClick(p.cost_comparison, Qt.LeftButton, pos=point.toPoint())
+        self.assertIn('Trial 3 · BO challenger', p.selected_trial_label.text())
+        self.assertEqual(p.selected_response_plot.samples, p.trial_responses[3]['samples'])
+        self.assertEqual(p.hybrid_workspace_tabs.currentIndex(), 1)
+        self.assertIs(p.tuner_viewport.parentWidget(), p.hybrid_workspace_tabs.widget(0))
+        p.hybrid_workspace_tabs.setCurrentIndex(0)
+        p.coil_plot.set_samples(p.trial_responses[3]['samples'], 1.)
+        self.app.processEvents()
+        p.grab().save(str(Path(__file__).resolve().parents[1]/'logs'/'hybrid_cost_dashboard.png'))
+        p._select_trial_response(8)
+        self.assertIn('failed trial', p.selected_trial_label.text())
+        self.assertFalse(p.selected_response_plot.samples)
+
     def test_operator_activity_tabs_keep_separate_histories(self):
         p = self.p
         before = len(p._status_messages)
@@ -359,6 +396,8 @@ class PageTest(unittest.TestCase):
     def setUpClass(cls):
         from PySide6.QtWidgets import QApplication
         cls.app=QApplication.instance() or QApplication([])
+        from python.app.theme import load_app_font, load_stylesheet
+        cls.app.setStyleSheet(load_stylesheet(load_app_font()))
 
     def setUp(self):
         from python.app.Automation.HybridPIDPage import HybridPIDPage
@@ -409,6 +448,10 @@ class PageTest(unittest.TestCase):
         self.tick_until(lambda:len(p.tuning_results)>=1)
         self.assertTrue(p.tuning_results[0].safe,p.tuner_status.text())
         self.assertEqual(p.hybrid.records[0]['source'],'Baseline')
+        self.assertTrue(p.trial_responses[1]['samples'])
+        p._select_trial_response(1)
+        self.assertEqual(p.selected_response_plot.target, p.tuner_target.value())
+        self.assertIn('Baseline', p.selected_trial_label.text())
         self.assertAlmostEqual(p.tuning_results[0].score,trial_cost(p.tuning_results[0].metrics,p.tuner_profile.currentText()))
         self.assertTrue(p.recovering)
         p.tuning_auto_run=False
@@ -497,7 +540,7 @@ class PageTest(unittest.TestCase):
     def test_fifth_page_registration(self):
         from python.app.PageRegistry import DETAIL_BUILDERS
         from python.app.Automation.AutomationPage import AUTOMATION_PAGES
-        self.assertEqual(len(AUTOMATION_PAGES),5)
+        self.assertIn('Hybrid GA + BO PID', [entry[0] for entry in AUTOMATION_PAGES])
         self.assertIs(DETAIL_BUILDERS['Hybrid GA + BO PID'][1],type(self.p))
 
     def test_history_displays_and_exports_sparse_decision_records(self):

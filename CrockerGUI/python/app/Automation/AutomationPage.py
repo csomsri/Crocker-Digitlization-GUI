@@ -4,6 +4,7 @@ from python.app.PageShell import CategoryPage, PageSpec
 
 
 AUTOMATION_PAGES: list[PageSpec] = [
+    ("Trim-coil BO", "Maximize synthetic output beam with joint trim-coil Bayesian optimization"),
     ("PID Control", "Control measured beam current through a selected trim coil; includes BO tuning"),
     ("PythonPID", "Control coil current directly in amps using Python PID"),
     ("GA + C++ PID", "Tune beam-feedback C++ PID gains with GA in simulation"),

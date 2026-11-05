@@ -31,3 +31,6 @@ CrockerGUI/Exports/*
 *.pyd
 *.dll
 *.exe
+
+# Local run-sheet source files
+/reference_values/Bunch of Run Sheets/
