@@ -1,6 +1,0 @@
-PySide6
-pyzmq
-psutil
-matplotlib
-numpy
-PyOpenGL
