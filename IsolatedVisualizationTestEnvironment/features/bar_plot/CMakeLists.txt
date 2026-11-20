@@ -1,0 +1,8 @@
+add_library(bar_plot SHARED BarPlot.cpp)
+target_compile_features(bar_plot PRIVATE cxx_std_17)
+if(BENCHMARK_ENABLE_CUDA)
+    target_sources(bar_plot PRIVATE BarPlotCuda.cu)
+    target_compile_definitions(bar_plot PRIVATE BAR_PLOT_CUDA)
+    target_link_libraries(bar_plot PRIVATE CUDA::cudart)
+    set_target_properties(bar_plot PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED YES)
+endif()
