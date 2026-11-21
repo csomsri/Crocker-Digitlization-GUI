@@ -12,7 +12,6 @@ from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtOpenGLWidgets import QOpenGLWidget
 from PySide6.QtWidgets import QApplication, QDialog, QFormLayout, QLabel, QWidget
 
-
 def query_gpus():
     executable = shutil.which('nvidia-smi')
     if not executable:
@@ -124,9 +123,19 @@ class FPSMonitor(QObject):
         for widget in QApplication.allWidgets():
             is_chart = isinstance(widget, QOpenGLWidget) or widget.objectName() == "magneticChart"
             if is_chart and widget not in self._charts:
+                
+                corner_label = QLabel(widget)
+                corner_label.setStyleSheet(
+                    "color: white; font-weight: bold; background: rgba(0, 0, 0, 150); "
+                    "padding: 4px; border-radius: 4px; font-size: 12px;"
+                )
+                corner_label.setAttribute(Qt.WA_TransparentForMouseEvents)
+                corner_label.show()
+
                 self._charts[widget] = {
                     'frames': 0, 'start': perf_counter(), 'last': None,
                     'intervals': deque(maxlen=4096),
+                    'label': corner_label,
                 }
                 widget.installEventFilter(self)
                 if isinstance(widget, QOpenGLWidget):
@@ -159,14 +168,27 @@ class FPSMonitor(QObject):
             except RuntimeError:
                 del self._charts[widget]
                 continue
+                
+            label = sample.get('label')
+            
             if visible:
                 fps = sample['frames'] / max(now - sample['start'], 1e-9)
                 rates.append(fps)
                 intervals.extend(sample['intervals'])
                 if widget is selected_widget:
                     selected_fps = fps
+                    
+                if label:
+                    label.setText(f"{fps:.1f} FPS")
+                    label.adjustSize()
+                    label.move(widget.width() - label.width() - 8, 8)
+                    label.show()
+                    label.raise_()
             else:
                 sample['last'] = None
+                if label:
+                    label.hide()
+                    
             sample['frames'] = 0
             sample['start'] = now
             sample['intervals'].clear()

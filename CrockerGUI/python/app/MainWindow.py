@@ -33,8 +33,8 @@ from python.app.Monitoring.BeamTransportMonitoringPage import (
     BeamTransportMonitoringPage,
 )
 from python.app.Monitoring.DatabaseHistoryPage import DatabaseHistoryPage
-from python.app.Monitoring.MagneticFieldMonitoringPage import (
-    MagneticFieldMonitoringPage,
+from python.app.Monitoring.TESTMagneticFieldMonitoringPage import (
+    TESTMagneticFieldMonitoringPage,
 )
 from python.app.Monitoring.MonitoringPage import MonitoringPage
 from python.app.Monitoring.DisplayControllerPage import DisplayControllerPage

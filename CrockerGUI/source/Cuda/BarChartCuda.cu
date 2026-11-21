@@ -4,7 +4,12 @@
 
 namespace crocker::cuda {
 
-// Device helper to mimic chart_geometry::ToNdc
+bool IsDeviceAvailable() {
+    int deviceCount = 0;
+    cudaError_t error = cudaGetDeviceCount(&deviceCount);
+    return (error == cudaSuccess && deviceCount > 0);
+}
+
 __device__ float ToNdc(float val, int vpStart, int vpSize) {
     return ((val - static_cast<float>(vpStart)) / static_cast<float>(vpSize)) * 2.0f - 1.0f;
 }
@@ -18,7 +23,6 @@ __global__ void BarVertexKernel(
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= numBars) return;
 
-    // 1. Calculate world coordinates (mirrors BarChart.cpp lines 64-69)
     float x0 = plotLeft + static_cast<float>(i) * slotWidth + gap;
     float x1 = plotLeft + static_cast<float>(i + 1) * slotWidth - gap;
     
@@ -30,13 +34,11 @@ __global__ void BarVertexKernel(
     float y0 = min(zeroY, valueY);
     float y1 = max(zeroY, valueY);
 
-    // 2. Convert to NDC (mirrors BarChart.cpp lines 71-74)
     float nx0 = ToNdc(x0, vp.x, vp.width);
     float nx1 = ToNdc(x1, vp.x, vp.width);
     float ny0 = ToNdc(y0, vp.y, vp.height);
     float ny1 = ToNdc(y1, vp.y, vp.height);
 
-    // 3. Write 6 vertices (12 floats) to the output buffer
     int vIdx = i * 12;
     
     // Triangle 1
@@ -54,8 +56,9 @@ void GenerateBarVertices(
     const float* d_values, float* d_vertices, int numBars,
     float plotLeft, float plotBottom, float plotTop,
     float minimum, float maximum, float zeroY,
-    float slotWidth, float gap, ViewportParams viewport) 
+    float slotWidth, float gap, ViewportParams vp) 
 {
+    // Define the launch parameters
     int threadsPerBlock = 256;
     int blocksPerGrid = (numBars + threadsPerBlock - 1) / threadsPerBlock;
 
@@ -63,7 +66,7 @@ void GenerateBarVertices(
         d_values, d_vertices, numBars,
         plotLeft, plotBottom, plotTop,
         minimum, maximum, zeroY,
-        slotWidth, gap, viewport
+        slotWidth, gap, vp
     );
     
     cudaDeviceSynchronize();
